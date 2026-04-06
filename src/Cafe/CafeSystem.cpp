@@ -1,6 +1,8 @@
 #include "Cafe/OS/common/OSCommon.h"
 #ifndef __ANDROID__
 #include "WindowSystem.h"
+#else
+#include <android/log.h>
 #endif
 #include "Cafe/OS/libs/gx2/GX2.h"
 #include "Cafe/GameProfile/GameProfile.h"
@@ -578,13 +580,40 @@ namespace CafeSystem
 		if (s_initialized)
 			return;
 		s_initialized = true;
-		// init core systems
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem::Initialize: start");
+#endif
 		cemuLog_log(LogType::Force, "------- Init {} -------", BUILD_VERSION_WITH_NAME_STRING);
 		fsc_init();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem::Initialize: fsc done, calling memory_init");
+#endif
 		memory_init();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem::Initialize: memory_init done (base: %p)", (void*)memory_base);
+#endif
 		cemuLog_log(LogType::Force, "Init Wii U memory space (base: 0x{:016x})", (size_t)memory_base);
 		PPCCore_init();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem::Initialize: PPCCore done");
+#endif
 		RPLLoader_InitState();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem::Initialize: RPLLoader done");
+#endif
+		cemuLog_log(LogType::Force, "mlc01 path: {}", _pathToUtf8(ActiveSettings::GetMlcPath()));
+		_CheckForWine();
+		logCPUAndMemoryInfo();
+		logPlatformInfo();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem::Initialize: platform info done");
+#endif
+		cemuLog_log(LogType::Force, "Used CPU extensions: {}", g_CPUFeatures.GetCommaSeparatedExtensionList());
+		rplSymbolStorage_init();
+		SysAllocatorContainer::GetInstance().Initialize();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem::Initialize: SysAllocator done, launching IOSU modules");
+#endif
 		cemuLog_log(LogType::Force, "mlc01 path: {}", _pathToUtf8(ActiveSettings::GetMlcPath()));
 		_CheckForWine();
 		// CPU and RAM info
@@ -597,21 +626,48 @@ namespace CafeSystem
 		// must happen before COS module init, but also before iosu::kernel::Initialize()
 		SysAllocatorContainer::GetInstance().Initialize();
 		// init IOSU modules
-		for(auto& module : s_iosuModules)
-			module->SystemLaunch();
+		for(size_t i = 0; i < s_iosuModules.size(); i++)
+		{
+#ifdef __ANDROID__
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem: Launching IOSU module %zu/%zu", i, s_iosuModules.size());
+#endif
+			if(s_iosuModules[i])
+				s_iosuModules[i]->SystemLaunch();
+#ifdef __ANDROID__
+			else
+				__android_log_print(ANDROID_LOG_WARN, "Cemu", "CafeSystem: IOSU module %zu is null, skipping", i);
+#endif
+		}
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem: IOSU modules done, running legacy init");
+#endif
 		// init IOSU (deprecated manual init)
 		iosuCrypto_init();
 		iosu::fsa::Initialize();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem: fsa done");
+#endif
 		iosuIoctl_init();
 		iosuAct_init_depr();
 		iosu::act::Initialize();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem: act done");
+#endif
 		iosu::iosuMcp_init();
 		iosu::mcp::Init();
 		iosu::iosuAcp_init();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem: mcp/acp done");
+#endif
 		iosu::nim::Initialize();
 		iosu::odm::Initialize();
-		// init hardware register interfaces
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem: nim/odm done");
+#endif
 		HW_SI::Initialize();
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CafeSystem::Initialize: COMPLETE");
+#endif
 	}
 
 	void SetImplementation(SystemImplementation* impl)

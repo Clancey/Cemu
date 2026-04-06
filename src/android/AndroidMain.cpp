@@ -124,21 +124,31 @@ namespace AndroidBridge
 		}
 	}
 
+	static std::atomic<bool> s_coreInitDone{false};
+	static std::atomic<bool> s_coreInitStarted{false};
+
 	void InitializeCore()
 	{
-		LOGD("Initializing Cemu core systems");
+		if (s_coreInitStarted.exchange(true))
+			return; // already started
 
-		try
-		{
-			// Stage 2: Core Cemu initialization (deferred from basic init)
-			cemuAndroid_initializeEmulation();
-			LOGD("Cemu core initialization completed successfully");
-		}
-		catch (const std::exception& e)
-		{
-			LOGE("Failed to initialize Cemu core: %s", e.what());
-			g_androidState.emulationState = EmulationState::Stopped;
-		}
+		LOGD("Initializing Cemu core systems (on background thread)");
+
+		// Run core init on a background thread to avoid ANR
+		// The Android main thread must keep pumping events
+		std::thread([]() {
+			try
+			{
+				cemuAndroid_initializeEmulation();
+				LOGD("Cemu core initialization completed successfully");
+				s_coreInitDone = true;
+			}
+			catch (const std::exception& e)
+			{
+				LOGE("Failed to initialize Cemu core: %s", e.what());
+				g_androidState.emulationState = EmulationState::Stopped;
+			}
+		}).detach();
 	}
 
 	void StartEmulationThread()
