@@ -243,7 +243,7 @@ void LoadOpenGLImports()
 #include "Common/GLInclude/glFunctions.h"
 #undef GLFUNC
 }
-#elif BOOST_OS_LINUX || BOOST_OS_BSD
+#elif (BOOST_OS_LINUX || BOOST_OS_BSD) && !defined(__ANDROID__)
 GL_IMPORT _GetOpenGLFunction(void* hLib, PFNGLXGETPROCADDRESSPROC func, const char* name)
 {
 	GL_IMPORT r = (GL_IMPORT)func((const GLubyte*)name);
@@ -278,13 +278,21 @@ void LoadOpenGLImports()
 #undef EGLFUNC
 }
 
-#if BOOST_OS_LINUX || BOOST_OS_BSD
+#if (BOOST_OS_LINUX || BOOST_OS_BSD) && !defined(__ANDROID__)
 // dummy function for all code that is statically linked with cemu and attempts to use eglSwapInterval
 // used to suppress wxWidgets calls to eglSwapInterval
 extern "C"
 EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval)
 {
 	return EGL_TRUE;
+}
+#endif
+
+#ifdef __ANDROID__
+// Android stub for OpenGL imports
+void LoadOpenGLImports()
+{
+    // Android uses GLES, no need to manually load OpenGL functions
 }
 #endif
 
@@ -302,7 +310,9 @@ void OpenGLRenderer::Initialize()
 	cemuLog_log(LogType::Force, "------- Init OpenGL graphics backend -------");
 
 	GLCanvas_MakeCurrent(false);
+#ifndef __ANDROID__
 	LoadOpenGLImports();
+#endif
 	GetVendorInformation();	
 
 #if BOOST_OS_WINDOWS

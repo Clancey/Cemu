@@ -3,10 +3,14 @@
 #include "Cemu/ncrypto/ncrypto.h"
 #include "napi.h"
 #include "napi_helper.h"
+#ifndef __ANDROID__
 #include "curl/curl.h"
+#endif
 #include "config/ActiveSettings.h"
 #include "util/helpers/StringHelpers.h"
 #include "util/highresolutiontimer/HighResolutionTimer.h"
+
+#ifndef __ANDROID__
 
 namespace NAPI
 {
@@ -625,3 +629,4 @@ namespace NAPI
 		return true;
 	}
 }
+#endif // __ANDROID__

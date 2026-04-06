@@ -2,14 +2,17 @@
 #include "napi.h"
 #include "napi_helper.h"
 
+#ifndef __ANDROID__
 #include "curl/curl.h"
 #include "pugixml.hpp"
+#endif
 
 #include "Cemu/ncrypto/ncrypto.h"
 #include <charconv>
 #include "config/ActiveSettings.h"
 #include "config/NetworkSettings.h"
 
+#ifndef __ANDROID__
 namespace NAPI
 {
 	NAPI_VersionListVersion_Result TAG_GetVersionListVersion(AuthInfo& authInfo)
@@ -101,3 +104,4 @@ namespace NAPI
 		return result;
 	}
 };
+#endif // __ANDROID__

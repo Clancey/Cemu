@@ -68,6 +68,7 @@
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include <stdio.h>
+#ifndef __ANDROID__
 #include "Common/GLInclude/GLInclude.h"
 #if defined(_MSC_VER) && _MSC_VER <= 1500 // MSVC 2008 or earlier
 #include <stddef.h>     // intptr_t
@@ -659,3 +660,51 @@ void    ImGui_ImplOpenGL3_DestroyDeviceObjects()
 
 	ImGui_ImplOpenGL3_DestroyFontsTexture();
 }
+
+#else // __ANDROID__
+
+// Android stubs for imgui OpenGL implementation
+bool ImGui_ImplOpenGL3_Init(const char* glsl_version)
+{
+    // Stub implementation for Android
+    return true;
+}
+
+void ImGui_ImplOpenGL3_Shutdown()
+{
+    // Stub implementation for Android
+}
+
+void ImGui_ImplOpenGL3_NewFrame()
+{
+    // Stub implementation for Android
+}
+
+void ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
+{
+    // Stub implementation for Android
+}
+
+bool ImGui_ImplOpenGL3_CreateDeviceObjects()
+{
+    // Stub implementation for Android
+    return true;
+}
+
+void ImGui_ImplOpenGL3_DestroyDeviceObjects()
+{
+    // Stub implementation for Android
+}
+
+bool ImGui_ImplOpenGL3_CreateFontsTexture()
+{
+    // Stub implementation for Android
+    return true;
+}
+
+void ImGui_ImplOpenGL3_DestroyFontsTexture()
+{
+    // Stub implementation for Android
+}
+
+#endif // __ANDROID__

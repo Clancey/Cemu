@@ -13,6 +13,19 @@
 #include "util/containers/flat_hash_map.hpp"
 #include "util/containers/robin_hood.h"
 
+// Forward declarations for X11 types on Linux/BSD (not available on Android)
+#if (BOOST_OS_LINUX || BOOST_OS_BSD) && !defined(__ANDROID__)
+struct _XDisplay;
+typedef struct _XDisplay Display;
+typedef unsigned long Window;
+typedef struct xcb_connection_t xcb_connection_t;
+typedef uint32_t xcb_window_t;
+#ifdef HAS_WAYLAND
+struct wl_display;
+struct wl_surface;
+#endif
+#endif
+
 struct VkSupportedFormatInfo_t
 {
 	bool fmt_d24_unorm_s8_uint{};
@@ -201,7 +214,7 @@ public:
 #if BOOST_OS_WINDOWS
 	static VkSurfaceKHR CreateWinSurface(VkInstance instance, HWND hwindow);
 #endif
-#if BOOST_OS_LINUX || BOOST_OS_BSD
+#if (BOOST_OS_LINUX || BOOST_OS_BSD) && !defined(__ANDROID__)
 	static VkSurfaceKHR CreateXlibSurface(VkInstance instance, Display* dpy, Window window);
     static VkSurfaceKHR CreateXcbSurface(VkInstance instance, xcb_connection_t* connection, xcb_window_t window);
 	#ifdef HAS_WAYLAND

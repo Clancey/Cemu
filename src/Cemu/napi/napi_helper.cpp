@@ -1,7 +1,9 @@
 #include "Common/precompiled.h"
 #include "napi.h"
 
+#ifndef __ANDROID__
 #include "curl/curl.h"
+#endif
 #include "Cafe/IOSU/legacy/iosu_crypto.h"
 
 #include "Cemu/ncrypto/ncrypto.h"
@@ -9,6 +11,8 @@
 #include "util/highresolutiontimer/HighResolutionTimer.h"
 #include "config/ActiveSettings.h"
 #include "config/NetworkSettings.h"
+
+#ifndef __ANDROID__
 #include "config/LaunchSettings.h"
 #include "pugixml.hpp"
 #include <charconv>
@@ -491,3 +495,4 @@ namespace NAPI
 		return true;
 	}
 };
+#endif // __ANDROID__

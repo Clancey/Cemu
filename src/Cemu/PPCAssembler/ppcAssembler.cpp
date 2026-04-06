@@ -5,7 +5,9 @@
 #include "util/helpers/helpers.h"
 
 #include <boost/container/small_vector.hpp>
+#ifndef __ANDROID__
 #include <boost/static_string/static_string.hpp>
+#endif
 
 struct ppcAssemblerStr_t
 {
@@ -2346,7 +2348,11 @@ void _ppcAssembler_emitAlignDirective(PPCAssemblerContext& internalInfo, sint32 
 	}
 }
 
+#ifndef __ANDROID__
 void _ppcAssembler_translateAlias(boost::static_string<32>& instructionName)
+#else
+void _ppcAssembler_translateAlias(std::string& instructionName)
+#endif
 {
 	if (instructionName.compare("BNL") == 0)
 		instructionName.assign("BGT");
@@ -2385,10 +2391,19 @@ bool ppcAssembler_assembleSingleInstruction(char const* text, PPCAssemblerInOut*
 		currentPtr++;
 	}
 	// parse name of instruction
+#ifndef __ANDROID__
 	boost::static_string<32> instructionName;
+#else
+	std::string instructionName;
+	instructionName.reserve(32);
+#endif
 	while (*currentPtr != ' ' && *currentPtr != '\t' && currentPtr < endPtr)
 	{
+#ifndef __ANDROID__
 		if (instructionName.size() >= instructionName.capacity())
+#else
+		if (instructionName.size() >= 32)
+#endif
 		{
 			ppcAssembler_setError(ctx, "Instruction name exceeds maximum allowed length");
 			return false;

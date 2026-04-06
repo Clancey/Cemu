@@ -2,14 +2,18 @@
 #include "napi.h"
 #include "napi_helper.h"
 
+#ifndef __ANDROID__
 #include "curl/curl.h"
 #include "pugixml.hpp"
+#endif
 #include "Cafe/IOSU/legacy/iosu_crypto.h"
 
 #include "Cemu/ncrypto/ncrypto.h"
 #include "openssl/sha.h"
 #include "util/crypto/aes128.h"
 #include "util/helpers/StringHelpers.h"
+
+#ifndef __ANDROID__
 #include "config/ActiveSettings.h"
 #include "config/NetworkSettings.h"
 
@@ -138,3 +142,4 @@ namespace NAPI
 		return std::optional(iconDataV0);
 	}
 };
+#endif // __ANDROID__
