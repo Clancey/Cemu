@@ -120,29 +120,46 @@ void WindowsInitCwd()
 // Core initialization that can be called from both desktop and Android
 void CemuCoreInit()
 {
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: start");
+#endif
 	reconfigureGLDrivers();
 	reconfigureVkDrivers();
-	// crypto init
 	AES128_init();
-	// init PPC timer
-	// call this as early as possible because it measures frequency of RDTSC using an asynchronous thread over 3 seconds
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: crypto done");
+#endif
 	PPCTimer_init();
-
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: PPCTimer done");
+#endif
 	WindowsInitCwd();
-    ExceptionHandler_Init();
-	// read config
+	ExceptionHandler_Init();
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: ExceptionHandler done");
+#endif
 	GetConfigHandle().Load();
 	if (NetworkConfig::XMLExists())
 		n_config.Load();
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: config loaded");
+#endif
 	// parallelize expensive init code
 	std::future<int> futureInitAudioAPI = std::async(std::launch::async, []{ IAudioAPI::InitializeStatic(); IAudioInputAPI::InitializeStatic(); return 0; });
 	std::future<int> futureInitGraphicPacks = std::async(std::launch::async, []{ GraphicPack2::LoadAll(); return 0; });
 	InputManager::instance().load();
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: input loaded, waiting for audio/gfxpacks");
+#endif
 	futureInitAudioAPI.wait();
 	futureInitGraphicPacks.wait();
-	// init Cafe system
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: audio/gfxpacks done, initializing CafeSystem");
+#endif
 	CafeSystem::Initialize();
-	// init title list
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: CafeSystem done");
+#endif
 	CafeTitleList::Initialize(ActiveSettings::GetUserDataPath("title_list_cache.xml"));
 	for (auto& it : GetConfig().game_paths)
 		CafeTitleList::AddScanPath(_utf8ToPath(it));
@@ -150,13 +167,15 @@ void CemuCoreInit()
 	if (!mlcPath.empty())
 		CafeTitleList::SetMLCPath(mlcPath);
 	CafeTitleList::Refresh();
-	// init save list
 	CafeSaveList::Initialize();
 	if (!mlcPath.empty())
 	{
 		CafeSaveList::SetMLCPath(mlcPath);
 		CafeSaveList::Refresh();
 	}
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: complete");
+#endif
 }
 
 // Legacy function for compatibility

@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.21.1)
 
 # Set up vcpkg before project() and before anything else
 set(VCPKG_TARGET_TRIPLET arm64-android CACHE STRING "")
+set(VCPKG_MANIFEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.." CACHE STRING "")
 
 # Chain-load the Android NDK toolchain through vcpkg
 # The NDK toolchain is passed by Gradle as CMAKE_TOOLCHAIN_FILE

@@ -630,12 +630,14 @@ cemu_use_precompiled_header(CemuCafe)
 
 target_include_directories(CemuCafe PUBLIC "../")
 
-# CURL library support (all platforms - vcpkg provides curl for Android)
-target_sources(CemuCafe PRIVATE
+# CURL library support (TODO: enable for Android once curl is in vcpkg)
+if(NOT ANDROID)
+  target_sources(CemuCafe PRIVATE
 	OS/libs/nlibcurl/nlibcurl.cpp
 	OS/libs/nlibcurl/nlibcurlDebug.hpp
 	OS/libs/nlibcurl/nlibcurl.h
-)
+  )
+endif()
 
 if (glslang_VERSION VERSION_LESS "15.0.0")
 	set(glslang_target "glslang::SPIRV")
@@ -657,8 +659,10 @@ target_link_libraries(CemuCafe PRIVATE
   OpenSSL::SSL
 )
 
-# CURL available on all platforms via vcpkg
-target_link_libraries(CemuCafe PRIVATE CURL::libcurl)
+# CURL available on all platforms via vcpkg (TODO: install curl for Android)
+if(NOT ANDROID)
+  target_link_libraries(CemuCafe PRIVATE CURL::libcurl)
+endif()
 
 if (ENABLE_WAYLAND)
 	# PUBLIC because wayland-client.h is included in VulkanAPI.h
