@@ -9,9 +9,7 @@
 #include "Cafe/GameProfile/GameProfile.h"
 
 #include "Cafe/HW/Latte/Core/LatteBufferCache.h"
-#if ENABLE_VULKAN
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
-#endif
 
 template<int vectorLen>
 void rectGenerate4thVertex(uint32be* output, uint32be* input0, uint32be* input1, uint32be* input2)
@@ -198,7 +196,7 @@ bool LatteBufferCache_Sync(uint32 minIndex, uint32 maxIndex, uint32 baseInstance
 			fixedBufferSize += 128;
 
 
-#if BOOST_OS_MACOS && ENABLE_VULKAN
+#if BOOST_OS_MACOS
 		if(bufferStride % 4 != 0)
 		{
 		    if (g_renderer->GetType() == RendererAPI::Vulkan)

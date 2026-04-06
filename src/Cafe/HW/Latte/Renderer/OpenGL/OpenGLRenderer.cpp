@@ -145,8 +145,6 @@ OpenGLRenderer::~OpenGLRenderer()
 {
 	if(m_pipeline != 0)
 		glDeleteProgramPipelines(1, &m_pipeline);
-
-	glDeleteBuffers(1, &m_backbufferBlit_uniformBuffer);
 }
 
 OpenGLRenderer* OpenGLRenderer::GetInstance()
@@ -159,7 +157,7 @@ bool OpenGLRenderer::ImguiBegin(bool mainWindow)
 {
 	if (!mainWindow)
 	{
-		GLCanvas_MakeCurrent(true);
+		m_openGLCallbacks->GLCanvas_MakeCurrent(true);
 		m_isPadViewContext = true;
 	}
 
@@ -186,7 +184,7 @@ void OpenGLRenderer::ImguiEnd()
 
 	if (m_isPadViewContext)
 	{
-		GLCanvas_MakeCurrent(false);
+		m_openGLCallbacks->GLCanvas_MakeCurrent(false);
 		m_isPadViewContext = false;
 	}
 
@@ -243,7 +241,12 @@ void LoadOpenGLImports()
 #include "Common/GLInclude/glFunctions.h"
 #undef GLFUNC
 }
-#elif (BOOST_OS_LINUX || BOOST_OS_BSD) && !defined(__ANDROID__)
+#elif BOOST_PLAT_ANDROID
+void LoadOpenGLImports()
+{
+	cemu_assert_unimplemented();
+}
+#elif BOOST_OS_LINUX || BOOST_OS_BSD
 GL_IMPORT _GetOpenGLFunction(void* hLib, PFNGLXGETPROCADDRESSPROC func, const char* name)
 {
 	GL_IMPORT r = (GL_IMPORT)func((const GLubyte*)name);
@@ -278,21 +281,13 @@ void LoadOpenGLImports()
 #undef EGLFUNC
 }
 
-#if (BOOST_OS_LINUX || BOOST_OS_BSD) && !defined(__ANDROID__)
+#if BOOST_OS_LINUX || BOOST_OS_BSD
 // dummy function for all code that is statically linked with cemu and attempts to use eglSwapInterval
 // used to suppress wxWidgets calls to eglSwapInterval
 extern "C"
 EGLAPI EGLBoolean EGLAPIENTRY eglSwapInterval(EGLDisplay dpy, EGLint interval)
 {
 	return EGL_TRUE;
-}
-#endif
-
-#ifdef __ANDROID__
-// Android stub for OpenGL imports
-void LoadOpenGLImports()
-{
-    // Android uses GLES, no need to manually load OpenGL functions
 }
 #endif
 
@@ -309,10 +304,8 @@ void OpenGLRenderer::Initialize()
 	auto lock = cemuLog_acquire();
 	cemuLog_log(LogType::Force, "------- Init OpenGL graphics backend -------");
 
-	GLCanvas_MakeCurrent(false);
-#ifndef __ANDROID__
+	m_openGLCallbacks->GLCanvas_MakeCurrent(false);
 	LoadOpenGLImports();
-#endif
 	GetVendorInformation();	
 
 #if BOOST_OS_WINDOWS
@@ -383,10 +376,6 @@ void OpenGLRenderer::Initialize()
 		glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
 	}
 
-	// create uniform buffers for backbufferblit
-	glCreateBuffers(1, &m_backbufferBlit_uniformBuffer);
-	glNamedBufferStorage(m_backbufferBlit_uniformBuffer, sizeof(RendererOutputShader::OutputUniformVariables), nullptr, GL_DYNAMIC_STORAGE_BIT);
-
 	draw_init();
 
 	catchOpenGLError();
@@ -404,7 +393,7 @@ void OpenGLRenderer::Initialize()
 
 bool OpenGLRenderer::IsPadWindowActive()
 {
-	return GLCanvas_HasPadViewOpen();
+	return m_openGLCallbacks->GLCanvas_HasPadViewOpen();
 }
 
 void OpenGLRenderer::Flush(bool waitIdle)
@@ -419,6 +408,15 @@ void OpenGLRenderer::NotifyLatteCommandProcessorIdle()
 	glFlush();
 }
 
+void OpenGLRenderer::RegisterOpenGLCallbacks(OpenGLCallbacks* openGLCallbacks)
+{
+	m_openGLCallbacks = openGLCallbacks;
+}
+
+void OpenGLRenderer::UnregisterOpenGLCallbacks()
+{
+	m_openGLCallbacks = nullptr;
+}
 void OpenGLRenderer::GetVendorInformation()
 {
 	// example vendor strings:
@@ -492,7 +490,7 @@ void OpenGLRenderer::EnableDebugMode()
 
 void OpenGLRenderer::SwapBuffers(bool swapTV, bool swapDRC)
 {
-	GLCanvas_SwapBuffers(swapTV, swapDRC);
+	m_openGLCallbacks->GLCanvas_SwapBuffers(swapTV, swapDRC);
 
 	if (swapTV)
 		cleanupAfterFrame();
@@ -503,7 +501,7 @@ bool OpenGLRenderer::BeginFrame(bool mainWindow)
 	if (!mainWindow && !IsPadWindowActive())
 		return false;
 
-	GLCanvas_MakeCurrent(!mainWindow);
+	m_openGLCallbacks->GLCanvas_MakeCurrent(!mainWindow);
 
 	ClearColorbuffer(!mainWindow);
 	return true;
@@ -596,7 +594,7 @@ void OpenGLRenderer::DrawBackbufferQuad(LatteTextureView* texView, RendererOutpu
 		return;
 
 	catchOpenGLError();
-	GLCanvas_MakeCurrent(padView);
+	m_openGLCallbacks->GLCanvas_MakeCurrent(padView);
 
 	renderstate_resetColorControl();
 	renderstate_resetDepthControl();
@@ -619,12 +617,7 @@ void OpenGLRenderer::DrawBackbufferQuad(LatteTextureView* texView, RendererOutpu
 	shader_unbind(RendererShader::ShaderType::kGeometry);
 	shader_bind(shader->GetVertexShader());
 	shader_bind(shader->GetFragmentShader());
-
-	// update and bind uniform buffer
-	auto uniformBuffer = shader->FillUniformBlockBuffer(*texView, {imageWidth, imageHeight}, padView);
-	glNamedBufferSubData(m_backbufferBlit_uniformBuffer, 0, sizeof(uniformBuffer), &uniformBuffer);
-
-	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_backbufferBlit_uniformBuffer);
+	shader->SetUniformParameters(*texView, {imageWidth, imageHeight}, padView);
 
 	// set viewport
 	glViewportIndexedf(0, imageX, imageY, imageWidth, imageHeight);
@@ -658,7 +651,7 @@ void OpenGLRenderer::DrawBackbufferQuad(LatteTextureView* texView, RendererOutpu
 
 	// switch back to TV context
 	if (padView)
-		GLCanvas_MakeCurrent(false);
+		m_openGLCallbacks->GLCanvas_MakeCurrent(false);
 }
 
 void OpenGLRenderer::renderTarget_setViewport(float x, float y, float width, float height, float nearZ, float farZ, bool halfZ /*= false*/)

@@ -176,12 +176,26 @@ public:
 	void occlusionQuery_updateState() override {};
 
 private:
+
+	class OpenGLCallbacks
+	{
+	   public:
+		virtual bool GLCanvas_HasPadViewOpen() = 0;
+		virtual bool GLCanvas_MakeCurrent(bool padView) = 0;
+		virtual void GLCanvas_SwapBuffers(bool swapTV, bool swapDRC) = 0;
+	};
+
+	void RegisterOpenGLCallbacks(OpenGLCallbacks* openGLCallbacks);
+	void UnregisterOpenGLCallbacks();
+
 	void GetVendorInformation() override;
 
 	void texture_setActiveTextureUnit(sint32 index);
 
 	void texture_syncSliceSpecialBC4(LatteTexture* srcTexture, sint32 srcSliceIndex, sint32 srcMipIndex, LatteTexture* dstTexture, sint32 dstSliceIndex, sint32 dstMipIndex);
 	void texture_syncSliceSpecialIntegerToBC3(LatteTexture* srcTexture, sint32 srcSliceIndex, sint32 srcMipIndex, LatteTexture* dstTexture, sint32 dstSliceIndex, sint32 dstMipIndex);
+
+	OpenGLCallbacks* m_openGLCallbacks = nullptr;
 
 	GLuint m_pipeline = 0;
 
@@ -208,9 +222,6 @@ private:
 
 	sint32 activeTextureUnit = 0;
 	void* m_latteBoundTextures[Latte::GPU_LIMITS::NUM_TEXTURES_PER_STAGE * 3]{};
-
-	// backbuffer blit
-	GLuint m_backbufferBlit_uniformBuffer;
 
 	// attribute stream
 	GLuint glAttributeCacheAB{};

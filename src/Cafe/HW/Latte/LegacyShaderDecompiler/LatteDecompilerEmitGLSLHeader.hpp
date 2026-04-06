@@ -16,7 +16,7 @@ namespace LatteDecompiler
 			}
 		}
 
-		uint32 uniformCurrentOffset = 0;
+		sint32 uniformCurrentOffset = 0;
 		auto shader = decompilerContext->shader;
 		auto shaderType = decompilerContext->shader->shaderType;
 		auto shaderSrc = decompilerContext->shaderSource;
@@ -287,9 +287,10 @@ namespace LatteDecompiler
 		if (decompilerContext->options->spirvInstrinsics.hasRoundingModeRTEFloat32)
 		{
 			src->add("#extension GL_EXT_spirv_intrinsics: enable" _CRLF);
-			src->add("spirv_execution_mode(capabilities = [4467], extensions = [\"SPV_KHR_float_controls\"], 4462, 16);" _CRLF);
-			src->add("spirv_execution_mode(capabilities = [4467], extensions = [\"SPV_KHR_float_controls\"], 4462, 32);" _CRLF);
-			src->add("spirv_execution_mode(capabilities = [4467], extensions = [\"SPV_KHR_float_controls\"], 4462, 64);" _CRLF);
+			// set RoundingModeRTE
+			src->add("spirv_execution_mode(4462, 16);" _CRLF);
+			src->add("spirv_execution_mode(4462, 32);" _CRLF);
+			src->add("spirv_execution_mode(4462, 64);" _CRLF);
 		}
 		src->add("#else" _CRLF);
 		// OpenGL defines
@@ -355,6 +356,8 @@ namespace LatteDecompiler
 
 	void _emitVSExports(LatteDecompilerShaderContext* shaderContext)
 	{
+		std::array<bool, 32> activePassParams{};
+
 		auto* src = shaderContext->shaderSource;
 		LatteShaderPSInputTable* psInputTable = LatteSHRC_GetPSInputTable();
 		auto parameterMask = shaderContext->shader->outputParameterMask;
@@ -378,6 +381,8 @@ namespace LatteDecompiler
 			if (psInputIndex == -1)
 				continue; // no ps input
 
+			activePassParams.at(psInputIndex) = true;
+
 			src->addFmt("layout(location = {}) ", psInputIndex);
 			if (psInputTable->import[psInputIndex].isFlat)
 				src->add("flat ");
@@ -386,6 +391,21 @@ namespace LatteDecompiler
 			src->add("out");
 			src->addFmt(" vec4 passParameterSem{};" _CRLF, psInputTable->import[psInputIndex].semanticId);
 		}
+
+		// TODO: fix this
+		for (uint32 i = 0; i < 32; i++)
+		{
+			if (!activePassParams[i])
+				src->addFmt("layout(location = {0}) out vec4 dummyPassParameterSem{0};" _CRLF, i);
+		}
+
+		src->add("void dummyPassParamInit() {" _CRLF);
+		for (uint32 i = 0; i < 32; i++)
+		{
+			if (!activePassParams[i])
+				src->addFmt("dummyPassParameterSem{} = vec4(0.0, 0.0, 0.0, 0.0);" _CRLF, i);
+		}
+		src->add("}" _CRLF);
 	}
 
 	void _emitPSImports(LatteDecompilerShaderContext* shaderContext)

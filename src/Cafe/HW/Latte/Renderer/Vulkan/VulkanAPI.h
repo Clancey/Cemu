@@ -5,20 +5,17 @@
 #define VK_USE_PLATFORM_WIN32_KHR // todo - define in CMakeLists.txt
 #endif
 
-#ifdef __ANDROID__
-#define VK_USE_PLATFORM_ANDROID_KHR
-#endif
-
 #include <vulkan/vulkan.h>
 
 bool InitializeGlobalVulkan();
 bool InitializeInstanceVulkan(VkInstance instance);
 bool InitializeDeviceVulkan(VkDevice device);
-extern bool g_vulkan_available;
 
-#ifdef __ANDROID__
+#if BOOST_PLAT_ANDROID
 bool SupportsLoadingCustomDriver();
 #endif
+
+extern bool g_vulkan_available;
 
 #endif
 
@@ -138,15 +135,15 @@ VKFUNC_DEVICE(vkDestroyPipeline);
 VKFUNC_DEVICE(vkCmdBindPipeline);
 
 // swapchain
-#if (BOOST_OS_LINUX || BOOST_OS_BSD) && !defined(ANDROID)
+#if BOOST_PLAT_ANDROID
+VKFUNC_INSTANCE(vkCreateAndroidSurfaceKHR);
+#elif BOOST_OS_LINUX || BOOST_OS_BSD
 VKFUNC_INSTANCE(vkCreateXlibSurfaceKHR);
 VKFUNC_INSTANCE(vkCreateXcbSurfaceKHR);
 #ifdef HAS_WAYLAND
 VKFUNC_INSTANCE(vkCreateWaylandSurfaceKHR);
-#endif
-#elif defined(ANDROID)
-VKFUNC_INSTANCE(vkCreateAndroidSurfaceKHR);
-#endif
+#endif // HAS_WAYLAND
+#endif // BOOST_OS_LINUX || BOOST_OS_BSD
 
 #if BOOST_OS_WINDOWS
 VKFUNC_INSTANCE(vkCreateWin32SurfaceKHR);

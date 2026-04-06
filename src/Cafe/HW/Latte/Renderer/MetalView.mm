@@ -1,11 +1,3 @@
-#if __APPLE__
-#include <TargetConditionals.h>
-#endif
-
-// The macOS NSView-based Metal view.  Excluded on visionOS where a UIView
-// subclass (MetalHostView) is used instead.
-#if !TARGET_OS_VISION
-
 #include "Cafe/HW/Latte/Renderer/MetalView.h"
 
 @implementation MetalView
@@ -32,5 +24,3 @@
 	return YES;
 }
 @end
-
-#endif // !TARGET_OS_VISION

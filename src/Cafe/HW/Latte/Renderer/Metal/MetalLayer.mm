@@ -1,13 +1,5 @@
 #include "Cafe/HW/Latte/Renderer/Metal/MetalLayer.h"
 
-#if __APPLE__
-#include <TargetConditionals.h>
-#endif
-
-// On visionOS, CreateMetalLayer() is provided by MetalLayerVisionOS.mm.
-// This file only compiles the macOS (AppKit) implementation.
-#if !TARGET_OS_VISION
-
 #include "Cafe/HW/Latte/Renderer/MetalView.h"
 
 void* CreateMetalLayer(void* handle, float& scaleX, float& scaleY)
@@ -28,5 +20,3 @@ void* CreateMetalLayer(void* handle, float& scaleX, float& scaleY)
 
 	return childView.layer;
 }
-
-#endif // !TARGET_OS_VISION

@@ -684,3 +684,7 @@ endif()
 if(WIN32)
 	target_link_libraries(CemuCafe PRIVATE iphlpapi)
 endif()
+
+if(ANDROID)
+	target_link_libraries(CemuCafe PRIVATE adrenotools)
+endif()

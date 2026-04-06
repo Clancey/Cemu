@@ -60,6 +60,8 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         SWIFT_EMIT_LOC_STRINGS: YES
         DEVELOPMENT_TEAM: ""
+        ARCHS: arm64
+        EXCLUDED_ARCHS: x86_64
 
     dependencies:
       - framework: ../../build_xcframework/CemuCore.xcframework

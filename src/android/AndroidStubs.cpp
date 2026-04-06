@@ -59,6 +59,12 @@ void OpenGLRenderer::renderstate_updateTextureSettingsGL(
     uint32 hostTextureUnit, const Latte::LATTE_SQ_TEX_RESOURCE_WORD4_N texUnitWord4,
     uint32 texUnitIndex, bool isDepthSampler) {}
 
+// OpenGL shader cache stubs
+#include "Cafe/HW/Latte/Renderer/OpenGL/RendererShaderGL.h"
+void RendererShaderGL::ShaderCacheLoading_begin(uint64) {}
+void RendererShaderGL::ShaderCacheLoading_end() {}
+void RendererShaderGL::ShaderCacheLoading_Close() {}
+
 // Font data stubs (embedded fonts not available on Android)
 extern "C" {
     unsigned char* g_fontawesome_data = nullptr;

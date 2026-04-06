@@ -1,8 +1,4 @@
 #include "Cafe/HW/Latte/Renderer/Metal/MetalRenderer.h"
-
-#if __APPLE__
-#include <TargetConditionals.h>
-#endif
 #include "Cafe/HW/Latte/Renderer/Metal/MetalMemoryManager.h"
 #include "Cafe/HW/Latte/Renderer/Metal/LatteTextureMtl.h"
 #include "Cafe/HW/Latte/Renderer/Metal/LatteTextureViewMtl.h"
@@ -42,7 +38,6 @@ void LatteDraw_handleSpecialState8_clearAsDepth();
 
 std::vector<MetalRenderer::DeviceInfo> MetalRenderer::GetDevices()
 {
-#if !TARGET_OS_VISION
     NS_STACK_SCOPED auto devices = MTL::CopyAllDevices();
     std::vector<MetalRenderer::DeviceInfo> result;
     result.reserve(devices->count());
@@ -53,17 +48,6 @@ std::vector<MetalRenderer::DeviceInfo> MetalRenderer::GetDevices()
     }
 
     return result;
-#else
-    // visionOS only has a single GPU. CopyAllDevices() is not available.
-    std::vector<MetalRenderer::DeviceInfo> result;
-    MTL::Device* device = MTL::CreateSystemDefaultDevice();
-    if (device)
-    {
-        result.push_back({std::string(device->name()->utf8String()), device->registryID()});
-        device->release();
-    }
-    return result;
-#endif
 }
 
 MetalRenderer::MetalRenderer()
@@ -142,7 +126,6 @@ MetalRenderer::MetalRenderer()
     const bool hasDeviceSet = config.mtl_graphic_device_uuid != 0;
 
     // If a device is set, try to find it
-#if !TARGET_OS_VISION
     if (hasDeviceSet)
     {
         NS_STACK_SCOPED auto devices = MTL::CopyAllDevices();
@@ -156,7 +139,6 @@ MetalRenderer::MetalRenderer()
             }
         }
     }
-#endif
 
     if (!m_device)
     {
@@ -1708,9 +1690,7 @@ MTL::CommandBuffer* MetalRenderer::GetCommandBuffer()
         // Debug
         //m_commandQueue->insertDebugCaptureBoundary();
 
-        auto pool = NS::AutoreleasePool::alloc()->init();
-	    MTL::CommandBuffer* mtlCommandBuffer = m_commandQueue->commandBuffer()->retain();
-		pool->release();
+	    MTL::CommandBuffer* mtlCommandBuffer = m_commandQueue->commandBuffer();
 		m_currentCommandBuffer = {mtlCommandBuffer};
 
 		// Wait for the previous command buffer
@@ -1737,9 +1717,7 @@ MTL::RenderCommandEncoder* MetalRenderer::GetTemporaryRenderCommandEncoder(MTL::
 
     auto commandBuffer = GetCommandBuffer();
 
-    auto pool = NS::AutoreleasePool::alloc()->init();
-    auto renderCommandEncoder = commandBuffer->renderCommandEncoder(renderPassDescriptor)->retain();
-    pool->release();
+    auto renderCommandEncoder = commandBuffer->renderCommandEncoder(renderPassDescriptor);
 #ifdef CEMU_DEBUG_ASSERT
     renderCommandEncoder->setLabel(GetLabel("Temporary render command encoder", renderCommandEncoder));
 #endif
@@ -1802,9 +1780,7 @@ MTL::RenderCommandEncoder* MetalRenderer::GetRenderCommandEncoder(bool forceRecr
 
     auto commandBuffer = GetCommandBuffer();
 
-    auto pool = NS::AutoreleasePool::alloc()->init();
-    auto renderCommandEncoder = commandBuffer->renderCommandEncoder(m_state.m_activeFBO.m_fbo->GetRenderPassDescriptor())->retain();
-    pool->release();
+    auto renderCommandEncoder = commandBuffer->renderCommandEncoder(m_state.m_activeFBO.m_fbo->GetRenderPassDescriptor());
 #ifdef CEMU_DEBUG_ASSERT
     renderCommandEncoder->setLabel(GetLabel("Render command encoder", renderCommandEncoder));
 #endif
@@ -1837,9 +1813,7 @@ MTL::ComputeCommandEncoder* MetalRenderer::GetComputeCommandEncoder()
 
     auto commandBuffer = GetCommandBuffer();
 
-    auto pool = NS::AutoreleasePool::alloc()->init();
-    auto computeCommandEncoder = commandBuffer->computeCommandEncoder()->retain();
-    pool->release();
+    auto computeCommandEncoder = commandBuffer->computeCommandEncoder();
     m_commandEncoder = computeCommandEncoder;
     m_encoderType = MetalEncoderType::Compute;
 
@@ -1862,9 +1836,7 @@ MTL::BlitCommandEncoder* MetalRenderer::GetBlitCommandEncoder()
 
     auto commandBuffer = GetCommandBuffer();
 
-    auto pool = NS::AutoreleasePool::alloc()->init();
-    auto blitCommandEncoder = commandBuffer->blitCommandEncoder()->retain();
-    pool->release();
+    auto blitCommandEncoder = commandBuffer->blitCommandEncoder();
     m_commandEncoder = blitCommandEncoder;
     m_encoderType = MetalEncoderType::Blit;
 

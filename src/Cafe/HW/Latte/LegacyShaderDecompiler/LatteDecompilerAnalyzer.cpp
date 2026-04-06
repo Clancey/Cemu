@@ -403,11 +403,9 @@ void LatteDecompiler_analyzeExport(LatteDecompilerShaderContext* shaderContext, 
 		}
 		else if (cfInstruction->exportType == 0 && cfInstruction->exportArrayBase == 61)
 		{
-#if ENABLE_METAL
-			// Only check for depth buffer mask on Metal, as its not in the PS hash on other backends
-			if (g_renderer->GetType() != RendererAPI::Metal || LatteMRT::GetActiveDepthBufferMask(*shaderContext->contextRegistersNew))
+		    // Only check for depth buffer mask on Metal, as its not in the PS hash on other backends
+		    if (g_renderer->GetType() != RendererAPI::Metal || LatteMRT::GetActiveDepthBufferMask(*shaderContext->contextRegistersNew))
 				shader->depthMask = true;
-#endif
 		}
 		else
 			debugBreakpoint();
@@ -512,7 +510,6 @@ namespace LatteDecompiler
 		}
 	}
 
-#if ENABLE_METAL
 	void _initTextureBindingPointsMTL(LatteDecompilerShaderContext* decompilerContext)
 	{
 		// for Vulkan we use consecutive indices
@@ -524,7 +521,6 @@ namespace LatteDecompiler
 			decompilerContext->currentTextureBindingPointMTL++;
 		}
 	}
-#endif
 
 	void _initHasUniformVarBlock(LatteDecompilerShaderContext* decompilerContext)
 	{
@@ -1113,9 +1109,7 @@ void LatteDecompiler_analyze(LatteDecompilerShaderContext* shaderContext, LatteD
 		shaderContext->output->resourceMappingVK.setIndex = 2;
 	LatteDecompiler::_initTextureBindingPointsGL(shaderContext);
 	LatteDecompiler::_initTextureBindingPointsVK(shaderContext);
-#if ENABLE_METAL
 	LatteDecompiler::_initTextureBindingPointsMTL(shaderContext);
-#endif
 	LatteDecompiler::_initUniformBindingPoints(shaderContext);
 	LatteDecompiler::_initAttributeBindingPoints(shaderContext);
 	shaderContext->output->resourceMappingMTL.verticesPerInstanceBinding = shaderContext->currentBufferBindingPointMTL++;

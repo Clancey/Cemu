@@ -13,19 +13,6 @@
 #include "util/containers/flat_hash_map.hpp"
 #include "util/containers/robin_hood.h"
 
-// Forward declarations for X11 types on Linux/BSD (not available on Android)
-#if (BOOST_OS_LINUX || BOOST_OS_BSD) && !defined(__ANDROID__)
-struct _XDisplay;
-typedef struct _XDisplay Display;
-typedef unsigned long Window;
-typedef struct xcb_connection_t xcb_connection_t;
-typedef uint32_t xcb_window_t;
-#ifdef HAS_WAYLAND
-struct wl_display;
-struct wl_surface;
-#endif
-#endif
-
 struct VkSupportedFormatInfo_t
 {
 	bool fmt_d24_unorm_s8_uint{};
@@ -33,6 +20,11 @@ struct VkSupportedFormatInfo_t
 	bool fmt_r5g6b5_unorm_pack{};
 	bool fmt_r4g4b4a4_unorm_pack{};
 	bool fmt_a1r5g5b5_unorm_pack{};
+	bool fmt_bc1{};
+	bool fmt_bc2{};
+	bool fmt_bc3{};
+	bool fmt_bc4{};
+	bool fmt_bc5{};
 };
 
 struct VkDescriptorSetInfo
@@ -214,19 +206,21 @@ public:
 #if BOOST_OS_WINDOWS
 	static VkSurfaceKHR CreateWinSurface(VkInstance instance, HWND hwindow);
 #endif
-#if (BOOST_OS_LINUX || BOOST_OS_BSD) && !defined(__ANDROID__)
+#if BOOST_PLAT_ANDROID
+	static VkSurfaceKHR CreateAndroidSurface(VkInstance instance, ANativeWindow* window);
+#elif BOOST_OS_LINUX || BOOST_OS_BSD
 	static VkSurfaceKHR CreateXlibSurface(VkInstance instance, Display* dpy, Window window);
     static VkSurfaceKHR CreateXcbSurface(VkInstance instance, xcb_connection_t* connection, xcb_window_t window);
-	#ifdef HAS_WAYLAND
+#ifdef HAS_WAYLAND
 	static VkSurfaceKHR CreateWaylandSurface(VkInstance instance, wl_display* display, wl_surface* surface);
-	#endif
-#endif
-#ifdef __ANDROID__
-	static VkSurfaceKHR CreateAndroidSurface(VkInstance instance, void* nativeWindow);
+#endif // HAS_WAYLAND
 #endif
 
+#if BOOST_PLAT_ANDROID
+	static VkSurfaceKHR CreateFramebufferSurface(VkInstance instance, struct WindowSystem::WindowHandleInfo& windowInfo, ANativeWindow** nativeWindow = nullptr);
+#else
 	static VkSurfaceKHR CreateFramebufferSurface(VkInstance instance, struct WindowSystem::WindowHandleInfo& windowInfo);
-
+#endif
 	void AppendOverlayDebugInfo() override;
 
 	void ImguiInit();
@@ -478,6 +472,16 @@ private:
 
 		struct
 		{
+			bool geometry_shader;
+			bool logic_op;
+			bool sampler_anisotropy;
+			bool occlusion_query_precise;
+			bool depth_clamp;
+			bool vertex_pipeline_stores_and_atomics;
+		} deviceFeatures;
+
+		struct
+		{
 			bool shaderRoundingModeRTEFloat32{ false };
 		}shaderFloatControls; // from VK_KHR_shader_float_controls
 
@@ -570,7 +574,6 @@ private:
 	VkCommandBuffer getCurrentCommandBuffer() const { return m_state.currentCommandBuffer; }
 
 	// uniform
-	uint32 uniformData_uploadUniformDataBufferGetOffset(std::span<uint8, std::dynamic_extent> data);
 	void uniformData_updateUniformVars(uint32 shaderStageIndex, LatteDecompilerShader* shader);
 
 	// misc
