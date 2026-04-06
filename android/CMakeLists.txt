@@ -124,8 +124,9 @@ if(TARGET CemuBin)
     )
 
     # Make sure required Android libraries are linked
+    # Use --whole-archive for native_app_glue to export ANativeActivity_onCreate
     target_link_libraries(CemuBin PRIVATE
-        android_native_app_glue
+        -Wl,--whole-archive android_native_app_glue -Wl,--no-whole-archive
         android
         log
         vulkan
