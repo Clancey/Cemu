@@ -39,3 +39,8 @@ target_link_libraries(cemu_visionos PUBLIC
 target_compile_options(cemu_visionos PRIVATE
     -fobjc-arc  # Enable automatic reference counting
 )
+
+# Apply PCH for files that need Cemu types (VisionOSStubsPCH.cpp)
+target_precompile_headers(cemu_visionos PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_SOURCE_DIR}/src/Common/precompiled.h>"
+)

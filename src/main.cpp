@@ -164,15 +164,18 @@ void CemuCoreInit()
 	for (auto& it : GetConfig().game_paths)
 		CafeTitleList::AddScanPath(_utf8ToPath(it));
 #ifdef __ANDROID__
-	// Scan game locations accessible to the app
-	// externalFilesDir/games (from GetUserDataPath)
+	// Add game scan paths to config (so GameTitleLoader picks them up too)
+	auto& gamePaths = GetConfig().game_paths;
 	fs::path extGames = ActiveSettings::GetUserDataPath() / "games";
-	if (fs::exists(extGames))
-		CafeTitleList::AddScanPath(extGames);
-	// filesDir/games (internal storage: dataDir/files/games)
 	fs::path intGames = ActiveSettings::GetInternalPath("files/games");
-	if (fs::exists(intGames))
-		CafeTitleList::AddScanPath(intGames);
+	auto addPath = [&](const fs::path& p) {
+		std::string ps = _pathToUtf8(p);
+		if (std::none_of(gamePaths.begin(), gamePaths.end(), [&](const auto& gp) { return gp == ps; }))
+			gamePaths.push_back(ps);
+		CafeTitleList::AddScanPath(p);
+	};
+	if (fs::exists(extGames)) addPath(extGames);
+	if (fs::exists(intGames)) addPath(intGames);
 	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: scan ext=%s int=%s", extGames.c_str(), intGames.c_str());
 #endif
 	fs::path mlcPath = ActiveSettings::GetMlcPath();

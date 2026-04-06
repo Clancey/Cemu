@@ -1,0 +1,4 @@
+_OBJC_CLASS_$_CemuBridge
+_OBJC_METACLASS_$_CemuBridge
+_OBJC_CLASS_$_MetalHostView
+_OBJC_METACLASS_$_MetalHostView

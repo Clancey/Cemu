@@ -1,19 +1,13 @@
-// Stubs that need Cemu's precompiled header types
-// Separate from VisionOSStubs.cpp to avoid PCH conflicts
+// Stubs for visionOS — provide link-time symbols for disabled features
+// This file has PCH applied so it can reference Cemu types
 
 #ifdef VISIONOS
 
-#include "Cafe/HW/Latte/Renderer/OpenGL/LatteTextureViewGL.h"
-#include "Cafe/HW/Latte/Renderer/OpenGL/OpenGLRenderer.h"
+#include "Cafe/IOSU/nn/iosu_nn_service.h"
+#include "Cemu/napi/napi.h"
+#include <pugixml.hpp>
 
-LatteTextureViewGL* LatteTextureViewGL::GetAlternativeView() { return nullptr; }
-void OpenGLRenderer::renderstate_updateTextureSettingsGL(
-    LatteDecompilerShader*, LatteTextureView*, uint32,
-    const Latte::LATTE_SQ_TEX_RESOURCE_WORD4_N, uint32, bool) {}
-
-// NAPI stubs (curl not available)
-#include "Cemu/napi/napi_helper.h"
-
+// NAPI stubs
 namespace NAPI {
     bool NAPI_MakeAuthInfoFromCurrentAccount(AuthInfo&) { return false; }
     ACTGetNexTokenResult ACT_GetNexToken_WithCache(AuthInfo&, uint64, uint16, uint32) { return {}; }
@@ -25,11 +19,17 @@ namespace nlibcurl {
     IOSUModule* GetModule() { return nullptr; }
 }
 
+// nn_olv stubs — Miiverse service
+#include "Cafe/OS/libs/nn_olv/nn_olv_DownloadCommunityTypes.h"
+#include "Cafe/OS/libs/nn_olv/nn_olv_UploadCommunityTypes.h"
+#include "Cafe/OS/libs/nn_olv/nn_olv_UploadFavoriteTypes.h"
+#include "Cafe/OS/libs/nn_olv/nn_olv_PostTypes.h"
+
 namespace nn::olv {
     void loadOlivePostAndTopicTypes() {}
-    void ParseXML_DownloadedPostData(DownloadedPostData&, pugi::xml_node&) {}
-    sint32 UploadCommunityData(const UploadCommunityDataParam*) { return -1; }
-    sint32 UploadFavoriteToCommunityData(UploadedFavoriteToCommunityData*, const UploadFavoriteToCommunityDataParam*) { return -1; }
+    bool ParseXML_DownloadedPostData(DownloadedPostData& data, pugi::xml_node& node) { return false; }
+    sint32 UploadCommunityData(const UploadCommunityDataParam* param) { return -1; }
+    sint32 UploadFavoriteToCommunityData(UploadedFavoriteToCommunityData* out, const UploadFavoriteToCommunityDataParam* param) { return -1; }
 }
 
 #endif

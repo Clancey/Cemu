@@ -102,7 +102,11 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
 		main.cpp
 		mainLLE.cpp
 	)
-	# Link our visionOS native sources
+	# Link our visionOS native sources — use force_load to prevent dead-stripping
+	# of Obj-C classes (CemuBridge, MetalHostView) that the Swift app needs
+	target_link_options(CemuBin PRIVATE
+		"LINKER:-force_load,$<TARGET_FILE:cemu_visionos>"
+	)
 	target_link_libraries(CemuBin PRIVATE cemu_visionos)
 else()
 	add_executable(CemuBin

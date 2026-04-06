@@ -178,6 +178,8 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_setReplaceTVWithPadView([[ma
 	WindowSystem::GetWindowInfo().set_keystate(static_cast<uint32>(WindowSystem::PlatformKeyCodes::TAB), swapped);
 }
 
+static std::atomic<bool> s_emulationInitialized{false};
+
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeEmulation([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
@@ -187,7 +189,11 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeEmulation([[maybe_
 	NetworkConfig::LoadOnce();
 	ActiveSettings::Init();
 	LatteOverlay_init();
-	CemuCommonInit();
+	// Run heavy init on background thread to avoid ANR on Quest
+	std::thread([]() {
+		CemuCommonInit();
+		s_emulationInitialized = true;
+	}).detach();
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
@@ -284,6 +290,9 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeSystems([[maybe_un
 extern "C" [[maybe_unused]] JNIEXPORT jint JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_prepareTitle([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jstring launch_path)
 {
+	// Wait for background init to complete
+	while (!s_emulationInitialized.load())
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	fs::path launchPath = JNIUtils::toString(env, launch_path);
 
 	TitleInfo launchTitle{launchPath};

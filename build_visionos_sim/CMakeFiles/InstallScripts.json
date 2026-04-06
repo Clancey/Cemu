@@ -1,0 +1,22 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/dependencies/ih264d/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/dependencies/xbyak_aarch64/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/dependencies/ZArchive/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/Common/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/gui/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/Cafe/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/Cemu/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/config/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/input/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/audio/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/util/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/imgui/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/resource/cmake_install.cmake",
+		"/Users/clancey/Projects/Godot/Cemu/build_visionos_sim/src/visionos/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

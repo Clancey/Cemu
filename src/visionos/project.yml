@@ -28,10 +28,8 @@ targets:
           - "Info.plist"
       - path: CemuBridge
         type: group
-        buildPhase: sources
-        excludes:
-          - "CemuBridge.mm"
-          - "MetalLayerVisionOS.mm"
+        buildPhase: none
+        # Headers only — .mm files are compiled into libCemu_release.dylib by CMake
       - path: CemuVision-Bridging-Header.h
         buildPhase: none
 
@@ -43,11 +41,16 @@ targets:
         HEADER_SEARCH_PATHS:
           - "$(inherited)"
           - "$(SRCROOT)/../../src"
-          - "$(SRCROOT)/../../dependencies/vcpkg/installed/arm64-android/include"
           - "$(SRCROOT)/../../dependencies/metal-cpp"
+          - "/opt/homebrew/include"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
         GCC_PREPROCESSOR_DEFINITIONS:
           - "$(inherited)"
           - "TARGET_OS_VISION=1"
+          - "VISIONOS=1"
+          - "ENABLE_METAL=1"
         SWIFT_ACTIVE_COMPILATION_CONDITIONS:
           - "$(inherited)"
           - VISION_OS
@@ -58,7 +61,15 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: YES
         DEVELOPMENT_TEAM: ""
 
-    dependencies: []
+    dependencies:
+      - framework: ../../build_xcframework/CemuCore.xcframework
+        embed: true
+      - framework: ../../build_xcframework/glslang.xcframework
+        embed: true
+      - framework: ../../build_xcframework/SPIRVToolsOpt.xcframework
+        embed: true
+      - framework: ../../build_xcframework/SPIRVTools.xcframework
+        embed: true
 
     info:
       path: CemuVisionOS/Info.plist

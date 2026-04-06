@@ -7,7 +7,7 @@
 unsigned char* g_fontawesome_data = nullptr;
 int g_fontawesome_size = 0;
 
-extern "C" int* extractCafeDefaultFont(int* sizeOut) {
+int* extractCafeDefaultFont(int* sizeOut) {
     if (sizeOut) *sizeOut = 0;
     return nullptr;
 }

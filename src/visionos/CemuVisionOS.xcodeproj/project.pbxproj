@@ -7,38 +7,76 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		272D2A327AB5E408EA981F4C /* MetalLayerVisionOS.mm in Sources */ = {isa = PBXBuildFile; fileRef = C0789311EE57825603945A6E /* MetalLayerVisionOS.mm */; };
 		2A7B816C13FCD2550E435C60 /* GameLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63A4D0AAAE42AEA550EAEB6 /* GameLibraryView.swift */; };
+		2BE9149956674A1EC06C9B49 /* CemuCore.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 39BD56EAE672D2624829A4EF /* CemuCore.xcframework */; };
 		41CE617471ACB2638F5FEAAA /* CemuMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E27825C5AF1C0BEE8BF50C3 /* CemuMetalView.swift */; };
 		4F141EF61737183003EB5B9B /* CemuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3635DC34F21A4D252AC4A7F /* CemuApp.swift */; };
+		5C84AFC852B14651D8026BD8 /* SPIRVToolsOpt.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4F13C49A5369C03A81638E11 /* SPIRVToolsOpt.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		5EC2360D2F1B7437B5DA5D72 /* SPIRVTools.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86ECDF07BB87CC9A206E234C /* SPIRVTools.xcframework */; };
 		636E7B4345D76C437872A8C1 /* EmulatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 985388295DD201335B4D2D12 /* EmulatorView.swift */; };
-		7CD086E1F9D7213C266CE429 /* MetalHostView.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3EB28CA1744C24315BD950B8 /* MetalHostView.mm */; };
 		7D1E62B0A6B839225D85CDCB /* Assets.xcassets in Sources */ = {isa = PBXBuildFile; fileRef = 5A10D58E47F032DC00F22EB5 /* Assets.xcassets */; };
-		B105E2D6F9D768DEBB5F9B3D /* MetalHostView.h in Sources */ = {isa = PBXBuildFile; fileRef = 83EA4E6590F0EEF9FEB4378F /* MetalHostView.h */; };
+		9B8A8C5836E9320C8A7511A7 /* CemuCore.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 39BD56EAE672D2624829A4EF /* CemuCore.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A5C9A853F55F1B24F30A8E21 /* SPIRVToolsOpt.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F13C49A5369C03A81638E11 /* SPIRVToolsOpt.xcframework */; };
+		A87DDE2C4E8D79C8897125E6 /* glslang.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E628E83DE68E48D87EF29A4B /* glslang.xcframework */; };
+		B2E857BE8D9A4641D555AEF7 /* glslang.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E628E83DE68E48D87EF29A4B /* glslang.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B3396CDB1955EEBA69592CEB /* SPIRVTools.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 86ECDF07BB87CC9A206E234C /* SPIRVTools.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B3AAA0E01A2676A6B09C88FE /* MetalEmulatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8D88A4E0F7B766DCB400C6 /* MetalEmulatorView.swift */; };
-		BC5B5854F2C85C33B123925D /* CemuBridge.h in Sources */ = {isa = PBXBuildFile; fileRef = 4D8599CC2512B365CEB0757B /* CemuBridge.h */; };
-		D26BF95FB0837DF816F4E64B /* CemuBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = C34C9296A598C817BAF9588E /* CemuBridge.mm */; };
 		E7E044B4B74C790F12F634BD /* EmulatorCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0986E31DBD70BD0FB8BCC64B /* EmulatorCore.swift */; };
 		ECAC63981636FADADA2A6164 /* InputManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86AADB4BCA4BFAA3A974479E /* InputManager.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		9A86C353F67B8A7C8D9DF60B /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				9B8A8C5836E9320C8A7511A7 /* CemuCore.xcframework in Embed Frameworks */,
+				B2E857BE8D9A4641D555AEF7 /* glslang.xcframework in Embed Frameworks */,
+				5C84AFC852B14651D8026BD8 /* SPIRVToolsOpt.xcframework in Embed Frameworks */,
+				B3396CDB1955EEBA69592CEB /* SPIRVTools.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		0986E31DBD70BD0FB8BCC64B /* EmulatorCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmulatorCore.swift; sourceTree = "<group>"; };
+		39BD56EAE672D2624829A4EF /* CemuCore.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = CemuCore.xcframework; path = ../../build_xcframework/CemuCore.xcframework; sourceTree = "<group>"; };
 		3EB28CA1744C24315BD950B8 /* MetalHostView.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MetalHostView.mm; sourceTree = "<group>"; };
 		3F8D88A4E0F7B766DCB400C6 /* MetalEmulatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalEmulatorView.swift; sourceTree = "<group>"; };
 		4D8599CC2512B365CEB0757B /* CemuBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CemuBridge.h; sourceTree = "<group>"; };
+		4F13C49A5369C03A81638E11 /* SPIRVToolsOpt.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SPIRVToolsOpt.xcframework; path = ../../build_xcframework/SPIRVToolsOpt.xcframework; sourceTree = "<group>"; };
 		5A10D58E47F032DC00F22EB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6E27825C5AF1C0BEE8BF50C3 /* CemuMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CemuMetalView.swift; sourceTree = "<group>"; };
 		7590881E11776B3A7414FBA2 /* CemuVisionOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CemuVisionOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		83EA4E6590F0EEF9FEB4378F /* MetalHostView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MetalHostView.h; sourceTree = "<group>"; };
 		86AADB4BCA4BFAA3A974479E /* InputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputManager.swift; sourceTree = "<group>"; };
+		86ECDF07BB87CC9A206E234C /* SPIRVTools.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SPIRVTools.xcframework; path = ../../build_xcframework/SPIRVTools.xcframework; sourceTree = "<group>"; };
 		985388295DD201335B4D2D12 /* EmulatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmulatorView.swift; sourceTree = "<group>"; };
 		C0789311EE57825603945A6E /* MetalLayerVisionOS.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MetalLayerVisionOS.mm; sourceTree = "<group>"; };
 		C19F75D071F608BA3E5E188D /* CemuVision-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "CemuVision-Bridging-Header.h"; sourceTree = "<group>"; };
 		C34C9296A598C817BAF9588E /* CemuBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = CemuBridge.mm; sourceTree = "<group>"; };
 		D3635DC34F21A4D252AC4A7F /* CemuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CemuApp.swift; sourceTree = "<group>"; };
 		D63A4D0AAAE42AEA550EAEB6 /* GameLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLibraryView.swift; sourceTree = "<group>"; };
+		E628E83DE68E48D87EF29A4B /* glslang.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = glslang.xcframework; path = ../../build_xcframework/glslang.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F55D55501E8E854A40E92618 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2BE9149956674A1EC06C9B49 /* CemuCore.xcframework in Frameworks */,
+				A87DDE2C4E8D79C8897125E6 /* glslang.xcframework in Frameworks */,
+				A5C9A853F55F1B24F30A8E21 /* SPIRVToolsOpt.xcframework in Frameworks */,
+				5EC2360D2F1B7437B5DA5D72 /* SPIRVTools.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0B27E50F9253D22630A4EDF8 /* CemuBridge */ = {
@@ -51,6 +89,17 @@
 				C0789311EE57825603945A6E /* MetalLayerVisionOS.mm */,
 			);
 			path = CemuBridge;
+			sourceTree = "<group>";
+		};
+		1AE1452EA5F09AD3031098F3 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				39BD56EAE672D2624829A4EF /* CemuCore.xcframework */,
+				E628E83DE68E48D87EF29A4B /* glslang.xcframework */,
+				86ECDF07BB87CC9A206E234C /* SPIRVTools.xcframework */,
+				4F13C49A5369C03A81638E11 /* SPIRVToolsOpt.xcframework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		3F808EFAAAF254CBC1EA13E9 /* CemuVisionOS */ = {
@@ -74,6 +123,7 @@
 				C19F75D071F608BA3E5E188D /* CemuVision-Bridging-Header.h */,
 				0B27E50F9253D22630A4EDF8 /* CemuBridge */,
 				3F808EFAAAF254CBC1EA13E9 /* CemuVisionOS */,
+				1AE1452EA5F09AD3031098F3 /* Frameworks */,
 				C6862E28BF1219B767F2CD6F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -94,6 +144,8 @@
 			buildConfigurationList = 74D908BBAEFEF3A5D7E45CB9 /* Build configuration list for PBXNativeTarget "CemuVisionOS" */;
 			buildPhases = (
 				E24745EF88DE8DA3C492EC39 /* Sources */,
+				F55D55501E8E854A40E92618 /* Frameworks */,
+				9A86C353F67B8A7C8D9DF60B /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -146,17 +198,12 @@
 			files = (
 				7D1E62B0A6B839225D85CDCB /* Assets.xcassets in Sources */,
 				4F141EF61737183003EB5B9B /* CemuApp.swift in Sources */,
-				BC5B5854F2C85C33B123925D /* CemuBridge.h in Sources */,
-				D26BF95FB0837DF816F4E64B /* CemuBridge.mm in Sources */,
 				41CE617471ACB2638F5FEAAA /* CemuMetalView.swift in Sources */,
 				E7E044B4B74C790F12F634BD /* EmulatorCore.swift in Sources */,
 				636E7B4345D76C437872A8C1 /* EmulatorView.swift in Sources */,
 				2A7B816C13FCD2550E435C60 /* GameLibraryView.swift in Sources */,
 				ECAC63981636FADADA2A6164 /* InputManager.swift in Sources */,
 				B3AAA0E01A2676A6B09C88FE /* MetalEmulatorView.swift in Sources */,
-				B105E2D6F9D768DEBB5F9B3D /* MetalHostView.h in Sources */,
-				7CD086E1F9D7213C266CE429 /* MetalHostView.mm in Sources */,
-				272D2A327AB5E408EA981F4C /* MetalLayerVisionOS.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -227,15 +274,21 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../build_xcframework\"",
+				);
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"TARGET_OS_VISION=1",
+					"VISIONOS=1",
+					"ENABLE_METAL=1",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/../../src",
-					"$(SRCROOT)/../../dependencies/vcpkg/installed/arm64-android/include",
 					"$(SRCROOT)/../../dependencies/metal-cpp",
+					/opt/homebrew/include,
 				);
 				INFOPLIST_FILE = CemuVisionOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -264,15 +317,21 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"../../build_xcframework\"",
+				);
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"TARGET_OS_VISION=1",
+					"VISIONOS=1",
+					"ENABLE_METAL=1",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/../../src",
-					"$(SRCROOT)/../../dependencies/vcpkg/installed/arm64-android/include",
 					"$(SRCROOT)/../../dependencies/metal-cpp",
+					/opt/homebrew/include,
 				);
 				INFOPLIST_FILE = CemuVisionOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -259,17 +259,20 @@ endif()
 
 # Core dependencies needed by all platforms including Android
 # Use vcpkg to find dependencies for all platforms, including Android
-find_package(Boost COMPONENTS program_options filesystem nowide QUIET)
-find_package(glm QUIET)
-find_package(fmt 9 QUIET)
-find_package(pugixml QUIET)
-find_package(RapidJSON QUIET)
-find_package(libzip QUIET)
-find_package(glslang QUIET)
-find_package(ZLIB QUIET)
-find_package(zstd MODULE QUIET)
-find_package(OpenSSL COMPONENTS Crypto SSL QUIET)
-find_package(PNG QUIET)
+# Skip QUIET pre-find for visionOS — handled manually in visionOS block below
+if(NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
+	find_package(Boost COMPONENTS program_options filesystem nowide QUIET)
+	find_package(glm QUIET)
+	find_package(fmt 9 QUIET)
+	find_package(pugixml QUIET)
+	find_package(RapidJSON QUIET)
+	find_package(libzip QUIET)
+	find_package(glslang QUIET)
+	find_package(ZLIB QUIET)
+	find_package(zstd MODULE QUIET)
+	find_package(OpenSSL COMPONENTS Crypto SSL QUIET)
+	find_package(PNG QUIET)
+endif()
 
 if(NOT ANDROID)
 	# Desktop and visionOS builds use vcpkg or system packages
@@ -325,18 +328,105 @@ if(NOT ANDROID)
 			)
 		endif()
 
+		# For visionOS cross-compilation, homebrew dylibs are built for macOS
+		# and cannot be linked into visionOS binaries. Force static linking
+		# for all homebrew packages, but allow .tbd from the SDK.
+		set(CMAKE_FIND_LIBRARY_SUFFIXES ".a;.tbd")
+
 		find_package(fmt 9 REQUIRED)
 		find_package(pugixml REQUIRED)
 		find_package(RapidJSON REQUIRED)
 		find_package(libzip REQUIRED)
 		find_package(glslang REQUIRED)
 		find_package(ZLIB REQUIRED)
-
-		# Set up zstd manually
-		pkg_check_modules(zstd REQUIRED libzstd)
-
 		find_package(OpenSSL COMPONENTS Crypto SSL REQUIRED)
 		find_package(PNG REQUIRED)
+
+		# Homebrew libs are built for macOS — the linker rejects them for visionOS.
+		# Since they're arm64 and binary-compatible, we patch the platform tag
+		# using vtool: platform 11 = visionOS device, platform 12 = visionOS simulator.
+		if(CMAKE_OSX_SYSROOT MATCHES "Simulator" OR CMAKE_OSX_SYSROOT MATCHES "simulator")
+			set(VISIONOS_VTOOL_PLATFORM 12)
+		else()
+			set(VISIONOS_VTOOL_PLATFORM 11)
+		endif()
+		set(VISIONOS_PATCHED_LIBS_DIR "${CMAKE_BINARY_DIR}/patched_libs")
+		file(MAKE_DIRECTORY "${VISIONOS_PATCHED_LIBS_DIR}")
+
+		# Patch a library (.a or .dylib) for visionOS platform compatibility
+		macro(patch_lib_for_visionos target_name lib_path)
+			if(TARGET ${target_name} AND EXISTS "${lib_path}")
+				get_filename_component(_lib_name "${lib_path}" NAME)
+				get_filename_component(_lib_ext "${lib_path}" EXT)
+				set(_patched_path "${VISIONOS_PATCHED_LIBS_DIR}/${_lib_name}")
+				if("${_lib_ext}" STREQUAL ".a")
+					# For static libs: extract .o files, patch each, re-archive
+					set(_tmp_dir "${VISIONOS_PATCHED_LIBS_DIR}/_tmp_${_lib_name}")
+					file(MAKE_DIRECTORY "${_tmp_dir}")
+					execute_process(COMMAND ar x "${lib_path}" WORKING_DIRECTORY "${_tmp_dir}")
+					file(GLOB _obj_files "${_tmp_dir}/*.o")
+					foreach(_obj ${_obj_files})
+						execute_process(COMMAND vtool -set-build-version ${VISIONOS_VTOOL_PLATFORM} 2.0 2.0 -replace -output "${_obj}" "${_obj}" ERROR_QUIET)
+					endforeach()
+					execute_process(COMMAND ar rcs "${_patched_path}" ${_obj_files})
+					file(REMOVE_RECURSE "${_tmp_dir}")
+				else()
+					# For dylibs: copy and patch directly
+					execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${lib_path}" "${_patched_path}")
+					execute_process(COMMAND vtool -set-build-version ${VISIONOS_VTOOL_PLATFORM} 2.0 2.0 -replace -output "${_patched_path}" "${_patched_path}")
+				endif()
+				set_target_properties(${target_name} PROPERTIES
+					IMPORTED_LOCATION "${_patched_path}"
+					IMPORTED_LOCATION_RELEASE "${_patched_path}"
+					IMPORTED_LOCATION_NOCONFIG "${_patched_path}"
+				)
+			endif()
+		endmacro()
+
+		# Patch static libs
+		if(TARGET pugixml::pugixml AND TARGET pugixml::static)
+			set_target_properties(pugixml::pugixml PROPERTIES INTERFACE_LINK_LIBRARIES "pugixml::static")
+			patch_lib_for_visionos(pugixml::static "/opt/homebrew/lib/libpugixml.a")
+		endif()
+		patch_lib_for_visionos(fmt::fmt "/opt/homebrew/lib/libfmt.a")
+		patch_lib_for_visionos(PNG::PNG "/opt/homebrew/lib/libpng.a")
+		patch_lib_for_visionos(OpenSSL::SSL "/opt/homebrew/lib/libssl.a")
+		patch_lib_for_visionos(OpenSSL::Crypto "/opt/homebrew/lib/libcrypto.a")
+		# Patch dylibs (no static available for glslang/SPIRV-Tools)
+		patch_lib_for_visionos(glslang::glslang "/opt/homebrew/lib/libglslang.dylib")
+		patch_lib_for_visionos(glslang::SPIRV "/opt/homebrew/lib/libSPIRV.dylib")
+		patch_lib_for_visionos(SPIRV-Tools-opt "/opt/homebrew/lib/libSPIRV-Tools-opt.dylib")
+		patch_lib_for_visionos(SPIRV-Tools "/opt/homebrew/lib/libSPIRV-Tools.dylib")
+		# Patch Boost static libs
+		patch_lib_for_visionos(Boost::program_options "/opt/homebrew/lib/libboost_program_options.a")
+		patch_lib_for_visionos(Boost::nowide "/opt/homebrew/lib/libboost_nowide.a")
+		patch_lib_for_visionos(Boost::filesystem "/opt/homebrew/lib/libboost_filesystem.a")
+		# zstd already patched above when target was created
+		# Patch curl
+		if(TARGET CURL::libcurl)
+			patch_lib_for_visionos(CURL::libcurl "/opt/homebrew/lib/libcurl.a")
+		endif()
+
+		# Set up zstd manually via pkg-config and create CMake target
+		pkg_check_modules(zstd REQUIRED libzstd)
+		if(NOT TARGET zstd::zstd)
+			# Patch zstd for visionOS
+			set(_zstd_patched "${VISIONOS_PATCHED_LIBS_DIR}/libzstd.a")
+			set(_zstd_tmp "${VISIONOS_PATCHED_LIBS_DIR}/_tmp_zstd")
+			file(MAKE_DIRECTORY "${_zstd_tmp}")
+			execute_process(COMMAND ar x "/opt/homebrew/lib/libzstd.a" WORKING_DIRECTORY "${_zstd_tmp}")
+			file(GLOB _zstd_objs "${_zstd_tmp}/*.o")
+			foreach(_obj ${_zstd_objs})
+				execute_process(COMMAND vtool -set-build-version ${VISIONOS_VTOOL_PLATFORM} 2.0 2.0 -replace -output "${_obj}" "${_obj}" ERROR_QUIET)
+			endforeach()
+			execute_process(COMMAND ar rcs "${_zstd_patched}" ${_zstd_objs})
+			file(REMOVE_RECURSE "${_zstd_tmp}")
+			add_library(zstd::zstd STATIC IMPORTED GLOBAL)
+			set_target_properties(zstd::zstd PROPERTIES
+				IMPORTED_LOCATION "${_zstd_patched}"
+				INTERFACE_INCLUDE_DIRECTORIES "${zstd_INCLUDE_DIRS}"
+			)
+		endif()
 	else()
 		find_package(Boost COMPONENTS program_options filesystem nowide REQUIRED)
 		find_package(glm REQUIRED)

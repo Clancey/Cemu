@@ -1,5 +1,8 @@
 #include "TitleList.h"
 #include "Common/FileStream.h"
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
 
 #include "util/helpers/helpers.h"
 
@@ -354,6 +357,10 @@ void CafeTitleList::ScanGamePath(const fs::path& path)
 	std::vector<fs::path> dirsInDirectory;
 	bool hasContentFolder = false, hasCodeFolder = false, hasMetaFolder = false;
 	std::error_code ec;
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "ScanGamePath: %s", path.c_str());
+#endif
+	cemuLog_log(LogType::Force, "ScanGamePath: scanning {}", _pathToUtf8(path));
 	for (auto& it : fs::directory_iterator(path, ec))
 	{		
 		if (it.is_regular_file(ec))
@@ -383,10 +390,20 @@ void CafeTitleList::ScanGamePath(const fs::path& path)
 		AddTitleFromPath(it);
 	}
 	// is the current directory a title folder?
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "ScanGamePath: %s content=%d code=%d meta=%d files=%zu dirs=%zu",
+		path.c_str(), hasContentFolder, hasCodeFolder, hasMetaFolder, filesInDirectory.size(), dirsInDirectory.size());
+#endif
+	cemuLog_log(LogType::Force, "ScanGamePath: {} has content={} code={} meta={} files={} dirs={}",
+		_pathToUtf8(path), hasContentFolder, hasCodeFolder, hasMetaFolder, filesInDirectory.size(), dirsInDirectory.size());
 	if (hasContentFolder && hasCodeFolder && hasMetaFolder)
 	{
 		// verify if this folder is a valid title
 		TitleInfo* titleInfo = new TitleInfo(path);
+#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "ScanGamePath: TitleInfo valid=%d path=%s", titleInfo->IsValid() ? 1 : 0, path.c_str());
+#endif
+		cemuLog_log(LogType::Force, "ScanGamePath: TitleInfo valid={}", titleInfo->IsValid());
 		if (titleInfo->IsValid())
 			AddDiscoveredTitle(titleInfo);
 		else
