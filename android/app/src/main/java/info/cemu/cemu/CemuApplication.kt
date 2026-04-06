@@ -12,6 +12,7 @@ import info.cemu.cemu.nativeinterface.NativeEmulation.initializeEmulation
 import info.cemu.cemu.nativeinterface.NativeEmulation.setDPI
 import info.cemu.cemu.nativeinterface.NativeFiles
 import info.cemu.cemu.nativeinterface.NativeGraphicPacks.refreshGraphicPacks
+import info.cemu.cemu.nativeinterface.NativeSettings
 import info.cemu.cemu.nativeinterface.NativeLogging.crashLog
 import info.cemu.cemu.nativeinterface.NativeSwkbd.initializeSwkbd
 import kotlinx.coroutines.flow.first
@@ -139,6 +140,10 @@ class CemuApplication : Application() {
         setNativeLibDir(applicationInfo.nativeLibraryDir)
         setInternalDir(dataDir.absolutePath)
         initializeEmulation()
+        // Add internal files/games as a scan path
+        val gamesDir = java.io.File(filesDir, "games")
+        if (!gamesDir.exists()) gamesDir.mkdirs()
+        NativeSettings.addGamePath(gamesDir.absolutePath)
         initializeSwkbd()
         refreshGraphicPacks()
     }

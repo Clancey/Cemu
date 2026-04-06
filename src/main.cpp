@@ -164,10 +164,9 @@ void CemuCoreInit()
 	for (auto& it : GetConfig().game_paths)
 		CafeTitleList::AddScanPath(_utf8ToPath(it));
 #ifdef __ANDROID__
-	// Auto-scan common game locations on Android
-	CafeTitleList::AddScanPath("/sdcard/CemuGames");
-	CafeTitleList::AddScanPath("/storage/emulated/0/CemuGames");
-	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: Added /sdcard/CemuGames as scan path");
+	// Auto-scan game locations accessible to the app
+	fs::path userDataGames = ActiveSettings::GetUserDataPath() / "games";
+	CafeTitleList::AddScanPath(userDataGames);
 #endif
 	fs::path mlcPath = ActiveSettings::GetMlcPath();
 	if (!mlcPath.empty())
