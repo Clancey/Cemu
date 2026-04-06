@@ -1,7 +1,7 @@
 set(JNI_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(SRC_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../../../src)
 
-add_library(CemuAndroid SHARED
+add_library(cemu SHARED
         ${JNI_DIR}/AndroidAudio.cpp
         ${JNI_DIR}/AndroidEmulatedController.cpp
         ${JNI_DIR}/CompressTitleCallbacks.cpp
@@ -23,14 +23,14 @@ add_library(CemuAndroid SHARED
         ${SRC_DIR}/Common/android/FilesystemAndroid.cpp
 )
 
-target_include_directories(CemuAndroid PRIVATE
+target_include_directories(cemu PRIVATE
         ${JNI_DIR}
         ${SRC_DIR}
 )
 
-cemu_use_precompiled_header(CemuAndroid)
+cemu_use_precompiled_header(cemu)
 
-target_link_libraries(CemuAndroid PRIVATE
+target_link_libraries(cemu PRIVATE
         -landroid
         CemuCommon
         CemuAudio
