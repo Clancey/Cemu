@@ -57,8 +57,10 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # on msvc we can reuse the PCH from CemuCommon, on other platforms it's not straight forward to reuse the PCH so we opt out of it
 function(cemu_use_precompiled_header target_name)
 	if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
-		# PCH reuse breaks on visionOS cross-compilation with non-Xcode generators
-		# due to ObjCXX PCH path resolution issues
+		# PCH REUSE_FROM breaks on visionOS cross-compilation with non-Xcode generators
+		# due to ObjCXX PCH path resolution issues — use per-target PCH instead
+		target_precompile_headers(${target_name} PRIVATE
+			"$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_SOURCE_DIR}/src/Common/precompiled.h>")
 		return()
 	endif()
 	# Always reuse from CemuCommon to avoid path issues

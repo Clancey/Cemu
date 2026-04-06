@@ -6,6 +6,7 @@
 #include "config/CemuConfig.h"
 #include "config/ActiveSettings.h"
 #include "config/LaunchSettings.h"
+#include "config/NetworkSettings.h"
 #include "Cafe/CafeSystem.h"
 #include "Cafe/TitleList/TitleList.h"
 #include "Cafe/TitleList/SaveList.h"
@@ -19,6 +20,7 @@
 #include "Cafe/GraphicPack/GraphicPack2.h"
 #include "Common/ExceptionHandler/ExceptionHandler.h"
 #include "Common/cpu_features.h"
+#include "Cemu/ncrypto/ncrypto.h"
 
 #include <android/log.h>
 #include <android/asset_manager.h>
@@ -26,6 +28,9 @@
 #include <sys/system_properties.h>
 #include <future>
 #include <chrono>
+#include <fmt/format.h>
+#include <fstream>
+#include <boost/algorithm/string.hpp>
 
 #define LOG_TAG "CemuAndroid"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
@@ -42,6 +47,8 @@ namespace AndroidBridge
 	int32_t HandleInputEvent(android_app* app, AInputEvent* event);
 	void EmulationThreadFunc();
 	void CemuAndroidInit();
+	void InitializeCore();
+	void createCemuDirectories();
 
 	std::string GetAndroidVersion()
 	{
@@ -106,12 +113,30 @@ namespace AndroidBridge
 
 		try
 		{
+			// Stage 1: Basic initialization (paths, directories, config)
 			CemuAndroidInit();
-			LOGD("Cemu initialization completed successfully");
+			LOGD("Cemu basic initialization completed successfully");
 		}
 		catch (const std::exception& e)
 		{
 			LOGE("Failed to initialize Cemu: %s", e.what());
+			g_androidState.emulationState = EmulationState::Stopped;
+		}
+	}
+
+	void InitializeCore()
+	{
+		LOGD("Initializing Cemu core systems");
+
+		try
+		{
+			// Stage 2: Core Cemu initialization (deferred from basic init)
+			cemuAndroid_initializeEmulation();
+			LOGD("Cemu core initialization completed successfully");
+		}
+		catch (const std::exception& e)
+		{
+			LOGE("Failed to initialize Cemu core: %s", e.what());
 			g_androidState.emulationState = EmulationState::Stopped;
 		}
 	}
@@ -183,6 +208,9 @@ namespace AndroidBridge
 		g_androidState.windowReady = true;
 
 		LOGD("Window size: %dx%d", g_androidState.windowWidth, g_androidState.windowHeight);
+
+		// Stage 2: Initialize core systems now that we have a window
+		InitializeCore();
 
 		// Initialize the existing Android window system using the C API
 		cemuAndroid_initWindowSystem(window);
@@ -385,7 +413,7 @@ namespace AndroidBridge
 	{
 		LOGD("Starting Cemu initialization for Android");
 
-		// Set up Android-specific paths first, before core init
+		// Set up Android-specific paths first, before any core initialization
 		std::set<fs::path> failedWriteAccess;
 		fs::path execPath = "/system/bin/app_process"; // Dummy executable path for Android
 		fs::path userData = _utf8ToPath(g_androidState.cemuDataPath);
@@ -394,12 +422,69 @@ namespace AndroidBridge
 		fs::path dataPath = userData; // Use same as user data
 
 		ActiveSettings::SetPaths(false, execPath, userData, configPath, cachePath, dataPath, failedWriteAccess);
+
+		// Follow SSimco's exact sequence:
+		// 1. Set config filename
+		GetConfigHandle().SetFilename(ActiveSettings::GetConfigPath("settings.xml").generic_wstring());
+
+		// 2. Create directories
+		createCemuDirectories();
+
+		// 3. Load network config
+		NetworkConfig::LoadOnce();
+
+		// 4. Initialize ActiveSettings
 		ActiveSettings::Init();
 
-		// Use the existing Android core initialization
-		cemuAndroid_coreInit();
+		LOGD("Cemu Android pre-initialization completed - ready for core init");
+	}
 
-		LOGD("Cemu Android initialization completed");
+	void createCemuDirectories()
+	{
+		std::wstring mlc = ActiveSettings::GetMlcPath().generic_wstring();
+
+		// Create sys/usr folder in mlc01
+		const auto sysFolder = fs::path(mlc).append(L"sys");
+		fs::create_directories(sysFolder);
+
+		const auto usrFolder = fs::path(mlc).append(L"usr");
+		fs::create_directories(usrFolder);
+		fs::create_directories(fs::path(usrFolder).append("title/00050000")); // base
+		fs::create_directories(fs::path(usrFolder).append("title/0005000c")); // dlc
+		fs::create_directories(fs::path(usrFolder).append("title/0005000e")); // update
+
+		// Mii Maker save folders
+		fs::create_directories(fs::path(mlc).append(L"usr/save/00050010/1004a000/user/common/db"));
+		fs::create_directories(fs::path(mlc).append(L"usr/save/00050010/1004a100/user/common/db"));
+		fs::create_directories(fs::path(mlc).append(L"usr/save/00050010/1004a200/user/common/db"));
+
+		// lang files
+		auto langDir = fs::path(mlc).append(L"sys/title/0005001b/1005c000/content");
+		fs::create_directories(langDir);
+
+		auto langFile = fs::path(langDir).append("language.txt");
+		if (!fs::exists(langFile))
+		{
+			std::ofstream file(langFile);
+			if (file.is_open())
+			{
+				const char* langStrings[] = {"ja", "en", "fr", "de", "it", "es", "zh", "ko", "nl", "pt", "ru", "zh"};
+				for (const char* lang : langStrings)
+					file << fmt::format(R"("{}",)", lang) << std::endl;
+
+				file.flush();
+				file.close();
+			}
+		}
+
+		// cemu directories
+		const auto controllerProfileFolder = ActiveSettings::GetConfigPath(L"controllerProfiles").generic_wstring();
+		if (!fs::exists(controllerProfileFolder))
+			fs::create_directories(controllerProfileFolder);
+
+		const auto memorySearcherFolder = ActiveSettings::GetUserDataPath(L"memorySearcher").generic_wstring();
+		if (!fs::exists(memorySearcherFolder))
+			fs::create_directories(memorySearcherFolder);
 	}
 
 } // namespace AndroidBridge

@@ -340,10 +340,9 @@ elseif(ANDROID)
 	# Android-specific dependency handling
 	message(STATUS "Android build: using core dependencies, skipping desktop-only packages")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
-	# visionOS-specific dependency handling
-	message(STATUS "visionOS build: using core dependencies, skipping desktop-only packages")
-	# For now, disable CURL on visionOS (uses native networking)
-	# find_package(CURL REQUIRED)
+	# visionOS-specific dependency handling (SDL not needed, CURL needed for network services)
+	message(STATUS "visionOS build: using core dependencies, skipping SDL")
+	find_package(CURL REQUIRED)
 endif()
 
 # glslang versions older than 11.11.0 define targets without a namespace
@@ -378,10 +377,12 @@ endif()
 
 if (ENABLE_VULKAN)
 	include_directories("dependencies/Vulkan-Headers/include")
+	add_definitions(-DENABLE_VULKAN=1)
 endif()
 
 if (ENABLE_OPENGL)
 	find_package(OpenGL REQUIRED)
+	add_definitions(-DENABLE_OPENGL=1)
 endif()
 
 if (ENABLE_METAL)

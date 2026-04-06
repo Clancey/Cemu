@@ -7,6 +7,7 @@
 #include "Cafe/OS/libs/coreinit/coreinit_Thread.h"
 #include "Cafe/GameProfile/GameProfile.h"
 #include "Cafe/GraphicPack/GraphicPack2.h"
+#include "Cafe/HW/Espresso/PPCState.h"
 #include "config/CemuConfig.h"
 #include "config/NetworkSettings.h"
 #include "config/LaunchSettings.h"
@@ -300,11 +301,20 @@ extern "C" DLLEXPORT uint64 gameMeta_getTitleId()
 
 #include "gui/android/AndroidWindowSystem.h"
 #include <android/native_window.h>
+#include "Cafe/HW/Latte/Core/LatteOverlay.h"
 
-// Android-callable functions
+// Android-callable functions - following SSimco's safer staged initialization
+extern "C" DLLEXPORT void cemuAndroid_initializeEmulation()
+{
+	// Stage 1: Basic initialization like SSimco
+	LatteOverlay_init();
+	CemuCommonInit();
+}
+
 extern "C" DLLEXPORT void cemuAndroid_coreInit()
 {
-	CemuCoreInit();
+	// Legacy function for backward compatibility - now calls staged version
+	cemuAndroid_initializeEmulation();
 }
 
 extern "C" DLLEXPORT void cemuAndroid_initWindowSystem(ANativeWindow* window)

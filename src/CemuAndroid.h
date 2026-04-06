@@ -23,7 +23,9 @@ struct AInputEvent;
 extern "C" {
 #endif
 
-// Core initialization - call this first
+// Core initialization - staged approach like SSimco
+void cemuAndroid_initializeEmulation();
+// Legacy function (calls initializeEmulation)
 void cemuAndroid_coreInit();
 
 // Window system initialization and management

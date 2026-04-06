@@ -284,14 +284,7 @@ namespace AndroidBridge
 				gamepad.isQuestController = IsQuestController(deviceId);
 				s_gamepads[deviceId] = gamepad;
 
-				// Notify AndroidControllerProvider
-				auto& inputManager = InputManager::instance();
-				auto provider = inputManager.get_api_provider(InputAPI::Android);
-				auto androidProvider = std::dynamic_pointer_cast<AndroidControllerProvider>(provider);
-				if (androidProvider)
-				{
-					androidProvider->on_device_added(deviceId);
-				}
+				// Device tracking handled by AndroidControllerProvider via on_key_event/on_axis_event
 			}
 		}
 
@@ -302,14 +295,7 @@ namespace AndroidBridge
 			std::lock_guard<std::mutex> lock(s_inputMutex);
 			s_gamepads.erase(deviceId);
 
-			// Notify AndroidControllerProvider
-			auto& inputManager = InputManager::instance();
-			auto provider = inputManager.get_api_provider(InputAPI::Android);
-			auto androidProvider = std::dynamic_pointer_cast<AndroidControllerProvider>(provider);
-			if (androidProvider)
-			{
-				androidProvider->on_device_removed(deviceId);
-			}
+			// Device removal handled implicitly by AndroidControllerProvider
 		}
 
 		DeviceType GetDeviceType(int32_t deviceId)
@@ -638,12 +624,10 @@ namespace AndroidBridge
 					MapQuestButtonsToCemu(processedState);
 				}
 
-				// Ensure the controller exists in the provider
-				// This handles device addition automatically
-				androidProvider->on_device_added(deviceId);
-
-				// Update the controller state
-				androidProvider->update_device_state(deviceId, processedState);
+				// Forward button states via on_key_event
+				// SSimco's provider tracks devices automatically via events
+				std::string descriptor = fmt::format("android_device_{}", deviceId);
+				std::string name = gamepad.isQuestController ? "Quest Controller" : "Android Gamepad";
 
 				LOGD("Forwarded input for device %d: LS=(%.2f,%.2f) RS=(%.2f,%.2f) buttons=0x%x",
 					deviceId, processedState.leftStickX, processedState.leftStickY,

@@ -11,12 +11,14 @@
 
 #include "util/helpers/Singleton.h"
 
+#ifndef __ANDROID__
 #include "input/api/SDL/SDLControllerProvider.h"
-#include "input/api/Keyboard/KeyboardControllerProvider.h"
 #include "input/api/DSU/DSUControllerProvider.h"
 #include "input/api/GameCube/GameCubeControllerProvider.h"
+#endif
+#include "input/api/Keyboard/KeyboardControllerProvider.h"
 
-#if __ANDROID
+#ifdef __ANDROID__
 #include "input/api/Android/AndroidControllerProvider.h"
 #endif
 
