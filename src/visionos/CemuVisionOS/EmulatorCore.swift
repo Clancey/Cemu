@@ -42,13 +42,12 @@ final class EmulatorCore {
         // Configure sandbox-aware paths before core init.
         configurePaths()
 
-        var error: NSError?
-        let success = bridge.initialize(withError: &error)
-        if success {
+        do {
+            try bridge.initialize()
             isInitialized = true
             logger.info("Cemu core initialised")
-        } else {
-            let message = error?.localizedDescription ?? "Unknown error"
+        } catch {
+            let message = error.localizedDescription
             lastError = message
             logger.error("Cemu core init failed: \(message)")
         }
@@ -58,7 +57,7 @@ final class EmulatorCore {
 
     /// Provide the main TV CAMetalLayer to the C++ renderer.
     func setMainDisplayLayer(_ layer: CAMetalLayer, width: Int, height: Int) {
-        bridge.setMainDisplayLayer(layer, width: Int32(width), height: Int32(height))
+        bridge.setMainDisplay(layer, width: Int32(width), height: Int32(height))
     }
 
     /// Notify the C++ side that the main display was resized.
@@ -71,10 +70,10 @@ final class EmulatorCore {
     /// Load and launch a game at the given filesystem path.
     func loadGame(at path: String) {
         lastError = nil
-        var error: NSError?
-        let success = bridge.loadGame(atPath: path, error: &error)
-        if !success {
-            let message = error?.localizedDescription ?? "Failed to load game"
+        do {
+            try bridge.loadGame(atPath: path)
+        } catch {
+            let message = error.localizedDescription
             lastError = message
             logger.error("Load game failed: \(message)")
         }
@@ -101,7 +100,7 @@ final class EmulatorCore {
 
     /// Forward a GamePad touch event.
     func handleGamePadTouch(x: Float, y: Float) {
-        bridge.handleGamePadTouch(atX: x, y: y)
+        bridge.handleGamePadTouchAt(x: x, y: y)
     }
 
     /// Forward a GamePad touch-up event.
@@ -127,6 +126,6 @@ final class EmulatorCore {
         // Bundled data (graphic packs, etc.) lives inside the app bundle.
         let dataPath = Bundle.main.resourcePath ?? configPath
 
-        bridge.setStoragePaths(withConfig: configPath, cache: cachePath, data: dataPath)
+        bridge.setStoragePathsWithConfig(configPath, cache: cachePath, data: dataPath)
     }
 }

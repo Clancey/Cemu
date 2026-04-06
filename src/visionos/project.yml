@@ -1,0 +1,77 @@
+name: CemuVisionOS
+options:
+  bundleIdPrefix: org.cemu
+  deploymentTarget:
+    visionOS: "2.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    CLANG_CXX_LANGUAGE_STANDARD: c++20
+    CLANG_ENABLE_MODULES: YES
+    ENABLE_STRICT_OBJC_MSGSEND: YES
+
+targets:
+  CemuVisionOS:
+    type: application
+    platform: visionOS
+    deploymentTarget: "2.0"
+
+    sources:
+      - path: CemuVisionOS
+        type: group
+        buildPhase: sources
+        excludes:
+          - "Info.plist"
+      - path: CemuBridge
+        type: group
+        buildPhase: sources
+      - path: CemuVision-Bridging-Header.h
+        buildPhase: none
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.cemu.CemuVisionOS
+        SWIFT_OBJC_BRIDGING_HEADER: CemuVision-Bridging-Header.h
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        HEADER_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/../../src"
+          - "$(SRCROOT)/../../dependencies/vcpkg/installed/arm64-android/include"
+          - "$(SRCROOT)/../../dependencies/metal-cpp"
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - "TARGET_OS_VISION=1"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS:
+          - "$(inherited)"
+          - VISION_OS
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_PREVIEWS: YES
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_EMIT_LOC_STRINGS: YES
+        DEVELOPMENT_TEAM: ""
+
+    dependencies: []
+
+    info:
+      path: CemuVisionOS/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleDisplayName: Cemu
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundleName: "$(PRODUCT_NAME)"
+        CFBundlePackageType: APPL
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSRequiresIPhoneOS: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations: {}
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
