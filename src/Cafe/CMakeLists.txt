@@ -401,9 +401,6 @@ add_library(CemuCafe
   OS/libs/nfc/TagV0.h
   OS/libs/nfc/TLV.cpp
   OS/libs/nfc/TLV.h
-  OS/libs/nlibcurl/nlibcurl.cpp
-  OS/libs/nlibcurl/nlibcurlDebug.hpp
-  OS/libs/nlibcurl/nlibcurl.h
   OS/libs/nlibnss/nlibnss.cpp
   OS/libs/nlibnss/nlibnss.h
   OS/libs/nn_ac/nn_ac.cpp
@@ -619,6 +616,15 @@ cemu_use_precompiled_header(CemuCafe)
 
 target_include_directories(CemuCafe PUBLIC "../")
 
+# Add CURL library support (desktop only)
+if(NOT ANDROID)
+	target_sources(CemuCafe PRIVATE
+		OS/libs/nlibcurl/nlibcurl.cpp
+		OS/libs/nlibcurl/nlibcurlDebug.hpp
+		OS/libs/nlibcurl/nlibcurl.h
+	)
+endif()
+
 if (glslang_VERSION VERSION_LESS "15.0.0")
 	set(glslang_target "glslang::SPIRV")
 else()
@@ -632,13 +638,17 @@ target_link_libraries(CemuCafe PRIVATE
   imguiImpl
   pugixml::pugixml
   ZLIB::ZLIB
-  CURL::libcurl
   ih264d
   zstd::zstd
   ${glslang_target}
   PUBLIC
   OpenSSL::SSL
 )
+
+# Link CURL only on non-Android platforms
+if(NOT ANDROID)
+  target_link_libraries(CemuCafe PRIVATE CURL::libcurl)
+endif()
 
 if (ENABLE_WAYLAND)
 	# PUBLIC because wayland-client.h is included in VulkanAPI.h

@@ -38,7 +38,16 @@ if (ENABLE_VCPKG)
 		)
 	endif()
 
-	if(UNIX AND NOT APPLE)
+	if(ANDROID)
+		# Set Android-specific vcpkg triplet
+		set(VCPKG_TARGET_TRIPLET arm64-android)
+		# Use Android-specific overlay ports if they exist, otherwise empty
+		if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_android")
+			set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_android")
+		else()
+			set(VCPKG_OVERLAY_PORTS "")
+		endif()
+	elseif(UNIX AND NOT APPLE)
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_linux;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
 	elseif(APPLE)
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_mac;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
@@ -73,8 +82,11 @@ add_definitions(-DEMULATOR_VERSION_PATCH=${EMULATOR_VERSION_PATCH})
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # enable link time optimization for release builds
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+# Note: On Android, IPO is disabled because CMake adds -fuse-ld=gold which is unavailable
+if(NOT ANDROID)
+	set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+	set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+endif()
 
 if (MSVC)
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT CemuBin)
@@ -98,10 +110,30 @@ if (APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "13.4")
 endif()
 
-if (UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE AND NOT ANDROID)
 	option(ENABLE_WAYLAND "Build with Wayland support" ON)
 	option(ENABLE_FERAL_GAMEMODE "Enables Feral Interactive GameMode Support" ON)
 	option(ENABLE_BLUEZ "Build with Bluez support" ON)
+endif()
+
+# Android-specific configuration
+if (ANDROID)
+	# Force disable desktop-only features
+	set(ENABLE_WAYLAND OFF CACHE BOOL "Disable Wayland on Android" FORCE)
+	set(ENABLE_FERAL_GAMEMODE OFF CACHE BOOL "Disable GameMode on Android" FORCE)
+	set(ENABLE_BLUEZ OFF CACHE BOOL "Disable Bluez on Android" FORCE)
+	set(ENABLE_WXWIDGETS OFF CACHE BOOL "Disable wxWidgets on Android" FORCE)
+	set(ENABLE_OPENGL OFF CACHE BOOL "Disable OpenGL on Android (use Vulkan)" FORCE)
+	set(ENABLE_DISCORD_RPC OFF CACHE BOOL "Disable Discord RPC on Android" FORCE)
+
+	# Force enable supported features
+	set(ENABLE_VULKAN ON CACHE BOOL "Enable Vulkan on Android" FORCE)
+
+	# Disable features that need system packages not available via NDK
+	# Input/audio handled through Android APIs directly
+	set(ENABLE_SDL OFF CACHE BOOL "Disable SDL on Android (using native input)" FORCE)
+	set(ENABLE_CUBEB OFF CACHE BOOL "Disable cubeb on Android (using native audio)" FORCE)
+	set(ENABLE_HIDAPI OFF CACHE BOOL "Disable HIDAPI on Android" FORCE)
 endif()
 
 if (APPLE)
@@ -126,6 +158,12 @@ if (WIN32)
 	add_compile_definitions(HAS_DIRECTINPUT)
 endif()
 
+# Android input configuration
+if (ANDROID)
+	set(ENABLE_XINPUT OFF CACHE BOOL "Disable XInput on Android" FORCE)
+	set(ENABLE_DIRECTINPUT OFF CACHE BOOL "Disable DirectInput on Android" FORCE)
+endif()
+
 option(ENABLE_HIDAPI "Build with HIDAPI" ON)
 option(ENABLE_SDL "Enables the SDLController backend" ON)
 
@@ -134,31 +172,63 @@ if (WIN32)
 	option(ENABLE_DIRECTAUDIO "Enables the directaudio backend" ON)
 	option(ENABLE_XAUDIO "Enables the xaudio backend" ON)
 endif()
+
+# Android audio configuration
+if (ANDROID)
+	set(ENABLE_DIRECTAUDIO OFF CACHE BOOL "Disable DirectAudio on Android" FORCE)
+	set(ENABLE_XAUDIO OFF CACHE BOOL "Disable XAudio on Android" FORCE)
+endif()
 option(ENABLE_CUBEB "Enabled cubeb backend" ON)
 
 option(ENABLE_WXWIDGETS "Build with wxWidgets UI (Currently required)" ON)
 
 find_package(Threads REQUIRED)
-find_package(SDL2 REQUIRED)
-find_package(CURL REQUIRED)
-find_package(pugixml REQUIRED)
-find_package(RapidJSON REQUIRED)
-find_package(Boost COMPONENTS program_options filesystem nowide REQUIRED)
-find_package(libzip REQUIRED)
-find_package(glslang REQUIRED)
-find_package(ZLIB REQUIRED)
-find_package(zstd MODULE REQUIRED) # MODULE so that zstd::zstd is available
-find_package(OpenSSL COMPONENTS Crypto SSL REQUIRED)
-find_package(glm REQUIRED)
-find_package(fmt 9 REQUIRED)
-find_package(PNG REQUIRED)
+
+# Core dependencies needed by all platforms including Android
+# Use vcpkg to find dependencies for all platforms, including Android
+find_package(Boost COMPONENTS program_options filesystem nowide QUIET)
+find_package(glm QUIET)
+find_package(fmt 9 QUIET)
+find_package(pugixml QUIET)
+find_package(RapidJSON QUIET)
+find_package(libzip QUIET)
+find_package(glslang QUIET)
+find_package(ZLIB QUIET)
+find_package(zstd MODULE QUIET)
+find_package(OpenSSL COMPONENTS Crypto SSL QUIET)
+find_package(PNG QUIET)
+
+if(NOT ANDROID)
+	# Desktop builds use vcpkg or system packages
+	find_package(Boost COMPONENTS program_options filesystem nowide REQUIRED)
+	find_package(glm REQUIRED)
+	find_package(fmt 9 REQUIRED)
+	find_package(pugixml REQUIRED)
+	find_package(RapidJSON REQUIRED)
+	find_package(libzip REQUIRED)
+	find_package(glslang REQUIRED)
+	find_package(ZLIB REQUIRED)
+	find_package(zstd MODULE REQUIRED) # MODULE so that zstd::zstd is available
+	find_package(OpenSSL COMPONENTS Crypto SSL REQUIRED)
+	find_package(PNG REQUIRED)
+endif()
+
+# Platform-specific dependencies
+if(NOT ANDROID)
+	# Desktop-only dependencies
+	find_package(SDL2 REQUIRED)
+	find_package(CURL REQUIRED)
+else()
+	# Android-specific dependency handling
+	message(STATUS "Android build: using core dependencies, skipping desktop-only packages")
+endif()
 
 # glslang versions older than 11.11.0 define targets without a namespace
 if (NOT TARGET glslang::SPIRV AND TARGET SPIRV)
 	add_library(glslang::SPIRV ALIAS SPIRV)
 endif()
 
-if (UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE AND NOT ANDROID)
 	find_package(X11 REQUIRED)
 	if (ENABLE_WAYLAND)
 		find_package(Wayland REQUIRED Client)
@@ -207,7 +277,7 @@ if (ENABLE_HIDAPI)
 	add_compile_definitions(HAS_HIDAPI)
 endif ()
 
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT ANDROID)
 	if(ENABLE_FERAL_GAMEMODE)
 		add_compile_definitions(ENABLE_FERAL_GAMEMODE)
 		add_subdirectory(dependencies/gamemode EXCLUDE_FROM_ALL)
@@ -215,7 +285,19 @@ if(UNIX AND NOT APPLE)
 	endif()
 endif()
 
-if (ENABLE_WXWIDGETS)
+# Android-specific Vulkan setup
+if (ANDROID AND ENABLE_VULKAN)
+	# On Android, Vulkan is a system library
+	find_library(VULKAN_LIB vulkan)
+	if (VULKAN_LIB)
+		add_library(vulkan SHARED IMPORTED)
+		set_target_properties(vulkan PROPERTIES IMPORTED_LOCATION ${VULKAN_LIB})
+	else()
+		message(FATAL_ERROR "Vulkan library not found on Android")
+	endif()
+endif()
+
+if (ENABLE_WXWIDGETS AND NOT ANDROID)
 	find_package(wxWidgets 3.3 REQUIRED COMPONENTS base core gl propgrid xrc)
 endif()
 

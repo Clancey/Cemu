@@ -54,3 +54,25 @@ bin/graphicPacks/*
 
 # Ignore Finder view option files created by OS X
 .DS_Store
+
+# Android build artifacts
+android/.gradle/
+android/.cxx/
+android/app/.cxx/
+android/app/build/
+android/build/
+android/local.properties
+android/gradle/wrapper/gradle-wrapper.jar
+build-android/
+
+# vcpkg installed packages (built per-platform)
+vcpkg_installed/
+
+# visionOS/Xcode build artifacts
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# Example/template files
+src/*.example
+src/CMakeLists_android.txt.example

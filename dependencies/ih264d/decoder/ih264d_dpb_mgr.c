@@ -18,7 +18,10 @@
  * Originally developed and contributed by Ittiam Systems Pvt. Ltd, Bangalore
 */
 #ifdef __ANDROID__
-#include <log/log.h>
+#include <android/log.h>
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "ih264d", __VA_ARGS__)
+// Stub for android_errorWriteLog since it's not available in NDK
+#define android_errorWriteLog(tag, subTag) ((void)0)
 #endif
 #include "ih264_typedefs.h"
 #include "ih264_macros.h"

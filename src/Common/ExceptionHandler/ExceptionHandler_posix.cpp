@@ -92,7 +92,11 @@ void handlerDumpingSignal(int sig, siginfo_t *info, void *context)
 	size_t size;
 
 	// get void*'s for all entries on the stack
+#ifndef ANDROID
 	size = backtrace(backtraceArray, 128);
+#else
+	size = 0; // backtrace not available on Android
+#endif
     // replace the deepest entry with the actual crash address
 #if defined(ARCH_X86_64) && BOOST_OS_LINUX > 0
     ucontext_t *uc = (ucontext_t *)context;
@@ -101,7 +105,7 @@ void handlerDumpingSignal(int sig, siginfo_t *info, void *context)
 
     CrashLog_WriteLine(fmt::format("Error: signal {}:", sig));
 
-#if BOOST_OS_LINUX
+#if BOOST_OS_LINUX && !defined(ANDROID)
 	char** symbol_trace = backtrace_symbols(backtraceArray, size);
 
 	if (symbol_trace)
@@ -113,7 +117,7 @@ void handlerDumpingSignal(int sig, siginfo_t *info, void *context)
 	{
         CrashLog_WriteLine("Failed to read backtrace");
 	}
-#else
+#elif !defined(ANDROID)
 	backtrace_symbols_fd(backtraceArray, size, STDERR_FILENO);
 #endif
 

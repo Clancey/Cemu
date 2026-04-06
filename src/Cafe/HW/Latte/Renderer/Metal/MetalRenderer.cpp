@@ -1,4 +1,8 @@
 #include "Cafe/HW/Latte/Renderer/Metal/MetalRenderer.h"
+
+#if __APPLE__
+#include <TargetConditionals.h>
+#endif
 #include "Cafe/HW/Latte/Renderer/Metal/MetalMemoryManager.h"
 #include "Cafe/HW/Latte/Renderer/Metal/LatteTextureMtl.h"
 #include "Cafe/HW/Latte/Renderer/Metal/LatteTextureViewMtl.h"
@@ -38,6 +42,7 @@ void LatteDraw_handleSpecialState8_clearAsDepth();
 
 std::vector<MetalRenderer::DeviceInfo> MetalRenderer::GetDevices()
 {
+#if !TARGET_OS_VISION
     NS_STACK_SCOPED auto devices = MTL::CopyAllDevices();
     std::vector<MetalRenderer::DeviceInfo> result;
     result.reserve(devices->count());
@@ -48,6 +53,17 @@ std::vector<MetalRenderer::DeviceInfo> MetalRenderer::GetDevices()
     }
 
     return result;
+#else
+    // visionOS only has a single GPU. CopyAllDevices() is not available.
+    std::vector<MetalRenderer::DeviceInfo> result;
+    MTL::Device* device = MTL::CreateSystemDefaultDevice();
+    if (device)
+    {
+        result.push_back({std::string(device->name()->utf8String()), device->registryID()});
+        device->release();
+    }
+    return result;
+#endif
 }
 
 MetalRenderer::MetalRenderer()
@@ -126,6 +142,7 @@ MetalRenderer::MetalRenderer()
     const bool hasDeviceSet = config.mtl_graphic_device_uuid != 0;
 
     // If a device is set, try to find it
+#if !TARGET_OS_VISION
     if (hasDeviceSet)
     {
         NS_STACK_SCOPED auto devices = MTL::CopyAllDevices();
@@ -139,6 +156,7 @@ MetalRenderer::MetalRenderer()
             }
         }
     }
+#endif
 
     if (!m_device)
     {

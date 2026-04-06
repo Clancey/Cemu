@@ -1,5 +1,7 @@
 #include "Cafe/OS/common/OSCommon.h"
+#ifndef __ANDROID__
 #include "WindowSystem.h"
+#endif
 #include "Cafe/OS/libs/gx2/GX2.h"
 #include "Cafe/GameProfile/GameProfile.h"
 #include "Cafe/HW/Espresso/Interpreter/PPCInterpreterInternal.h"
@@ -169,7 +171,10 @@ void LoadMainExecutable()
 		applicationRPX = RPLLoader_LoadFromMemory(rpxData, rpxSize, (char*)_pathToExecutable.c_str());
 		if (!applicationRPX)
 		{
+#ifndef __ANDROID__
 			WindowSystem::ShowErrorDialog(_tr("Failed to run this title because the executable is damaged"));
+#endif
+			cemuLog_log(LogType::Force, "Failed to run this title because the executable is damaged");
 			cemuLog_createLogFile(false);
 			cemuLog_waitForFlush();
 			exit(0);
@@ -365,7 +370,9 @@ uint32 LoadSharedData()
 
 void cemu_initForGame()
 {
+#ifndef __ANDROID__
 	WindowSystem::UpdateWindowTitles(false, true, 0.0);
+#endif
 	cemuLog_createLogFile(false);
 	// input manager apply game profile
 	InputManager::instance().apply_game_profile();
@@ -863,7 +870,9 @@ namespace CafeSystem
 		PPCTimer_waitForInit();
 		// start system
 		sSystemRunning = true;
+#ifndef __ANDROID__
 		WindowSystem::NotifyGameLoaded();
+#endif
 		std::thread t(_LaunchTitleThread);
 		t.detach();
 	}

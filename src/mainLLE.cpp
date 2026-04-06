@@ -1,5 +1,7 @@
 #include "util/crypto/aes128.h"
+#ifndef __ANDROID__
 #include "WindowSystem.h"
+#endif
 #include "Common/FileStream.h"
 
 void CemuCommonInit();
@@ -35,8 +37,10 @@ void mainEmulatorLLE()
 	// memory init
 	memory_initPhysicalLayout();
 	
-	// start GUI thread
+#ifndef __ANDROID__
+	// start GUI thread (only for desktop)
 	WindowSystem::Create();
+#endif
 	// load kernel ancast image
 	loadPPCBootrom();
 	loadEncryptedPPCAncastKernel();

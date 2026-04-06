@@ -18,6 +18,14 @@ elseif(UNIX)
 			VK_USE_PLATFORM_MACOS_MVK
 			VK_USE_PLATFORM_METAL_EXT
 		)
+	elseif(ANDROID)
+		add_compile_definitions(
+			ANDROID
+			__ANDROID__
+			VK_USE_PLATFORM_ANDROID_KHR
+			_POSIX_C_SOURCE=200809L
+			_GNU_SOURCE
+		)
 	else()
 		add_compile_definitions(
 			VK_USE_PLATFORM_XLIB_KHR # legacy. Do we need to support XLIB surfaces?
@@ -41,11 +49,8 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # on msvc we can reuse the PCH from CemuCommon, on other platforms it's not straight forward to reuse the PCH so we opt out of it
 function(cemu_use_precompiled_header target_name)
-	if(MSVC)
-		target_precompile_headers(${target_name} REUSE_FROM CemuCommon)
-	else()
-		target_precompile_headers(${target_name} PRIVATE "${CMAKE_SOURCE_DIR}/src/Common/precompiled.h")
-	endif()
+	# Always reuse from CemuCommon to avoid path issues
+	target_precompile_headers(${target_name} REUSE_FROM CemuCommon)
 endfunction()
 
 add_subdirectory(Common)
@@ -59,10 +64,24 @@ add_subdirectory(util)
 add_subdirectory(imgui)
 add_subdirectory(resource)
 
-add_executable(CemuBin
-	main.cpp
-	mainLLE.cpp
-)
+# Android-specific sources
+if(ANDROID)
+	add_subdirectory(android)
+endif()
+
+if(ANDROID)
+	# For Android, create a shared library instead of executable
+	add_library(CemuBin SHARED
+		mainLLE.cpp
+	)
+	# Link our Android native sources
+	target_link_libraries(CemuBin PRIVATE cemu_android)
+else()
+	add_executable(CemuBin
+		main.cpp
+		mainLLE.cpp
+	)
+endif()
 
 cemu_use_precompiled_header(CemuBin)
 
@@ -166,8 +185,11 @@ target_link_libraries(CemuBin PRIVATE
 	CemuGui
 	CemuInput
 	CemuUtil
-	SDL2::SDL2
 )
+
+if(NOT ANDROID)
+	target_link_libraries(CemuBin PRIVATE SDL2::SDL2)
+endif()
 
 if(UNIX AND NOT APPLE)
 	# due to nasm output some linkers will make stack executable

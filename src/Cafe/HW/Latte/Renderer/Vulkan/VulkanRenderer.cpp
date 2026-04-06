@@ -6,6 +6,10 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/CocoaSurface.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanPipelineCompiler.h"
 
+#ifdef __ANDROID__
+#include <android/native_window.h>
+#endif
+
 #include "Cafe/HW/Latte/Core/LatteBufferCache.h"
 #include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
 #include "Cafe/HW/Latte/Core/LatteOverlay.h"
@@ -111,6 +115,8 @@ std::vector<VulkanRenderer::DeviceInfo> VulkanRenderer::GetDevices()
 	requiredExtensions.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
 	#if BOOST_OS_WINDOWS
 	requiredExtensions.emplace_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+	#elif defined(__ANDROID__)
+	requiredExtensions.emplace_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 	#elif BOOST_OS_LINUX || BOOST_OS_BSD
 	auto backend = WindowSystem::GetWindowInfo().window_main.backend;
 	if(backend == WindowSystem::WindowHandleInfo::Backend::X11)
@@ -1436,6 +1442,26 @@ VkSurfaceKHR VulkanRenderer::CreateWaylandSurface(VkInstance instance, wl_displa
 #endif // HAS_WAYLAND
 #endif // BOOST_OS_LINUX
 
+#ifdef __ANDROID__
+VkSurfaceKHR VulkanRenderer::CreateAndroidSurface(VkInstance instance, void* nativeWindow)
+{
+	VkAndroidSurfaceCreateInfoKHR sci{};
+	sci.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+	sci.flags = 0;
+	sci.window = static_cast<ANativeWindow*>(nativeWindow);
+
+	VkSurfaceKHR result;
+	VkResult err;
+	if ((err = vkCreateAndroidSurfaceKHR(instance, &sci, nullptr, &result)) != VK_SUCCESS)
+	{
+		cemuLog_log(LogType::Force, "Cannot create an Android Vulkan surface: {}", (sint32)err);
+		throw std::runtime_error(fmt::format("Cannot create an Android Vulkan surface: {}", err));
+	}
+
+	return result;
+}
+#endif
+
 VkSurfaceKHR VulkanRenderer::CreateFramebufferSurface(VkInstance instance, WindowSystem::WindowHandleInfo& windowInfo)
 {
 #if BOOST_OS_WINDOWS
@@ -1450,6 +1476,12 @@ VkSurfaceKHR VulkanRenderer::CreateFramebufferSurface(VkInstance instance, Windo
 	return {};
 #elif BOOST_OS_MACOS
 	return CreateCocoaSurface(instance, windowInfo.surface);
+#elif defined(__ANDROID__)
+	if(windowInfo.backend == WindowSystem::WindowHandleInfo::Backend::Android)
+		return CreateAndroidSurface(instance, windowInfo.nativeWindow);
+	return {};
+#else
+	return {};
 #endif
 }
 

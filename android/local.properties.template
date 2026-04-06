@@ -1,0 +1,21 @@
+# This file contains the local paths for the Android SDK and NDK
+# Copy this to local.properties and update the paths as needed
+
+# Android SDK location
+sdk.dir=/path/to/android/sdk
+
+# Android NDK location
+ndk.dir=/path/to/android/ndk
+
+# Example paths:
+# On macOS with Android Studio:
+# sdk.dir=/Users/username/Library/Android/sdk
+# ndk.dir=/Users/username/Library/Android/sdk/ndk/26.1.10909125
+
+# On Linux:
+# sdk.dir=/home/username/Android/Sdk
+# ndk.dir=/home/username/Android/Sdk/ndk/26.1.10909125
+
+# On Windows:
+# sdk.dir=C\:\\Users\\username\\AppData\\Local\\Android\\Sdk
+# ndk.dir=C\:\\Users\\username\\AppData\\Local\\Android\\Sdk\\ndk\\26.1.10909125

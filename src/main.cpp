@@ -1,4 +1,6 @@
+#ifndef __ANDROID__
 #include "WindowSystem.h"
+#endif
 #include "util/crypto/aes128.h"
 #include "Cafe/OS/RPL/rpl.h"
 #include "Cafe/OS/libs/gx2/GX2.h"
@@ -32,6 +34,11 @@
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
+
+#ifdef __ANDROID__
+#include <android/log.h>
+#include "CemuAndroid.h"
+#endif
 
 #if BOOST_OS_LINUX
 #define _putenv(__s) putenv((char*)(__s))
@@ -107,7 +114,8 @@ void WindowsInitCwd()
 	#endif
 }
 
-void CemuCommonInit()
+// Core initialization that can be called from both desktop and Android
+void CemuCoreInit()
 {
 	reconfigureGLDrivers();
 	reconfigureVkDrivers();
@@ -148,12 +156,22 @@ void CemuCommonInit()
 	}
 }
 
+// Legacy function for compatibility
+void CemuCommonInit()
+{
+	CemuCoreInit();
+}
+
 void mainEmulatorLLE();
 void ppcAsmTest();
 void gx2CopySurfaceTest();
 void ExpressionParser_test();
 void FSTVolumeTest();
 void CRCTest();
+
+// Functions callable from Android
+void CemuCoreInit();
+void mainEmulatorLLE();
 
 void UnitTests()
 {
@@ -227,6 +245,8 @@ void HandlePostUpdate()
 
 void ToolShaderCacheMerger();
 
+#ifndef __ANDROID__
+
 #if BOOST_OS_WINDOWS
 
 // entrypoint for release builds
@@ -267,7 +287,72 @@ int main(int argc, char *argv[])
 }
 #endif
 
+#endif // __ANDROID__
+
 extern "C" DLLEXPORT uint64 gameMeta_getTitleId()
 {
 	return CafeSystem::GetForegroundTitleId();
 }
+
+#ifdef __ANDROID__
+
+#include "gui/android/AndroidWindowSystem.h"
+#include <android/native_window.h>
+
+// Android-callable functions
+extern "C" DLLEXPORT void cemuAndroid_coreInit()
+{
+	CemuCoreInit();
+}
+
+extern "C" DLLEXPORT void cemuAndroid_initWindowSystem(ANativeWindow* window)
+{
+	AndroidWindowSystem::AndroidWindowSystem::GetInstance().Initialize(window);
+}
+
+extern "C" DLLEXPORT void cemuAndroid_onResume()
+{
+	AndroidWindowSystem::AndroidWindowSystem::GetInstance().OnResume();
+}
+
+extern "C" DLLEXPORT void cemuAndroid_onPause()
+{
+	AndroidWindowSystem::AndroidWindowSystem::GetInstance().OnPause();
+}
+
+extern "C" DLLEXPORT void cemuAndroid_onDestroy()
+{
+	AndroidWindowSystem::AndroidWindowSystem::GetInstance().OnDestroy();
+}
+
+extern "C" DLLEXPORT void cemuAndroid_onWindowChanged(ANativeWindow* window)
+{
+	AndroidWindowSystem::AndroidWindowSystem::GetInstance().OnWindowChanged(window);
+}
+
+extern "C" DLLEXPORT void cemuAndroid_onWindowResized(int width, int height)
+{
+	AndroidWindowSystem::AndroidWindowSystem::GetInstance().OnWindowResized(width, height);
+}
+
+extern "C" DLLEXPORT int cemuAndroid_handleInputEvent(AInputEvent* event)
+{
+	return AndroidWindowSystem::AndroidWindowSystem::GetInstance().HandleInputEvent(event);
+}
+
+extern "C" DLLEXPORT void cemuAndroid_launchEmulatorLLE()
+{
+	mainEmulatorLLE();
+}
+
+extern "C" DLLEXPORT int cemuAndroid_isTitleRunning()
+{
+	return CafeSystem::IsTitleRunning() ? 1 : 0;
+}
+
+extern "C" DLLEXPORT void cemuAndroid_shutdownTitle()
+{
+	CafeSystem::ShutdownTitle();
+}
+
+#endif

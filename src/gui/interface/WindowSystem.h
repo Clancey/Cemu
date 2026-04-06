@@ -12,9 +12,12 @@ namespace WindowSystem
 			Wayland,
 			Cocoa,
 			Windows,
+			Android,
 		} backend;
 		void* display = nullptr;
 		void* surface = nullptr;
+		// ANativeWindow* for Android surface creation (always available for consistency)
+		void* nativeWindow = nullptr;
 	};
 
 	enum struct PlatformKeyCodes : uint32

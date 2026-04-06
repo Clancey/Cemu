@@ -15,10 +15,6 @@ add_library(CemuInput
 	api/DSU/DSUControllerProvider.h
 	api/DSU/DSUMessages.h
 	api/DSU/DSUMessages.cpp
-	api/SDL/SDLController.cpp
-	api/SDL/SDLControllerProvider.cpp
-	api/SDL/SDLController.h
-	api/SDL/SDLControllerProvider.h
 	api/Keyboard/KeyboardControllerProvider.h
 	api/Keyboard/KeyboardControllerProvider.cpp
 	api/Keyboard/KeyboardController.cpp
@@ -60,6 +56,16 @@ if(WIN32)
 		api/DirectInput/DirectInputController.h
 		api/DirectInput/DirectInputControllerProvider.h
 		api/DirectInput/DirectInputController.cpp
+	)
+endif()
+
+# SDL support (not on Android)
+if(NOT ANDROID)
+	target_sources(CemuInput PRIVATE
+		api/SDL/SDLController.cpp
+		api/SDL/SDLControllerProvider.cpp
+		api/SDL/SDLController.h
+		api/SDL/SDLControllerProvider.h
 	)
 endif()
 

@@ -208,6 +208,9 @@ public:
 	static VkSurfaceKHR CreateWaylandSurface(VkInstance instance, wl_display* display, wl_surface* surface);
 	#endif
 #endif
+#ifdef __ANDROID__
+	static VkSurfaceKHR CreateAndroidSurface(VkInstance instance, void* nativeWindow);
+#endif
 
 	static VkSurfaceKHR CreateFramebufferSurface(VkInstance instance, struct WindowSystem::WindowHandleInfo& windowInfo);
 

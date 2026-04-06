@@ -11,6 +11,10 @@
 
 #include <fmt/printf.h>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 uint64 s_loggingFlagMask = cemuLog_getFlag(LogType::Force);
 
 class LoggingDispatcher
@@ -204,7 +208,16 @@ bool cemuLog_log(LogType type, std::string_view text)
 		return false;
 
 	if (LaunchSettings::Verbose())
+	{
+#ifdef __ANDROID__
+		android_LogPriority priority = ANDROID_LOG_INFO;
+		if (type == LogType::Force) priority = ANDROID_LOG_ERROR;
+		else if (type == LogType::APIErrors) priority = ANDROID_LOG_WARN;
+		__android_log_print(priority, "Cemu", "%.*s", static_cast<int>(text.size()), text.data());
+#else
 		std::cout << text << std::endl;
+#endif
+	}
 
 	cemuLog_writeLineToLog(text);
 
