@@ -249,12 +249,37 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeSurface(JNIEnv* en
 {
 	JNIUtils::handleNativeException(env, [&]() {
 		// Create VulkanRenderer lazily using the real surface (Quest compatible)
+		// Quest's Gralloc HAL rejects synthetic TestSurface buffers, so we must
+		// use the real SurfaceView surface. Wait for it to be set by setSurface().
 		if (!s_rendererInitialized && is_main_canvas) {
-			auto surface = WindowSystem::GetWindowInfo().canvas_main.surface.load();
-			if (surface) {
-				WindowSystem::GetWindowInfo().window_main.surface = surface;
-				g_renderer = std::make_unique<VulkanRenderer>();
-				s_rendererInitialized = true;
+			auto& surfaceAtomic = WindowSystem::GetWindowInfo().canvas_main.surface;
+			// Wait for surface, then wait for it to stabilize (Quest destroys+recreates during layout)
+			for (int attempt = 0; attempt < 30; attempt++) {
+				auto surface = surfaceAtomic.load();
+				if (surface) {
+					// Wait a moment for the surface to stabilize
+					std::this_thread::sleep_for(std::chrono::milliseconds(500));
+					// Re-read in case surface was destroyed and recreated
+					surface = surfaceAtomic.load();
+					if (!surface) continue;
+					WindowSystem::GetWindowInfo().window_main.surface = surface;
+					try {
+						g_renderer = std::make_unique<VulkanRenderer>();
+						s_rendererInitialized = true;
+						cemuLog_log(LogType::Force, "VulkanRenderer created successfully");
+						break;
+					} catch (const std::exception& e) {
+						cemuLog_log(LogType::Force, "VulkanRenderer creation attempt {} failed: {}", attempt, e.what());
+						// Surface may have been destroyed, wait and retry
+						std::this_thread::sleep_for(std::chrono::milliseconds(500));
+					}
+				} else {
+					std::this_thread::sleep_for(std::chrono::milliseconds(200));
+				}
+			}
+			if (!s_rendererInitialized) {
+				cemuLog_log(LogType::Force, "initializeSurface: Failed to create VulkanRenderer after retries");
+				return;
 			}
 		}
 

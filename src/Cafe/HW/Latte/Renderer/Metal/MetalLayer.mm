@@ -1,5 +1,7 @@
 #include "Cafe/HW/Latte/Renderer/Metal/MetalLayer.h"
 
+#if !TARGET_OS_VISION
+
 #include "Cafe/HW/Latte/Renderer/MetalView.h"
 
 void* CreateMetalLayer(void* handle, float& scaleX, float& scaleY)
@@ -20,3 +22,5 @@ void* CreateMetalLayer(void* handle, float& scaleX, float& scaleY)
 
 	return childView.layer;
 }
+
+#endif

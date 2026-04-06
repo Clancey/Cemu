@@ -2,12 +2,17 @@
 
 @implementation MetalView
 
--(BOOL) wantsUpdateLayer { return YES; }
-
 +(Class) layerClass { return [CAMetalLayer class]; }
 
-// copied from https://github.com/KhronosGroup/MoltenVK/blob/master/Demos/Cube/macOS/DemoViewController.m
+#if TARGET_OS_VISION
 
+// visionOS: UIView-based, layer class is sufficient
+
+#else
+
+-(BOOL) wantsUpdateLayer { return YES; }
+
+// copied from https://github.com/KhronosGroup/MoltenVK/blob/master/Demos/Cube/macOS/DemoViewController.m
 -(CALayer*) makeBackingLayer
 {
 	CALayer* layer = [self.class.layerClass layer];
@@ -23,4 +28,7 @@
 	layer.contentsScale = newScale;
 	return YES;
 }
+
+#endif
+
 @end
