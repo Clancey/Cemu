@@ -80,3 +80,4 @@ src/CMakeLists_android.txt.example
 # CMake build directories
 build-visionos/
 build-android/
+build_visionos/
