@@ -448,6 +448,12 @@ void android_main(android_app* app)
 				source->process(app, source);
 			}
 
+			// Update input system to forward events to Cemu
+			if (g_androidState.emulationState == EmulationState::Running)
+			{
+				AndroidBridge::Input::Update();
+			}
+
 			// Check if we are exiting
 			if (app->destroyRequested != 0)
 			{

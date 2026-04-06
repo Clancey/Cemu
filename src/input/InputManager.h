@@ -13,6 +13,8 @@
 
 #ifndef ANDROID
 #include "input/api/SDL/SDLControllerProvider.h"
+#else
+#include "android/AndroidControllerProvider.h"
 #endif
 #include "input/api/Keyboard/KeyboardControllerProvider.h"
 #include "input/api/DSU/DSUControllerProvider.h"

@@ -1,3 +1,4 @@
+#ifndef __ANDROID__
 #include "SkylanderXbox360.h"
 
 namespace nsyshid
@@ -158,3 +159,4 @@ namespace nsyshid
 		return true;
 	}
 } // namespace nsyshid
+#endif // !__ANDROID__

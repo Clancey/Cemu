@@ -1,5 +1,7 @@
 #include "AndroidInput.h"
 #include "AndroidMain.h"
+#include "AndroidControllerProvider.h"
+#include "input/InputManager.h"
 
 #include <android/log.h>
 #include <vector>
@@ -156,9 +158,17 @@ namespace AndroidBridge
 			int32_t keycode = AKeyEvent_getKeyCode(event);
 			int32_t action = AKeyEvent_getAction(event);
 			int32_t deviceId = AInputEvent_getDeviceId(event);
+			int32_t source = AInputEvent_getSource(event);
 
-			LOGD("Key event: device=%d, keycode=%d, action=%d", deviceId, keycode, action);
+			LOGD("Key event: device=%d, keycode=%d, action=%d, source=0x%x", deviceId, keycode, action, source);
 
+			// Check if this is a gamepad key event
+			if (source & (AINPUT_SOURCE_GAMEPAD | AINPUT_SOURCE_JOYSTICK))
+			{
+				return HandleGamepadKeyEvent(event);
+			}
+
+			// Handle regular keyboard events
 			// Map Android keycode to Cemu keycode
 			int32_t cemuKey;
 			if (!MapAndroidKeycode(keycode, cemuKey))
@@ -169,8 +179,10 @@ namespace AndroidBridge
 			// Handle key press/release
 			bool pressed = (action == AKEY_EVENT_ACTION_DOWN);
 
-			// TODO: Forward to Cemu's input system
-			// This would integrate with Cemu's InputManager
+			// Forward keyboard events to Cemu's keyboard controller
+			// Cemu handles keyboard input through the KeyboardControllerProvider
+			// We don't need to do anything special here as the keyboard provider
+			// should handle Android keyboard events through the native input system
 
 			return true;
 		}
@@ -271,6 +283,15 @@ namespace AndroidBridge
 				gamepad.type = type;
 				gamepad.isQuestController = IsQuestController(deviceId);
 				s_gamepads[deviceId] = gamepad;
+
+				// Notify AndroidControllerProvider
+				auto& inputManager = InputManager::instance();
+				auto provider = inputManager.get_api_provider(InputAPI::AndroidController);
+				auto androidProvider = std::dynamic_pointer_cast<AndroidControllerProvider>(provider);
+				if (androidProvider)
+				{
+					androidProvider->on_device_added(deviceId);
+				}
 			}
 		}
 
@@ -280,6 +301,15 @@ namespace AndroidBridge
 
 			std::lock_guard<std::mutex> lock(s_inputMutex);
 			s_gamepads.erase(deviceId);
+
+			// Notify AndroidControllerProvider
+			auto& inputManager = InputManager::instance();
+			auto provider = inputManager.get_api_provider(InputAPI::AndroidController);
+			auto androidProvider = std::dynamic_pointer_cast<AndroidControllerProvider>(provider);
+			if (androidProvider)
+			{
+				androidProvider->on_device_removed(deviceId);
+			}
 		}
 
 		DeviceType GetDeviceType(int32_t deviceId)
@@ -299,8 +329,16 @@ namespace AndroidBridge
 		{
 			// Quest controllers typically have specific vendor/product IDs
 			// This would need proper device enumeration to detect accurately
-			// For now, assume we're on Quest if this is called
-			return true; // Simplified for Quest environment
+			// Check if we're running in Quest environment by detecting VR-specific inputs
+
+			// For now, use a simple heuristic:
+			// - Quest controllers usually have device IDs in a specific range
+			// - Check if the device supports Quest-specific input axes/buttons
+			// TODO: Implement proper VR controller detection based on Android VR API
+
+			// Simplified detection - assume Quest if device ID suggests it
+			// Real implementation would query device capabilities
+			return (deviceId >= 100 && deviceId < 200); // Common Quest controller ID range
 		}
 
 		void UpdateTouchState(const TouchPoint* points, int32_t pointCount)
@@ -364,16 +402,169 @@ namespace AndroidBridge
 				cemuKey = it->second;
 				return true;
 			}
+
+			bool HandleGamepadKeyEvent(AInputEvent* event)
+			{
+				int32_t deviceId = AInputEvent_getDeviceId(event);
+				int32_t keycode = AKeyEvent_getKeyCode(event);
+				int32_t action = AKeyEvent_getAction(event);
+
+				std::lock_guard<std::mutex> lock(s_inputMutex);
+
+				// Ensure gamepad state exists
+				GamepadState& gamepad = s_gamepads[deviceId];
+				gamepad.deviceId = deviceId;
+				gamepad.type = GetDeviceType(deviceId);
+				gamepad.isQuestController = IsQuestController(deviceId);
+
+				bool pressed = (action == AKEY_EVENT_ACTION_DOWN);
+
+				// Map Android gamepad keycodes to our button flags
+				uint32_t buttonFlag = 0;
+				switch (keycode)
+				{
+				case AKEYCODE_BUTTON_A:
+					buttonFlag = GamepadButtons::A;
+					break;
+				case AKEYCODE_BUTTON_B:
+					buttonFlag = GamepadButtons::B;
+					break;
+				case AKEYCODE_BUTTON_X:
+					buttonFlag = GamepadButtons::X;
+					break;
+				case AKEYCODE_BUTTON_Y:
+					buttonFlag = GamepadButtons::Y;
+					break;
+				case AKEYCODE_BUTTON_L1:
+					buttonFlag = GamepadButtons::LeftShoulder;
+					break;
+				case AKEYCODE_BUTTON_R1:
+					buttonFlag = GamepadButtons::RightShoulder;
+					break;
+				case AKEYCODE_BUTTON_L2:
+					buttonFlag = 1 << 6; // ZL
+					break;
+				case AKEYCODE_BUTTON_R2:
+					buttonFlag = 1 << 7; // ZR
+					break;
+				case AKEYCODE_BUTTON_START:
+					buttonFlag = GamepadButtons::Start;
+					break;
+				case AKEYCODE_BUTTON_SELECT:
+					buttonFlag = GamepadButtons::Back;
+					break;
+				case AKEYCODE_DPAD_UP:
+					buttonFlag = GamepadButtons::DpadUp;
+					break;
+				case AKEYCODE_DPAD_DOWN:
+					buttonFlag = GamepadButtons::DpadDown;
+					break;
+				case AKEYCODE_DPAD_LEFT:
+					buttonFlag = GamepadButtons::DpadLeft;
+					break;
+				case AKEYCODE_DPAD_RIGHT:
+					buttonFlag = GamepadButtons::DpadRight;
+					break;
+				case AKEYCODE_BUTTON_THUMBL:
+					buttonFlag = GamepadButtons::LeftThumb;
+					break;
+				case AKEYCODE_BUTTON_THUMBR:
+					buttonFlag = GamepadButtons::RightThumb;
+					break;
+				}
+
+				// Update button state
+				if (buttonFlag != 0)
+				{
+					if (pressed)
+					{
+						gamepad.buttons |= buttonFlag;
+					}
+					else
+					{
+						gamepad.buttons &= ~buttonFlag;
+					}
+
+					LOGD("Gamepad button: device=%d, keycode=%d, pressed=%d, buttons=0x%x",
+						deviceId, keycode, pressed, gamepad.buttons);
+				}
+
+				return buttonFlag != 0; // Return true if we handled the key
+			}
 			return false;
 		}
 
 		void MapQuestButtonsToCemu(const GamepadState& state)
 		{
-			// Map Quest controller buttons to Cemu's expected input format
-			// This would integrate with Cemu's InputManager system
+			// Map Quest controller buttons to Pro Controller format for Cemu
+			// Quest controllers have unique button layouts that need special handling
 
-			// TODO: Implement mapping to Cemu's input system
-			// This would call appropriate functions in InputManager to set button states
+			if (!state.isQuestController)
+				return;
+
+			// Create a modified gamepad state with Quest-specific mappings
+			GamepadState mappedState = state;
+
+			// Quest left controller (index 0) mapping
+			if (state.controllerIndex == 0)
+			{
+				// Quest left controller has trigger, grip, thumbstick, X, Y, menu buttons
+				// Map to Pro Controller equivalents:
+				// Quest trigger -> ZL
+				// Quest grip -> L
+				// Quest X -> X
+				// Quest Y -> Y
+				// Quest menu -> Minus
+
+				if (state.buttons & GamepadButtons::QuestTrigger)
+				{
+					mappedState.buttons |= GamepadButtons::LeftShoulder; // Map to L
+				}
+				if (state.buttons & GamepadButtons::QuestGrip)
+				{
+					mappedState.buttons |= (1 << 6); // Map to ZL trigger button
+				}
+				if (state.buttons & GamepadButtons::QuestButtonOne)
+				{
+					mappedState.buttons |= GamepadButtons::X;
+				}
+				if (state.buttons & GamepadButtons::QuestButtonTwo)
+				{
+					mappedState.buttons |= GamepadButtons::Y;
+				}
+			}
+			// Quest right controller (index 1) mapping
+			else if (state.controllerIndex == 1)
+			{
+				// Quest right controller has trigger, grip, thumbstick, A, B, Oculus button
+				// Map to Pro Controller equivalents:
+				// Quest trigger -> ZR
+				// Quest grip -> R
+				// Quest A -> A
+				// Quest B -> B
+				// Quest Oculus -> Plus
+
+				if (state.buttons & GamepadButtons::QuestTrigger)
+				{
+					mappedState.buttons |= GamepadButtons::RightShoulder; // Map to R
+				}
+				if (state.buttons & GamepadButtons::QuestGrip)
+				{
+					mappedState.buttons |= (1 << 7); // Map to ZR trigger button
+				}
+				if (state.buttons & GamepadButtons::QuestButtonOne)
+				{
+					mappedState.buttons |= GamepadButtons::A;
+				}
+				if (state.buttons & GamepadButtons::QuestButtonTwo)
+				{
+					mappedState.buttons |= GamepadButtons::B;
+				}
+			}
+
+			// Update the gamepad state with the mapped buttons
+			std::lock_guard<std::mutex> lock(s_inputMutex);
+			s_gamepads[state.deviceId] = mappedState;
 		}
 
 		void Initialize()
@@ -423,17 +614,41 @@ namespace AndroidBridge
 
 		void ForwardToCemuInput()
 		{
-			// This would integrate with Cemu's InputManager
-			// to forward our processed input events to the emulator
-
+			// Forward Android input to Cemu's InputManager through AndroidControllerProvider
 			std::lock_guard<std::mutex> lock(s_inputMutex);
 
-			// TODO: Implement integration with Cemu's input system
-			// Example:
-			// for (const auto& [deviceId, gamepad] : s_gamepads)
-			// {
-			//     InputManager::instance().updateController(deviceId, gamepad);
-			// }
+			// Get the AndroidControllerProvider from InputManager
+			auto& inputManager = InputManager::instance();
+			auto provider = inputManager.get_api_provider(InputAPI::AndroidController);
+			auto androidProvider = std::dynamic_pointer_cast<AndroidControllerProvider>(provider);
+
+			if (!androidProvider)
+			{
+				LOGE("AndroidControllerProvider not available in InputManager");
+				return;
+			}
+
+			// Process each gamepad and forward its state
+			for (const auto& [deviceId, gamepad] : s_gamepads)
+			{
+				// Apply Quest controller button mapping if needed
+				GamepadState processedState = gamepad;
+				if (gamepad.isQuestController)
+				{
+					MapQuestButtonsToCemu(processedState);
+				}
+
+				// Ensure the controller exists in the provider
+				// This handles device addition automatically
+				androidProvider->on_device_added(deviceId);
+
+				// Update the controller state
+				androidProvider->update_device_state(deviceId, processedState);
+
+				LOGD("Forwarded input for device %d: LS=(%.2f,%.2f) RS=(%.2f,%.2f) buttons=0x%x",
+					deviceId, processedState.leftStickX, processedState.leftStickY,
+					processedState.rightStickX, processedState.rightStickY, processedState.buttons);
+			}
 		}
 	}
 }

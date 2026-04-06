@@ -12,6 +12,10 @@ if(ANDROID)
         AndroidStorage.h
         AndroidInput.cpp
         AndroidInput.h
+        AndroidControllerProvider.cpp
+        AndroidControllerProvider.h
+        AndroidController.cpp
+        AndroidController.h
     )
 
     # Create Android library

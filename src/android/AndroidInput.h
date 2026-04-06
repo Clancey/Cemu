@@ -54,6 +54,7 @@ namespace AndroidBridge
 		bool HandleKeyEvent(AInputEvent* event);
 		bool HandleMotionEvent(AInputEvent* event);
 		bool HandleGamepadEvent(AInputEvent* event);
+		bool HandleGamepadKeyEvent(AInputEvent* event);
 
 		// Device management
 		void OnDeviceAdded(int32_t deviceId);

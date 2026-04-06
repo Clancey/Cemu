@@ -1,3 +1,6 @@
+#pragma once
+#ifndef __ANDROID__
+
 #include "nsyshid.h"
 
 #if BOOST_OS_BSD
@@ -147,3 +150,5 @@ namespace nsyshid::backend::libusb
 		std::unique_ptr<HandleLock> AquireHandleLock();
 	};
 } // namespace nsyshid::backend::libusb
+
+#endif // !__ANDROID__

@@ -11,14 +11,6 @@ set(EMULATOR_VERSION_PATCH "0" CACHE STRING "")
 
 set(THREADS_PREFER_PTHREAD_FLAG true) # needs to be set before vcpkg
 
-# visionOS threading workaround
-if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
-    set(CMAKE_THREAD_LIBS_INIT "")
-    set(CMAKE_HAVE_THREADS_LIBRARY TRUE)
-    set(CMAKE_USE_WIN32_THREADS_INIT FALSE)
-    set(CMAKE_USE_PTHREADS_INIT TRUE)
-    set(Threads_FOUND TRUE)
-endif()
 
 execute_process(
 		COMMAND git log --format=%h -1
@@ -217,7 +209,19 @@ option(ENABLE_CUBEB "Enabled cubeb backend" ON)
 
 option(ENABLE_WXWIDGETS "Build with wxWidgets UI (Currently required)" ON)
 
-find_package(Threads REQUIRED)
+# Handle threading for different platforms
+if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+    # visionOS uses pthreads but CMake has trouble detecting them in cross-compilation
+    # Create a fake Threads target since visionOS includes threading in the system
+    add_library(Threads::Threads INTERFACE IMPORTED)
+    set(CMAKE_THREAD_LIBS_INIT "")
+    set(CMAKE_HAVE_THREADS_LIBRARY TRUE)
+    set(CMAKE_USE_WIN32_THREADS_INIT FALSE)
+    set(CMAKE_USE_PTHREADS_INIT TRUE)
+    set(Threads_FOUND TRUE)
+else()
+    find_package(Threads REQUIRED)
+endif()
 
 # Core dependencies needed by all platforms including Android
 # Use vcpkg to find dependencies for all platforms, including Android
@@ -311,7 +315,7 @@ if (ENABLE_DISCORD_RPC)
 	add_compile_definitions(ENABLE_DISCORD_RPC)
 endif()
 
-if (ENABLE_HIDAPI)
+if (ENABLE_HIDAPI AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
 	find_package(hidapi REQUIRED)
 	set(SUPPORTS_WIIMOTE ON)
 	add_compile_definitions(HAS_HIDAPI)

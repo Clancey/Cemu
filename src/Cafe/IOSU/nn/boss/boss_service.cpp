@@ -13,9 +13,16 @@
 #include "boss_common.h"
 
 #include <pugixml.hpp>
-#ifndef __ANDROID__
+
+#ifdef __ANDROID__
+// BOSS network service requires curl which is not available on Android
+// Provide minimal stub namespace
+namespace iosu::boss
+{
+	IOSUModule* GetModule() { return nullptr; }
+}
+#else
 #include <curl/curl.h>
-#endif
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -1450,3 +1457,4 @@ namespace iosu::boss
 		return static_cast<IOSUModule*>(&sIOSUModuleNNBOSS);
 	}
 }
+#endif // !__ANDROID__

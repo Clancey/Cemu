@@ -1,4 +1,5 @@
 #pragma once
+#ifndef __ANDROID__
 
 #include "nsyshid.h"
 #include "BackendLibusb.h"
@@ -44,3 +45,4 @@ namespace nsyshid
 	constexpr uint8 XBOX_DATA_HEADER[] = { 0x0B, 0x14 };
 	constexpr uint8 XBOX_AUDIO_DATA_HEADER[] = { 0x0B, 0x17 };
 } // namespace nsyshid
+#endif // !__ANDROID__

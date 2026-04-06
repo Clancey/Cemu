@@ -17,6 +17,10 @@ namespace InputAPI
 		WGIGamepad,
 		WGIRawController,
 
+#ifdef ANDROID
+		AndroidController,
+#endif
+
 		MAX
 	};
 
@@ -42,6 +46,10 @@ namespace InputAPI
 			return "WGIRawController";
 		case SDLController:
 			return "SDLController";
+#ifdef ANDROID
+		case AndroidController:
+			return "AndroidController";
+#endif
 		default:
 			break;
 		}
@@ -65,6 +73,10 @@ namespace InputAPI
 			return DSUClient;
 		else if (str == to_string(SDLController))
 			return SDLController;
+#ifdef ANDROID
+		else if (str == to_string(AndroidController))
+			return AndroidController;
+#endif
 		else if (str == "DSU") // legacy
 			return DSUClient;
 		

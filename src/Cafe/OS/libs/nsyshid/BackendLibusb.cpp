@@ -1,3 +1,4 @@
+#ifndef __ANDROID__
 #include "BackendLibusb.h"
 
 namespace nsyshid::backend::libusb
@@ -908,3 +909,4 @@ namespace nsyshid::backend::libusb
 		return m_handle;
 	}
 } // namespace nsyshid::backend::libusb
+#endif // !__ANDROID__
