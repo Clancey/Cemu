@@ -1,9 +1,18 @@
 #pragma once
 #include "napi.h"
+#ifndef VISIONOS
 #include "curl/curl.h"
+#endif
 #include "pugixml.hpp"
 
+#ifndef VISIONOS
 typedef void CURL;
+#else
+// visionOS stub
+typedef void* CURL;
+#endif
+
+#ifndef VISIONOS
 
 class CurlRequestHelper
 {
@@ -162,3 +171,5 @@ namespace NAPI
 	bool _parseResponseInit(const CurlSOAPHelper& soapHelper, const char* responseNodeName, pugi::xml_node& node, _NAPI_CommonResultSOAP& result, pugi::xml_document& doc, pugi::xml_node& responseNode);
 
 };
+
+#endif // !VISIONOS

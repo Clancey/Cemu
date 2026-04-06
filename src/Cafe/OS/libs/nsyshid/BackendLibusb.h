@@ -1,5 +1,5 @@
 #pragma once
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(VISIONOS)
 
 #include "nsyshid.h"
 
@@ -151,4 +151,4 @@ namespace nsyshid::backend::libusb
 	};
 } // namespace nsyshid::backend::libusb
 
-#endif // !__ANDROID__
+#endif // !__ANDROID__ && !VISIONOS

@@ -657,8 +657,8 @@ target_link_libraries(CemuCafe PRIVATE
   OpenSSL::SSL
 )
 
-# CURL available on all platforms via vcpkg
-if(TARGET CURL::libcurl)
+# CURL available on all platforms via vcpkg except visionOS
+if(TARGET CURL::libcurl AND NOT VISIONOS)
 	target_link_libraries(CemuCafe PRIVATE CURL::libcurl)
 endif()
 
@@ -667,7 +667,7 @@ if (ENABLE_WAYLAND)
   target_link_libraries(CemuCafe PUBLIC Wayland::Client)
 endif()
 
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
   if (ENABLE_VCPKG)
     if(WIN32)
       set(PKG_CONFIG_EXECUTABLE "${VCPKG_INSTALLED_DIR}/x64-windows/tools/pkgconf/pkgconf.exe")

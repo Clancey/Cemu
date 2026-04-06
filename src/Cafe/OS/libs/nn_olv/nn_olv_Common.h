@@ -5,7 +5,9 @@
 #include "Cemu/napi/napi_helper.h"
 #include "util/helpers/StringHelpers.h"
 #include "pugixml.hpp"
+#ifndef VISIONOS
 #include "curl/curl.h"
+#endif
 
 // https://github.com/kinnay/NintendoClients/wiki/Wii-U-Error-Codes#act-error-codes
 #define OLV_ACT_RESULT_STATUS(code) (BUILD_NN_RESULT(NN_RESULT_LEVEL_STATUS, NN_RESULT_MODULE_NN_OLV, ((code) << 7)))
@@ -72,12 +74,14 @@ namespace nn
 		extern bool g_IsOnlineMode;
 		extern bool g_IsOfflineDBMode; // use offline cache for posts
 
+#ifndef VISIONOS
 		static void InitializeOliveRequest(CurlRequestHelper& req)
 		{
 			req.addHeaderField("X-Nintendo-ServiceToken", g_DiscoveryResults.serviceToken);
 			req.addHeaderField("X-Nintendo-ParamPack", g_ParamPack.encodedParamPack);
 			curl_easy_setopt(req.getCURL(), CURLOPT_USERAGENT, g_DiscoveryResults.userAgent);
 		}
+#endif
 
 		static void appendQueryToURL(char* url, const char* query)
 		{
@@ -176,7 +180,9 @@ namespace nn
 		bool GetCommunityIdFromCode(uint32* pOutId, const char* pCode);
 		bool FormatCommunityCode(char* pOutCode, uint32* outLen, uint32 communityId);
 
+#ifndef VISIONOS
 		sint32 olv_curlformcode_to_error(CURLFORMcode code);
+#endif
 
 		// convert and copy utf8 string into UC2 big-endian array
 		template<size_t TLength>

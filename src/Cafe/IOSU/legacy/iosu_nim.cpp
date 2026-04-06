@@ -3,7 +3,9 @@
 #include "iosu_act.h"
 #include "iosu_mcp.h"
 #include "util/crypto/aes128.h"
+#ifndef VISIONOS
 #include "curl/curl.h"
+#endif
 #include "openssl/bn.h"
 #include "openssl/x509.h"
 #include "openssl/ssl.h"
@@ -56,6 +58,7 @@ namespace iosu
 
 		bool nim_getLatestVersion()
 		{
+#ifndef VISIONOS
 			g_nim.latestVersion = -1;
 			NAPI::AuthInfo authInfo;
 			authInfo.country = NCrypto::GetCountryAsString(Account::GetCurrentAccount().GetCountry());
@@ -71,10 +74,15 @@ namespace iosu
 			g_nim.latestVersion = (sint32)versionListVersionResult.version;
 			strcpy(g_nim.fqdn, versionListVersionResult.fqdnURL.c_str());
 			return true;
+#else
+			// visionOS: Network functionality disabled
+			return false;
+#endif
 		}
 
 		bool nim_getVersionList()
 		{
+#ifndef VISIONOS
 			g_nim.titlesLatestVersion.clear();
 
 			NAPI::AuthInfo authInfo;
@@ -94,6 +102,11 @@ namespace iosu
 				g_nim.titlesLatestVersion.push_back(titleLatestVersion);
 			}
 			return true;
+#else
+			// visionOS: Network functionality disabled
+			g_nim.titlesLatestVersion.clear();
+			return false;
+#endif
 		}
 
 		NIMTitleLatestVersion* nim_findTitleLatestVersion(uint64 titleId)
@@ -229,6 +242,7 @@ namespace iosu
 				}
 			}
 
+#ifndef VISIONOS
 			auto result = NAPI::IDBE_Request(ActiveSettings::GetNetworkService(), titleId);
 			if (!result)
 			{
@@ -240,6 +254,10 @@ namespace iosu
 			idbe_addIconToCache(titleId, &*result);
 			// return result
 			memcpy(idbeIconOutput, &*result, sizeof(NAPI::IDBEIconDataV0));
+#else
+			// visionOS: Network functionality disabled
+			memset(idbeIconOutput, 0, sizeof(NAPI::IDBEIconDataV0));
+#endif
 			return 0;
 		}
 

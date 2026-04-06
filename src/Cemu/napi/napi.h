@@ -311,6 +311,33 @@ namespace NAPI
 
 	NAPI_VersionList_Result TAG_GetVersionList(AuthInfo& authInfo, std::string_view fqdnURL, uint32 versionListVersion);
 
+#ifdef VISIONOS
+	// visionOS stubs for NAPI functions
+	inline NAPI_VersionListVersion_Result TAG_GetVersionListVersion(AuthInfo& authInfo)
+	{
+		NAPI_VersionListVersion_Result result{};
+		result.isValid = false;
+		return result;
+	}
+
+	inline NAPI_VersionList_Result TAG_GetVersionList(AuthInfo& authInfo, std::string_view fqdnURL, uint32 versionListVersion)
+	{
+		NAPI_VersionList_Result result{};
+		result.isValid = false;
+		return result;
+	}
+
+	inline std::optional<IDBEIconDataV0> IDBE_Request(NetworkService networkService, uint64 titleId)
+	{
+		return std::nullopt;
+	}
+
+	inline std::vector<uint8> IDBE_RequestRawEncrypted(NetworkService networkService, uint64 titleId)
+	{
+		return std::vector<uint8>();
+	}
+#endif
+
 }
 
 void NAPI_NUS_GetSystemUpdate();

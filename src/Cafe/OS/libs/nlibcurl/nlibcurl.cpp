@@ -9,6 +9,7 @@
 
 #define CURL_STRICTER
 
+#ifndef VISIONOS
 #include "curl/curl.h"
 #include <unordered_map>
 #include <atomic>
@@ -1564,3 +1565,16 @@ CURLcode curl_global_init_mem(uint32 flags, MEMPTR<curl_malloc_callback> malloc_
 	}
 
 }
+
+#else
+
+// visionOS stubs for nlibcurl
+namespace nlibcurl
+{
+	void load()
+	{
+		// No-op for visionOS
+	}
+}
+
+#endif

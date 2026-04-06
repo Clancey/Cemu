@@ -2,6 +2,7 @@
 #include "napi.h"
 #include "napi_helper.h"
 
+#ifndef VISIONOS
 #include "curl/curl.h"
 #include "pugixml.hpp"
 
@@ -101,3 +102,5 @@ namespace NAPI
 		return result;
 	}
 };
+
+#endif // !VISIONOS

@@ -1,5 +1,7 @@
 #include "nn_olv_DownloadCommunityTypes.h"
 
+#ifndef VISIONOS
+
 namespace nn
 {
 	namespace olv
@@ -232,3 +234,21 @@ namespace nn
 		}
 	}
 }
+
+#else
+
+// visionOS stubs for nn_olv DownloadCommunityTypes
+namespace nn
+{
+	namespace olv
+	{
+		// Stub implementations
+		sint32 DownloadCommunityDataList(DownloadedCommunityData* pOutList, uint32* pOutNum, uint32 numMaxList, const DownloadCommunityDataListParam* pParam)
+		{
+			if (pOutNum) *pOutNum = 0;
+			return OLV_RESULT_FAILED_REQUEST;
+		}
+	}
+}
+
+#endif

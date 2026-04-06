@@ -7,7 +7,9 @@
 #include <wx/hyperlink.h>
 #include <wx/checkbox.h>
 
+#ifndef VISIONOS
 #include <curl/system.h>
+#endif
 
 class CemuUpdateWindow : public wxDialog
 {

@@ -15,7 +15,9 @@
 #include "boss_common.h"
 
 #include <pugixml.hpp>
+#ifndef VISIONOS
 #include <curl/curl.h>
+#endif
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -36,11 +38,13 @@ namespace iosu::boss
 	static constexpr nnResult RESULT_STORAGE_NOTEXIST = 0xA025AA00;
 	static constexpr nnResult RESULT_FADENTRY_NOTEXIST = 0xA021FB00;
 
+#ifndef VISIONOS
 	template <typename ... TArgs>
 	void AppendHeaderParam(CurlRequestHelper& request, const char* fieldName, const char* format, TArgs&& ... args)
 	{
 		request.addHeaderField(fieldName, fmt::format(fmt::runtime(format), std::forward<TArgs>(args)...).c_str());
 	}
+#endif
 
 	class StorageDatabase // FAD
 	{
@@ -369,6 +373,7 @@ namespace iosu::boss
 
 		nnResult TaskDoRequest(CURL* curl)
 		{
+#ifndef VISIONOS
 			std::unique_lock _l(m_mutex);
 			if (m_taskState != TaskState::Ready)
 			{
@@ -551,6 +556,10 @@ namespace iosu::boss
 				m_taskTurnState = TaskTurnState::DoneSuccess;
 			}
 			return BUILD_NN_RESULT(NN_RESULT_LEVEL_SUCCESS, NN_RESULT_MODULE_NN_BOSS, 0);
+#else
+			// visionOS: Network functionality disabled
+			return BUILD_NN_RESULT(NN_RESULT_LEVEL_FATAL, NN_RESULT_MODULE_NN_BOSS, 0);
+#endif
 		}
 
 		std::recursive_mutex& GetMutex() { return m_mutex; }
@@ -664,6 +673,7 @@ namespace iosu::boss
 			return fileList;
 		}
 
+#ifndef VISIONOS
 		void SetupSSL(CurlRequestHelper& request)
 		{
 			request.ClearCaCertIds();
@@ -683,9 +693,11 @@ namespace iosu::boss
 			cemu_assert_debug(m_taskSettings.caCert[2].empty());
 			cemu_assert_debug(m_taskSettings.clientCertName.empty());
 		}
+#endif
 
 		void DownloadNbdlFile(const NbdlQueuedFile& nbdlFile)
 		{
+#ifndef VISIONOS
 			uint64 titleId = CafeSystem::GetForegroundTitleId(); // todo - use titleId from task settings?
 			fs::path dataFilePath = ActiveSettings::GetMlcPath("usr/boss/{:08x}/{:08x}/user/common/data/{}/{:08x}", (uint32)(titleId >> 32), (uint32)(titleId & 0xFFFFFFFF), m_taskId.id.c_str(), nbdlFile.dataId);
 
@@ -800,6 +812,10 @@ namespace iosu::boss
 			fs::rename(tmpDataPath, dataFilePath, ec);
 			// update FAD entry
 			TrackDownloadedNbdlFile(nbdlFile);
+#else
+			// visionOS: Network functionality disabled
+			cemuLog_logDebug(LogType::Force, "DownloadNbdlFile: Network functionality disabled on visionOS");
+#endif
 		}
 
 		void TrackDownloadedNbdlFile(const NbdlQueuedFile& nbdlFile)
@@ -939,6 +955,7 @@ namespace iosu::boss
 	private:
 		void BossDaemonThread()
 		{
+#ifndef VISIONOS
 			CURL* curl = curl_easy_init();
 			while ( m_threadRunning )
 			{
@@ -954,6 +971,13 @@ namespace iosu::boss
 				std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			}
 			curl_easy_cleanup(curl);
+#else
+			// visionOS: Network functionality disabled
+			while ( m_threadRunning )
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
+#endif
 		}
 
 		std::shared_ptr<RegisteredTask> GetNextRunableTask()

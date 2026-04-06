@@ -15,7 +15,9 @@
 
 #include <cinttypes>
 #include <charconv>
+#ifndef VISIONOS
 #include <curl/curl.h>
+#endif
 #include <pugixml.hpp>
 
 #include "WindowSystem.h"

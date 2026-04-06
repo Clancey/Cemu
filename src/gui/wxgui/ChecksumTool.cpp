@@ -8,7 +8,9 @@
 #include "Cafe/Filesystem/WUD/wud.h"
 
 #include <zip.h>
+#ifndef VISIONOS
 #include <curl/curl.h>
+#endif
 
 #include <openssl/evp.h> /* EVP_Digest */
 #include <openssl/sha.h> /* SHA256_DIGEST_LENGTH */
@@ -180,6 +182,7 @@ std::size_t WriteCallback(const char* in, std::size_t size, std::size_t num, std
 
 void ChecksumTool::LoadOnlineData() const
 {
+#ifndef VISIONOS
 	try
 	{
 		bool updated_required = true;
@@ -337,8 +340,12 @@ void ChecksumTool::LoadOnlineData() const
 	{
 		cemuLog_log(LogType::Force, "error on updating json checksum data: {}", ex.what());
 	}
-	
+
 	wxQueueEvent(m_verify_online, new wxCommandEvent(wxEVT_ENABLE));
+#else
+	// visionOS: Network functionality disabled
+	wxMessageBox(_("Online checksum verification is not available on visionOS"), _("Not available"), wxOK | wxICON_INFORMATION);
+#endif
 }
 
 void ChecksumTool::OnSetGaugevalue(wxSetGaugeValue& event)

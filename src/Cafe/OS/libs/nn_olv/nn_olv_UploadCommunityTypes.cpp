@@ -1,6 +1,8 @@
 #include "nn_olv_UploadCommunityTypes.h"
 #include <algorithm>
 
+#ifndef VISIONOS
+
 namespace nn
 {
 	namespace olv
@@ -304,3 +306,19 @@ namespace nn
 		}
 	}
 }
+
+#else
+
+// visionOS stubs for nn_olv UploadCommunityTypes
+namespace nn
+{
+	namespace olv
+	{
+		sint32 UploadCommunityData(UploadedCommunityData* pOutData, UploadCommunityDataParam const* pParam)
+		{
+			return OLV_RESULT_FAILED_REQUEST;
+		}
+	}
+}
+
+#endif

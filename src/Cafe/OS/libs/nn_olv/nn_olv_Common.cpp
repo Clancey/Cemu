@@ -266,6 +266,7 @@ namespace nn
 			return true;
 		}
 
+#ifndef VISIONOS
 		sint32 olv_curlformcode_to_error(CURLFORMcode code)
 		{
 			switch (code)
@@ -281,5 +282,12 @@ namespace nn
 					return OLV_RESULT_LVL6(50);
 			}
 		}
+#else
+		// visionOS stub for olv_curlformcode_to_error
+		sint32 olv_curlformcode_to_error(int code)
+		{
+			return OLV_RESULT_LVL6(50);
+		}
+#endif
 	}
 }

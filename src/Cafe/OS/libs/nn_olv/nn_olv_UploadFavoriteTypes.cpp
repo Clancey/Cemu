@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <cstddef>
 
+#ifndef VISIONOS
+
 namespace nn
 {
 	namespace olv
@@ -170,3 +172,19 @@ namespace nn
 		}
 	}
 }
+
+#else
+
+// visionOS stubs for nn_olv UploadFavoriteTypes
+namespace nn
+{
+	namespace olv
+	{
+		sint32 UploadFavoriteToCommunityData(const UploadFavoriteToCommunityDataParam* pParam)
+		{
+			return OLV_RESULT_FAILED_REQUEST;
+		}
+	}
+}
+
+#endif

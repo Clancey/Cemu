@@ -99,6 +99,7 @@ if(ANDROID)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
 	# For visionOS, create a shared library instead of executable
 	add_library(CemuBin SHARED
+		main.cpp
 		mainLLE.cpp
 	)
 	# Link our visionOS native sources

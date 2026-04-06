@@ -2,6 +2,7 @@
 #include "wxgui/DownloadGraphicPacksWindow.h"
 
 #include <filesystem>
+#ifndef VISIONOS
 #include <curl/curl.h>
 #include <zip.h>
 #include <rapidjson/document.h>
@@ -400,3 +401,45 @@ void DownloadGraphicPacksWindow::OnCancelButton(const wxCommandEvent& event)
 {
 	Close();
 }
+
+#else
+
+// visionOS stubs for DownloadGraphicPacksWindow
+DownloadGraphicPacksWindow::DownloadGraphicPacksWindow(wxWindow* parent) : wxDialog(parent, wxID_ANY, _("Download graphic packs"))
+{
+	// No-op stub for visionOS
+}
+
+DownloadGraphicPacksWindow::~DownloadGraphicPacksWindow()
+{
+	// No-op stub for visionOS
+}
+
+const std::string& DownloadGraphicPacksWindow::GetException() const
+{
+	static std::string exception = "Network functionality disabled on visionOS";
+	return exception;
+}
+
+int DownloadGraphicPacksWindow::ShowModal()
+{
+	wxMessageBox(_("Graphic pack downloads are not supported on visionOS"), _("Not available"), wxOK | wxICON_INFORMATION);
+	return wxID_CANCEL;
+}
+
+void DownloadGraphicPacksWindow::OnClose(wxCloseEvent& event)
+{
+	// No-op stub for visionOS
+}
+
+void DownloadGraphicPacksWindow::OnUpdate(const wxTimerEvent& event)
+{
+	// No-op stub for visionOS
+}
+
+void DownloadGraphicPacksWindow::OnCancelButton(const wxCommandEvent& event)
+{
+	// No-op stub for visionOS
+}
+
+#endif

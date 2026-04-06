@@ -33,7 +33,7 @@
 #pragma comment(lib,"Dbghelp.lib")
 #endif
 
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(VISIONOS)
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 #endif
@@ -163,6 +163,12 @@ void CemuCoreInit()
 	CafeTitleList::Initialize(ActiveSettings::GetUserDataPath("title_list_cache.xml"));
 	for (auto& it : GetConfig().game_paths)
 		CafeTitleList::AddScanPath(_utf8ToPath(it));
+#ifdef __ANDROID__
+	// Auto-scan common game locations on Android
+	CafeTitleList::AddScanPath("/sdcard/CemuGames");
+	CafeTitleList::AddScanPath("/storage/emulated/0/CemuGames");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "CemuCoreInit: Added /sdcard/CemuGames as scan path");
+#endif
 	fs::path mlcPath = ActiveSettings::GetMlcPath();
 	if (!mlcPath.empty())
 		CafeTitleList::SetMLCPath(mlcPath);

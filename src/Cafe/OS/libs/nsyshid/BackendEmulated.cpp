@@ -4,7 +4,7 @@
 #include "Infinity.h"
 #include "Skylander.h"
 #include "config/CemuConfig.h"
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(VISIONOS)
 #include "SkylanderXbox360.h"
 #endif
 
@@ -31,7 +31,7 @@ namespace nsyshid::backend::emulated
 			auto device = std::make_shared<SkylanderPortalDevice>();
 			AttachDevice(device);
 		}
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(VISIONOS)
 		else if (auto usb_portal = FindDeviceById(0x1430, 0x1F17))
 		{
 			cemuLog_logDebug(LogType::Force, "Attaching Xbox 360 Portal");

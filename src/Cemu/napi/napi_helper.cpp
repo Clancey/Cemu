@@ -1,6 +1,7 @@
 #include "Common/precompiled.h"
 #include "napi.h"
 
+#ifndef VISIONOS
 #include "curl/curl.h"
 #include "Cafe/IOSU/legacy/iosu_crypto.h"
 
@@ -491,3 +492,5 @@ namespace NAPI
 		return true;
 	}
 };
+
+#endif // !VISIONOS

@@ -1,4 +1,4 @@
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(VISIONOS)
 #include "SkylanderXbox360.h"
 
 namespace nsyshid
@@ -159,4 +159,4 @@ namespace nsyshid
 		return true;
 	}
 } // namespace nsyshid
-#endif // !__ANDROID__
+#endif // !__ANDROID__ && !VISIONOS

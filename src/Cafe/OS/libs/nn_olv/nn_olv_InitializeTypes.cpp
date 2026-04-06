@@ -100,6 +100,7 @@ namespace nn
 			return OLV_RESULT_SUCCESS;
 		}
 
+#ifndef VISIONOS
 		sint32 MakeDiscoveryRequest_AsyncRequestImpl(CurlRequestHelper& req, const char* reqUrl)
 		{
 			bool reqResult = req.submitRequest();
@@ -170,9 +171,24 @@ namespace nn
 			coreinit::OSSignalEvent(requestDoneEvent);
 			return res;
 		}
+#else
+		// visionOS stubs for discovery functions
+		sint32 MakeDiscoveryRequest_AsyncRequestImpl(void* req, const char* reqUrl)
+		{
+			return OLV_RESULT_FAILED_REQUEST;
+		}
+
+		sint32 MakeDiscoveryRequest_AsyncRequest(void* req, const char* reqUrl, coreinit::OSEvent* requestDoneEvent)
+		{
+			sint32 res = MakeDiscoveryRequest_AsyncRequestImpl(req, reqUrl);
+			coreinit::OSSignalEvent(requestDoneEvent);
+			return res;
+		}
+#endif
 
 		sint32 MakeDiscoveryRequest()
 		{
+#ifndef VISIONOS
 			// =============================================================================
 			// Discovery request | https://discovery.olv.nintendo.net/v1/endpoint
 			// =============================================================================
@@ -202,6 +218,10 @@ namespace nn
 			coreinit::OSWaitEvent(&requestDoneEvent);
 
 			return requestRes.get();
+#else
+		// visionOS: Network functionality disabled for discovery
+		return OLV_RESULT_FAILED_REQUEST;
+#endif
 		}
 
 		sint32 Initialize(nn::olv::InitializeParam* pParam)

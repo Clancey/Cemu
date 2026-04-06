@@ -1,7 +1,7 @@
 #include "nsyshid.h"
 #include "Backend.h"
 #include "BackendEmulated.h"
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(VISIONOS)
 #include "BackendLibusb.h"
 #endif
 
@@ -9,7 +9,7 @@ namespace nsyshid::backend
 {
 	void AttachDefaultBackends()
 	{
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(VISIONOS)
 		// add libusb backend
 		{
 			auto backendLibusb = std::make_shared<backend::libusb::BackendLibusb>();

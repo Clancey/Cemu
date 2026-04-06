@@ -6,6 +6,8 @@
 #include <pugixml.hpp>
 #include <zlib.h>
 
+#ifndef VISIONOS
+
 namespace nn
 {
 	namespace olv
@@ -461,3 +463,20 @@ namespace nn
 
 	}
 }
+
+#else
+
+// visionOS stubs for nn_olv PostTypes
+namespace nn
+{
+	namespace olv
+	{
+		// Stub implementation for export
+		void nnOlvExport_PostTypes_load()
+		{
+			// No-op for visionOS
+		}
+	}
+}
+
+#endif

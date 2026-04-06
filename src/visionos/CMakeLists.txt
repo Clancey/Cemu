@@ -5,6 +5,8 @@ set(VISIONOS_SOURCES
     CemuBridge/CemuBridge.mm
     CemuBridge/MetalLayerVisionOS.mm
     CemuBridge/MetalHostView.mm
+    VisionOSStubs.cpp
+    VisionOSStubsPCH.cpp
 )
 
 # Create visionOS native support library

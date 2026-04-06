@@ -3,6 +3,7 @@
 #include "napi.h"
 #include "napi_helper.h"
 
+#ifndef VISIONOS
 #include "curl/curl.h"
 #include "pugixml.hpp"
 #include "Cafe/IOSU/legacy/iosu_crypto.h"
@@ -630,3 +631,5 @@ namespace NAPI
 		return true;
 	}
 }
+
+#endif // !VISIONOS

@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #endif
 
+#ifndef VISIONOS
 #include <curl/curl.h>
 #include <zip.h>
 #include <boost/tokenizer.hpp>
@@ -702,3 +703,35 @@ void CemuUpdateWindow::OnCancelButton(const wxCommandEvent& event)
 {
 	Close();
 }
+
+#else
+
+// visionOS stubs for CemuUpdateWindow
+CemuUpdateWindow::CemuUpdateWindow(wxWindow* parent) : wxDialog(parent, wxID_ANY, _("Update available"))
+{
+	// No-op stub for visionOS
+}
+
+CemuUpdateWindow::~CemuUpdateWindow()
+{
+	// No-op stub for visionOS
+}
+
+std::future<bool> CemuUpdateWindow::IsUpdateAvailableAsync()
+{
+	auto promise = std::make_shared<std::promise<bool>>();
+	promise->set_value(false); // Always return false on visionOS
+	return promise->get_future();
+}
+
+void CemuUpdateWindow::OnUpdateButton(const wxCommandEvent& event)
+{
+	wxMessageBox(_("Updates are not supported on visionOS"), _("Not available"), wxOK | wxICON_INFORMATION);
+}
+
+void CemuUpdateWindow::OnCancelButton(const wxCommandEvent& event)
+{
+	Close();
+}
+
+#endif

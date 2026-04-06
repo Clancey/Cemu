@@ -1,7 +1,9 @@
 #pragma once
 
 #include <atomic>
+#ifndef VISIONOS
 #include <curl/system.h>
+#endif
 #include <thread>
 #include <string>
 #include <memory>

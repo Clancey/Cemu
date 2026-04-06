@@ -165,6 +165,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
 	set(ENABLE_HIDAPI OFF CACHE BOOL "Disable HIDAPI on visionOS" FORCE)
 	set(ENABLE_XINPUT OFF CACHE BOOL "Disable XInput on visionOS" FORCE)
 	set(ENABLE_DIRECTINPUT OFF CACHE BOOL "Disable DirectInput on visionOS" FORCE)
+
+	# Add VISIONOS preprocessor definition
+	add_compile_definitions(VISIONOS)
 endif()
 
 if (APPLE)
