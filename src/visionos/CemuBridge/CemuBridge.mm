@@ -296,6 +296,18 @@ namespace WindowSystem
     windowInfo.dpi_scale = 1.0; // visionOS points are handled by the system.
     windowInfo.app_active = true;
 
+    // Create the Metal renderer if not already created.
+    if (!g_renderer) {
+        os_log_info(cemuLog(), "Creating Metal renderer for visionOS");
+        g_renderer = std::make_unique<MetalRenderer>();
+    }
+
+    // Initialize/resize the layer in the renderer.
+    auto* metalRenderer = MetalRenderer::GetInstance();
+    if (metalRenderer) {
+        metalRenderer->InitializeLayer({width, height}, true);
+    }
+
     os_log_info(cemuLog(), "Main display layer set: %dx%d", width, height);
 }
 

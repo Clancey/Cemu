@@ -33,8 +33,12 @@ target_include_directories(cemu PRIVATE
 
 cemu_use_precompiled_header(cemu)
 
-# Set up OpenXR library path based on Android ABI
+# Set up OpenXR loader as imported shared library
 set(OPENXR_LIB_DIR "/Users/clancey/Projects/godot_openxr_vendors/plugin/build/temp/khronos_openxr_loader_aar/jni/${ANDROID_ABI}")
+add_library(openxr_loader SHARED IMPORTED)
+set_target_properties(openxr_loader PROPERTIES
+    IMPORTED_LOCATION "${OPENXR_LIB_DIR}/libopenxr_loader.so"
+)
 
 target_link_libraries(cemu PRIVATE
         -landroid
@@ -50,5 +54,5 @@ target_link_libraries(cemu PRIVATE
         ZArchive::zarchive
         stb
         Threads::Threads
-        ${OPENXR_LIB_DIR}/libopenxr_loader.so
+        openxr_loader
 )

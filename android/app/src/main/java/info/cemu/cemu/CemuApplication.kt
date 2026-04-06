@@ -36,7 +36,11 @@ class CemuApplication : Application() {
 
         initializeTranslations()
 
-        initializeCemu()
+        // Run Cemu init on background thread to prevent ANR on Quest
+        // Quest kills VR apps that block onCreate for too long
+        Thread {
+            initializeCemu()
+        }.start()
 
         saveDataFiles()
     }

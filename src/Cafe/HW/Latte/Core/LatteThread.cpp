@@ -119,6 +119,10 @@ int Latte_ThreadEntry()
 	WindowSystem::GetWindowPhysSize(w,h);
 
 	// renderer
+	if (!g_renderer) {
+		cemuLog_log(LogType::Force, "FATAL: g_renderer is null in Latte_ThreadEntry! Metal renderer was not initialized before game launch.");
+		return -1;
+	}
 	g_renderer->Initialize();
 	RendererOutputShader::InitializeStatic();
 

@@ -59,7 +59,10 @@ final class EmulatorCore {
     }
 
     #if DEBUG && targetEnvironment(simulator)
-    /// In debug simulator builds, automatically launch BOTW if available.
+    /// Path to auto-launch in debug simulator builds (set during init, launched once layer is ready).
+    private(set) var pendingDebugGamePath: String?
+
+    /// In debug simulator builds, find BOTW and queue it for auto-launch.
     private func autoLaunchDebugGame() {
         let basePath = "/Users/clancey/Documents/Games/WiiU"
         let gameDirs = [
@@ -71,15 +74,23 @@ final class EmulatorCore {
             guard let files = try? fm.contentsOfDirectory(atPath: codePath) else { continue }
             for file in files where file.hasSuffix(".rpx") {
                 let rpxPath = "\(codePath)/\(file)"
-                logger.info("Auto-launching debug game: \(rpxPath)")
-                // Small delay to let the Metal layer attach first
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                    self?.loadGame(at: rpxPath)
-                }
+                logger.info("Debug game queued for auto-launch: \(rpxPath)")
+                pendingDebugGamePath = rpxPath
                 return
             }
         }
         logger.info("No debug game found for auto-launch")
+    }
+
+    /// Called after the Metal display layer is attached to actually launch the queued game.
+    func launchPendingDebugGameIfNeeded() {
+        guard let path = pendingDebugGamePath else { return }
+        pendingDebugGamePath = nil
+        logger.info("Auto-launching debug game now (Metal layer ready): \(path)")
+        // Short delay to let the renderer fully initialize
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.loadGame(at: path)
+        }
     }
     #endif
 
@@ -88,6 +99,9 @@ final class EmulatorCore {
     /// Provide the main TV CAMetalLayer to the C++ renderer.
     func setMainDisplayLayer(_ layer: CAMetalLayer, width: Int, height: Int) {
         bridge.setMainDisplay(layer, width: Int32(width), height: Int32(height))
+        #if DEBUG && targetEnvironment(simulator)
+        launchPendingDebugGameIfNeeded()
+        #endif
     }
 
     /// Notify the C++ side that the main display was resized.
