@@ -54,6 +54,14 @@ public:
 	template <typename ...TArgs>
 	[[nodiscard]] static fs::path GetDataPath(TArgs&&... args){ return GetPath(s_data_path, std::forward<TArgs>(args)...); };
 
+#ifdef __ANDROID__
+	template <typename ...TArgs>
+	[[nodiscard]] static fs::path GetNativeLibPath(TArgs&&... args){ return GetPath(s_native_lib_path, std::forward<TArgs>(args)...); };
+
+	template <typename ...TArgs>
+	[[nodiscard]] static fs::path GetInternalPath(TArgs&&... args){ return GetPath(s_internal_dir_path, std::forward<TArgs>(args)...); };
+#endif
+
 	[[nodiscard]] static fs::path GetMlcPath();
 
 	template <typename ...TArgs>
@@ -73,8 +81,17 @@ private:
 	inline static fs::path s_data_path;
 	inline static fs::path s_executable_filename; // cemu.exe
 	inline static fs::path s_mlc_path;
+#ifdef __ANDROID__
+	inline static fs::path s_native_lib_path;
+	inline static fs::path s_internal_dir_path;
+#endif
 
 public:
+
+#ifdef __ANDROID__
+	static void SetNativeLibPath(const fs::path& nativeLibPath);
+	static void SetInternalDir(const fs::path& internalDirPath);
+#endif
 	// can be called before Init
 	[[nodiscard]] static bool IsPortableMode();
 

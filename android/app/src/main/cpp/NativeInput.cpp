@@ -3,6 +3,7 @@
 #include "input/InputManager.h"
 #include "input/api/Android/AndroidController.h"
 #include "input/api/Android/AndroidControllerProvider.h"
+#include "input/motion/MotionHandler.h"
 #include "AndroidEmulatedController.h"
 
 namespace NativeInput

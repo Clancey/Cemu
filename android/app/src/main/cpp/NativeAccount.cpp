@@ -15,6 +15,7 @@
 #include "input/api/Android/AndroidControllerProvider.h"
 #include "config/ActiveSettings.h"
 #include "Cemu/ncrypto/ncrypto.h"
+#include "Cafe/Account/Account.h"
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeAccount_createAccount(JNIEnv* env, [[maybe_unused]] jclass clazz, jint persistent_id, jstring mii_name)

@@ -23,6 +23,7 @@
 #include "Cafe/TitleList/TitleList.h"
 #include "Cafe/TitleList/GameInfo.h"
 #include "Cafe/OS/libs/coreinit/coreinit_Alarm.h"
+#include "Cafe/OS/libs/coreinit/coreinit_Thread.h"
 #include "Cafe/OS/libs/snd_core/ax.h"
 #include "Cafe/OS/RPL/rpl.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
@@ -455,6 +456,8 @@ namespace CafeSystem
 
 	bool sSystemRunning = false;
 	TitleId sForegroundTitleId = 0;
+
+	bool sTitlePaused = false;
 
 	GameInfo2 sGameInfo_ForegroundTitle;
 
@@ -1054,6 +1057,30 @@ namespace CafeSystem
 	{
         UnmountForegroundTitle();
         fsc_unmount("/internal/code/", FSC_PRIORITY_BASE);
+	}
+
+	void PauseTitle()
+	{
+		if (!sSystemRunning || sTitlePaused)
+		{
+			return;
+		}
+
+		sTitlePaused = true;
+
+		coreinit::SuspendActiveThreads();
+	}
+
+	void ResumeTitle()
+	{
+		if (!sSystemRunning || !sTitlePaused)
+		{
+			return;
+		}
+
+		sTitlePaused = false;
+
+		coreinit::ResumeActiveThreads();
 	}
 
 	void ShutdownTitle()

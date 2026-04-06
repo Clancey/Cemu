@@ -204,6 +204,16 @@ enum class CrashDump
 ENABLE_ENUM_ITERATORS(CrashDump, CrashDump::Disabled, CrashDump::Enabled);
 #endif
 
+#ifdef __ANDROID__
+enum class DriverSettingMode
+{
+	Global,
+	System,
+	Custom,
+};
+ENABLE_ENUM_ITERATORS(DriverSettingMode, DriverSettingMode::Global, DriverSettingMode::Custom);
+#endif
+
 template <>
 struct fmt::formatter<PrecompiledShaderOption> : formatter<string_view> {
 	template <typename FormatContext>
@@ -539,6 +549,10 @@ struct CemuConfig
 			return 2;
 		}
 	}
+
+#ifdef __ANDROID__
+	ConfigValue<std::string> custom_driver_path{};
+#endif
 
   private:
 	GameEntry* GetGameEntryByTitleId(uint64 titleId);

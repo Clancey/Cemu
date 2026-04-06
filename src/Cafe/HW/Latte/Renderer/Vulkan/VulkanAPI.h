@@ -16,6 +16,10 @@ bool InitializeInstanceVulkan(VkInstance instance);
 bool InitializeDeviceVulkan(VkDevice device);
 extern bool g_vulkan_available;
 
+#ifdef __ANDROID__
+bool SupportsLoadingCustomDriver();
+#endif
+
 #endif
 
 #ifdef VKFUNC_DEFINE_CUSTOM

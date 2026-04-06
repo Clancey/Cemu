@@ -1,3 +1,4 @@
+#include "OS/libs/swkbd/swkbd.h"
 #include "Cafe/OS/common/OSCommon.h"
 #include "Cafe/HW/Latte/ISA/RegDefines.h"
 #include "Cafe/OS/libs/gx2/GX2.h"
@@ -619,6 +620,37 @@ void swkbd_keyInput(uint32 keyCode)
 		swkbdInternalState->formStringLength++;
 		swkbdInternalState->formStringBuffer[swkbdInternalState->formStringLength] = '\0';
 		swkbd_inputStringChanged();
+	}
+}
+
+// Android interface implementation
+namespace swkbd
+{
+	static std::shared_ptr<swkbdCallbacks> s_swkbdCallbacks;
+
+	void setSwkbdCallbacks(const std::shared_ptr<swkbdCallbacks>& callbacks)
+	{
+		s_swkbdCallbacks = callbacks;
+	}
+
+	void render(bool mainWindow)
+	{
+		swkbd_render(mainWindow);
+	}
+
+	bool hasKeyboardInputHook()
+	{
+		return swkbd_hasKeyboardInputHook();
+	}
+
+	void keyInput(uint32 keyCode)
+	{
+		swkbd_keyInput(keyCode);
+	}
+
+	void load()
+	{
+		// Implementation for load function if needed
 	}
 }
 

@@ -14,8 +14,8 @@ namespace WindowSystem
 			Windows,
 			Android,
 		} backend;
-		void* display = nullptr;
-		void* surface = nullptr;
+		std::atomic<void*> display = nullptr;
+		std::atomic<void*> surface = nullptr;
 		// ANativeWindow* for Android surface creation (always available for consistency)
 		void* nativeWindow = nullptr;
 	};

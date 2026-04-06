@@ -1,7 +1,9 @@
 #include "Cafe/GameProfile/GameProfile.h"
 #include "Cafe/IOSU/legacy/iosu_crypto.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
+#if ENABLE_VULKAN
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
+#endif
 #include "Cafe/CafeSystem.h"
 #include "Cemu/Logging/CemuLogging.h"
 #include "config/ActiveSettings.h"
@@ -108,8 +110,13 @@ GraphicAPI ActiveSettings::GetGraphicsAPI()
 {
 	GraphicAPI api = g_current_game_profile->GetGraphicsAPI().value_or(GetConfig().graphic_api);
 	// check if vulkan even available
+#if ENABLE_VULKAN
 	if (api == kVulkan && !g_vulkan_available)
 		api = kOpenGL;
+#else
+	if (api == kVulkan)
+		api = kOpenGL;
+#endif
 	
 	return api;
 }
@@ -282,4 +289,16 @@ fs::path ActiveSettings::GetDefaultMLCPath()
 {
 	return GetUserDataPath("mlc01");
 }
+
+#ifdef __ANDROID__
+void ActiveSettings::SetNativeLibPath(const fs::path& nativeLibPath)
+{
+	s_native_lib_path = nativeLibPath;
+}
+
+void ActiveSettings::SetInternalDir(const fs::path& internalDirPath)
+{
+	s_internal_dir_path = internalDirPath;
+}
+#endif
 

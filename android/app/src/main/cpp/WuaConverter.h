@@ -5,8 +5,9 @@
 #include "JNIUtils.h"
 #include "CompressTitleCallbacks.h"
 
-#include <boost/iostreams/device/file_descriptor.hpp>
-#include <boost/iostreams/stream_buffer.hpp>
+// Temporarily disabled boost iostreams for Android build
+// #include <boost/iostreams/device/file_descriptor.hpp>
+// #include <boost/iostreams/stream_buffer.hpp>
 #include <zarchive/zarchivewriter.h>
 #include <zarchive/zarchivereader.h>
 
@@ -30,7 +31,8 @@ class WuaConverter
 
 		int fd;
 		bool isValid{false};
-		std::unique_ptr<boost::iostreams::file_descriptor_sink> sink{};
+		// TODO: Replace with alternative for Android
+		// std::unique_ptr<boost::iostreams::file_descriptor_sink> sink{};
 		std::unique_ptr<ZArchiveWriter> zaWriter{};
 		std::vector<uint8> transferBuffer;
 		std::atomic_bool cancelled{false};

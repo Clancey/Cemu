@@ -17,6 +17,7 @@ add_library(CemuAndroid SHARED
         NativeSettings.cpp
         NativeSwkbd.cpp
         WuaConverter.cpp
+        ../../../../src/Common/android/FilesystemAndroid.cpp
 )
 
 target_include_directories(CemuAndroid PRIVATE

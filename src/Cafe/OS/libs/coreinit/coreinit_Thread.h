@@ -618,6 +618,9 @@ namespace coreinit
 
     bool __OSIsThreadActive(OSThread_t* thread);
 	void __OSDeleteAllActivePPCThreads();
+
+	void SuspendActiveThreads();
+	void ResumeActiveThreads();
 }
 
 #pragma pack()

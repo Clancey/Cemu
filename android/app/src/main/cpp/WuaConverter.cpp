@@ -66,8 +66,10 @@ void WuaConverter::startConversion(int fd, std::unique_ptr<CompressTitleCallback
 	  m_writerContext.zaWriter->Finalize();
 
 	  // verify the created WUA file
-	  boost::iostreams::stream_buffer<boost::iostreams::file_descriptor_source> stream(fd, boost::iostreams::never_close_handle);
-	  ZArchiveReader* zreader = ZArchiveReader::OpenFromStream(std::make_unique<std::istream>(&stream));
+	  // TODO: Replace with alternative for Android
+	  // boost::iostreams::stream_buffer<boost::iostreams::file_descriptor_source> stream(fd, boost::iostreams::never_close_handle);
+	  // ZArchiveReader* zreader = ZArchiveReader::OpenFromStream(std::make_unique<std::istream>(&stream));
+	  ZArchiveReader* zreader = nullptr; // Temporary placeholder
 	  if (!zreader)
 	  {
 		  callbacks->onError();
@@ -176,15 +178,18 @@ bool WuaConverter::ZArchiveWriterContext::RecursivelyAddFiles(std::string archiv
 void WuaConverter::ZArchiveWriterContext::NewOutputFile(const int32_t partIndex, void* _ctx)
 {
 	auto ctx = (ZArchiveWriterContext*)_ctx;
-	ctx->sink = std::make_unique<boost::iostreams::file_descriptor_sink>(ctx->fd, boost::iostreams::never_close_handle);
-	ctx->isValid = ctx->sink->is_open();
+	// TODO: Replace with alternative for Android
+	// ctx->sink = std::make_unique<boost::iostreams::file_descriptor_sink>(ctx->fd, boost::iostreams::never_close_handle);
+	// ctx->isValid = ctx->sink->is_open();
+	ctx->isValid = false; // Temporary placeholder
 }
 
 void WuaConverter::ZArchiveWriterContext::WriteOutputData(const void* data, size_t length, void* _ctx)
 {
 	auto* ctx = (ZArchiveWriterContext*)_ctx;
-	if (ctx->isValid)
-		ctx->sink->write(reinterpret_cast<const char*>(data), length);
+	// TODO: Replace with alternative for Android
+	// if (ctx->isValid)
+	//	ctx->sink->write(reinterpret_cast<const char*>(data), length);
 }
 
 bool WuaConverter::ZArchiveWriterContext::StoreTitle(TitleInfo* titleInfo)

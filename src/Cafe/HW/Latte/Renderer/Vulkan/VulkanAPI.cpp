@@ -208,4 +208,16 @@ bool InitializeDeviceVulkan(VkDevice device)
 	return true;
 }
 
+#ifdef __ANDROID__
+bool SupportsLoadingCustomDriver()
+{
+#ifdef __aarch64__
+	std::error_code ec;
+	return fs::exists("/dev/kgsl-3d0", ec);
+#else
+	return false;
+#endif
+}
+#endif
+
 #endif

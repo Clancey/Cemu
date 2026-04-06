@@ -1,5 +1,8 @@
 #import "CemuBridge.h"
 
+// Include precompiled header first to get all basic definitions
+#include "Common/precompiled.h"
+
 #include "Cafe/CafeSystem.h"
 #include "Cafe/TitleList/TitleList.h"
 #include "Cafe/TitleList/SaveList.h"

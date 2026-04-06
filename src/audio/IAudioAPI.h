@@ -70,6 +70,7 @@ public:
 	static void PrintLogging();
 	static void InitializeStatic();
 	static bool IsAudioAPIAvailable(AudioAPI api);
+	static void SetAudioDelay(uint32 audioDelay) { s_audioDelay = audioDelay; }
 
 	static std::unique_ptr<IAudioAPI> CreateDeviceFromConfig(AudioType type, sint32 rate, sint32 samples_per_block, sint32 bits_per_sample);
 	static std::unique_ptr<IAudioAPI> CreateDeviceFromConfig(AudioType type, sint32 rate, sint32 channels, sint32 samples_per_block, sint32 bits_per_sample);

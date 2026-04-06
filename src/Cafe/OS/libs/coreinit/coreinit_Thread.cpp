@@ -1634,6 +1634,18 @@ namespace coreinit
 		cafeExportRegister("coreinit", OSInitThreadQueueEx, LogType::CoreinitThread);
     }
 
+	void SuspendActiveThreads()
+	{
+		// Stub implementation for visionOS
+		// TODO: Implement proper thread suspension if needed
+	}
+
+	void ResumeActiveThreads()
+	{
+		// Stub implementation for visionOS
+		// TODO: Implement proper thread resumption if needed
+	}
+
 	void InitializeThread()
 	{
 		OSInitThreadQueue(g_activeThreadQueue.GetPtr());

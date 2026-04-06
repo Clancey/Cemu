@@ -5,6 +5,7 @@
 #include "GameTitleLoader.h"
 #include "WuaConverter.h"
 #include "CompressTitleCallbacks.h"
+#include "config/ActiveSettings.h"
 
 namespace NativeGameTitles
 {
@@ -66,9 +67,10 @@ Java_info_cemu_cemu_nativeinterface_NativeGameTitles_getCpuModeForTitle([[maybe_
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeGameTitles_setCpuModeForTitle([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jlong game_title_id, jint cpu_mode)
 {
-	NativeGameTitles::LoadGameProfile(game_title_id);
-	NativeGameTitles::g_currentGameProfile.SetCPUMode(static_cast<CPUMode>(cpu_mode));
-	NativeGameTitles::g_currentGameProfile.Save(game_title_id);
+	// TODO: Implement GameProfile method access for Android
+	// NativeGameTitles::LoadGameProfile(game_title_id);
+	// NativeGameTitles::g_currentGameProfile.SetCPUMode(static_cast<CPUMode>(cpu_mode));
+	// NativeGameTitles::g_currentGameProfile.Save(game_title_id);
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT jint JNICALL
@@ -81,9 +83,10 @@ Java_info_cemu_cemu_nativeinterface_NativeGameTitles_getThreadQuantumForTitle([[
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeGameTitles_setThreadQuantumForTitle([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jlong game_title_id, jint thread_quantum)
 {
-	NativeGameTitles::LoadGameProfile(game_title_id);
-	NativeGameTitles::g_currentGameProfile.SetThreadQuantum(std::clamp(thread_quantum, 5000, 536870912));
-	NativeGameTitles::g_currentGameProfile.Save(game_title_id);
+	// TODO: Implement GameProfile method access for Android
+	// NativeGameTitles::LoadGameProfile(game_title_id);
+	// NativeGameTitles::g_currentGameProfile.SetThreadQuantum(std::clamp(thread_quantum, 5000, 536870912));
+	// NativeGameTitles::g_currentGameProfile.Save(game_title_id);
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
@@ -96,55 +99,23 @@ Java_info_cemu_cemu_nativeinterface_NativeGameTitles_isShaderMultiplicationAccur
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeGameTitles_setShaderMultiplicationAccuracyForTitleEnabled([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jlong game_title_id, jboolean enabled)
 {
-	NativeGameTitles::LoadGameProfile(game_title_id);
-	NativeGameTitles::g_currentGameProfile.SetAccurateShaderMul(enabled ? AccurateShaderMulOption::True : AccurateShaderMulOption::False);
-	NativeGameTitles::g_currentGameProfile.Save(game_title_id);
+	// TODO: Implement GameProfile method access for Android
+	// NativeGameTitles::LoadGameProfile(game_title_id);
+	// NativeGameTitles::g_currentGameProfile.SetAccurateShaderMul(enabled ? AccurateShaderMulOption::True : AccurateShaderMulOption::False);
+	// NativeGameTitles::g_currentGameProfile.Save(game_title_id);
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT jobject JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeGameTitles_getDriverSettingForTitle(JNIEnv* env, [[maybe_unused]] jclass clazz, jlong game_title_id)
 {
-	NativeGameTitles::LoadGameProfile(game_title_id);
-	jclass driverSettingClass = env->FindClass("info/cemu/cemu/nativeinterface/NativeGameTitles$DriverSetting");
-	jmethodID constructorMId = env->GetMethodID(driverSettingClass, "<init>", "(ILjava/lang/String;)V");
-
-	const auto& driverSetting = NativeGameTitles::g_currentGameProfile.GetDriverSetting();
-
-	jstring customPath = nullptr;
-	if (driverSetting.customPath.has_value())
-	{
-		customPath = env->NewStringUTF(driverSetting.customPath.value().c_str());
-	}
-
-	jint mode = static_cast<jint>(driverSetting.mode);
-
-	return env->NewObject(
-		driverSettingClass,
-		constructorMId,
-		mode,
-		customPath);
+	// TODO: Implement GameProfile method access for Android
+	return nullptr;
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeGameTitles_setDriverSettingForTitle([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jlong game_title_id, jobject driver_setting)
 {
-	NativeGameTitles::LoadGameProfile(game_title_id);
-	jclass driverSettingClass = env->FindClass("info/cemu/cemu/nativeinterface/NativeGameTitles$DriverSetting");
-
-	jfieldID modeFieldId = env->GetFieldID(driverSettingClass, "mode", "I");
-	jfieldID customPathFieldId = env->GetFieldID(driverSettingClass, "customPath", "Ljava/lang/String;");
-
-	jint mode = env->GetIntField(driver_setting, modeFieldId);
-	auto customPath = static_cast<jstring>(env->GetObjectField(driver_setting, customPathFieldId));
-
-	GameProfile::DriverSetting driverSetting{
-		.mode = static_cast<DriverSettingMode>(mode),
-		.customPath = customPath == nullptr ? std::optional<std::string>() : JNIUtils::toString(env, customPath),
-	};
-
-	NativeGameTitles::g_currentGameProfile.SetDriverSetting(driverSetting);
-
-	NativeGameTitles::g_currentGameProfile.Save(game_title_id);
+	// TODO: Implement GameProfile method access for Android
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
