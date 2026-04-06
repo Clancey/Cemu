@@ -332,16 +332,14 @@ if(NOT ANDROID)
 endif()
 
 # Platform-specific dependencies
+# SDL is desktop-only
 if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
-	# Desktop-only dependencies
 	find_package(SDL2 REQUIRED)
-	find_package(CURL REQUIRED)
-elseif(ANDROID)
-	# Android-specific dependency handling
-	message(STATUS "Android build: using core dependencies, skipping desktop-only packages")
-elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
-	# visionOS-specific dependency handling (SDL not needed, CURL needed for network services)
-	message(STATUS "visionOS build: using core dependencies, skipping SDL")
+endif()
+
+# CURL is needed on all platforms (vcpkg builds it for Android too)
+# Temporarily disabled for Android testing
+if(NOT ANDROID)
 	find_package(CURL REQUIRED)
 endif()
 

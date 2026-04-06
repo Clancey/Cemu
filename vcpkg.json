@@ -56,8 +56,7 @@
       "default-features": false,
       "features": [
         "openssl"
-      ],
-      "platform": "!android"
+      ]
     },
     {
       "name": "dbus",

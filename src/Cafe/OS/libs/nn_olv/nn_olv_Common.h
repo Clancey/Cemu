@@ -5,6 +5,7 @@
 #include "Cemu/napi/napi_helper.h"
 #include "util/helpers/StringHelpers.h"
 #include "pugixml.hpp"
+#include "curl/curl.h"
 
 // https://github.com/kinnay/NintendoClients/wiki/Wii-U-Error-Codes#act-error-codes
 #define OLV_ACT_RESULT_STATUS(code) (BUILD_NN_RESULT(NN_RESULT_LEVEL_STATUS, NN_RESULT_MODULE_NN_OLV, ((code) << 7)))
