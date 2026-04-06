@@ -1,8 +1,6 @@
 #include "nn_olv_UploadCommunityTypes.h"
 #include <algorithm>
 
-#ifndef __ANDROID__
-
 namespace nn
 {
 	namespace olv
@@ -306,4 +304,3 @@ namespace nn
 		}
 	}
 }
-#endif // __ANDROID__

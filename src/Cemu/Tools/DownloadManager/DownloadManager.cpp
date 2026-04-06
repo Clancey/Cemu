@@ -15,17 +15,14 @@
 
 #include <cinttypes>
 #include <charconv>
-#ifndef __ANDROID__
 #include <curl/curl.h>
 #include <pugixml.hpp>
-#endif
 
 #include "WindowSystem.h"
 
 #include "Cemu/napi/napi.h"
 #include "util/helpers/Serializer.h"
 
-#ifndef __ANDROID__ // Guard entire download manager functionality for Android
 
 FileCache* s_nupFileCache = nullptr;
 
@@ -1516,4 +1513,3 @@ void DownloadManager::queueManagerJob(const std::function<void()>& callback)
 	m_jobQueue.push(callback);
 }
 
-#endif // __ANDROID__

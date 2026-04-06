@@ -2,8 +2,6 @@
 #include <algorithm>
 #include <cstddef>
 
-#ifndef __ANDROID__
-
 namespace nn
 {
 	namespace olv
@@ -172,4 +170,3 @@ namespace nn
 		}
 	}
 }
-#endif // __ANDROID__

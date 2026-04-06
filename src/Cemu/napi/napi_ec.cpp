@@ -2,16 +2,12 @@
 #include "napi.h"
 #include "napi_helper.h"
 
-#ifndef __ANDROID__
 #include "curl/curl.h"
-#endif
 #include "Cafe/IOSU/legacy/iosu_crypto.h"
 
 #include "Cemu/ncrypto/ncrypto.h"
 #include "util/crypto/md5.h"
 #include "config/LaunchSettings.h"
-
-#ifndef __ANDROID__
 #include "config/ActiveSettings.h"
 #include "config/NetworkSettings.h"
 #include "pugixml.hpp"
@@ -599,4 +595,3 @@ namespace NAPI
 	}
 
 };
-#endif // __ANDROID__

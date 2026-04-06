@@ -5,8 +5,4 @@
 
 namespace NAPI
 {
-	NetworkService AuthInfo::GetService() const
-	{
-		return serviceOverwrite.value_or(ActiveSettings::GetNetworkService());
-	}
 }

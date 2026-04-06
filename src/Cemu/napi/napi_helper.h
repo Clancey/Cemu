@@ -1,9 +1,9 @@
 #pragma once
 #include "napi.h"
-
-#ifndef __ANDROID__
 #include "curl/curl.h"
 #include "pugixml.hpp"
+
+typedef void CURL;
 
 class CurlRequestHelper
 {
@@ -162,4 +162,3 @@ namespace NAPI
 	bool _parseResponseInit(const CurlSOAPHelper& soapHelper, const char* responseNodeName, pugi::xml_node& node, _NAPI_CommonResultSOAP& result, pugi::xml_document& doc, pugi::xml_node& responseNode);
 
 };
-#endif // __ANDROID__

@@ -1,16 +1,17 @@
 #include "Common/precompiled.h"
-#include "Cafe/Account/Account.h"
 #include "Cemu/ncrypto/ncrypto.h"
 #include "napi.h"
 #include "napi_helper.h"
-#ifndef __ANDROID__
+
 #include "curl/curl.h"
-#endif
+#include "pugixml.hpp"
+#include "Cafe/IOSU/legacy/iosu_crypto.h"
+
 #include "config/ActiveSettings.h"
 #include "util/helpers/StringHelpers.h"
 #include "util/highresolutiontimer/HighResolutionTimer.h"
-
-#ifndef __ANDROID__
+#include "config/LaunchSettings.h"
+#include "Cafe/Account/Account.h"
 
 namespace NAPI
 {
@@ -629,4 +630,3 @@ namespace NAPI
 		return true;
 	}
 }
-#endif // __ANDROID__

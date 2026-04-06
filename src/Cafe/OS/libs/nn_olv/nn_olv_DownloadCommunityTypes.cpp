@@ -1,7 +1,5 @@
 #include "nn_olv_DownloadCommunityTypes.h"
 
-#ifndef __ANDROID__
-
 namespace nn
 {
 	namespace olv
@@ -234,4 +232,3 @@ namespace nn
 		}
 	}
 }
-#endif // __ANDROID__

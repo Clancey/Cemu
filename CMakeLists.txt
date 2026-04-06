@@ -338,10 +338,7 @@ if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
 endif()
 
 # CURL is needed on all platforms (vcpkg builds it for Android too)
-# Temporarily disabled for Android testing
-if(NOT ANDROID)
-	find_package(CURL REQUIRED)
-endif()
+find_package(CURL REQUIRED)
 
 # glslang versions older than 11.11.0 define targets without a namespace
 if (NOT TARGET glslang::SPIRV AND TARGET SPIRV)

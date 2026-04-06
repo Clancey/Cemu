@@ -1,27 +1,20 @@
 #include "Cafe/OS/libs/nn_common.h"
+#include "Cafe/OS/libs/coreinit/coreinit_Time.h"
 #include "util/helpers/helpers.h"
+#include "Cafe/Filesystem/fsc.h"
 
 #include "Cafe/IOSU/iosu_types_common.h"
 #include "Cafe/IOSU/nn/iosu_nn_service.h"
 
 #include "Cafe/IOSU/legacy/iosu_act.h"
+#include "Cafe/Account/Account.h"
 #include "Cafe/CafeSystem.h"
 #include "config/ActiveSettings.h"
-#include "Cafe/Account/Account.h"
 
 #include "boss_service.h"
 #include "boss_common.h"
 
 #include <pugixml.hpp>
-
-#ifdef __ANDROID__
-// BOSS network service requires curl which is not available on Android
-// Provide minimal stub namespace
-namespace iosu::boss
-{
-	IOSUModule* GetModule() { return nullptr; }
-}
-#else
 #include <curl/curl.h>
 #include <openssl/x509.h>
 #include <openssl/evp.h>
@@ -374,7 +367,6 @@ namespace iosu::boss
 			return m_contentLength; // todo - unlike content length, this value is getting updated as the download happens. But for now we just return the content length
 		}
 
-#ifndef __ANDROID__
 		nnResult TaskDoRequest(CURL* curl)
 		{
 			std::unique_lock _l(m_mutex);
@@ -827,15 +819,6 @@ namespace iosu::boss
 			m_fadDb.Store();
 			// todo - DIDX and ref database
 		}
-#else
-		nnResult TaskDoRequest(void* curl)
-		{
-			// Stub implementation for Android
-			m_taskState = TaskState::Done;
-			m_taskTurnState = TaskTurnState::DoneError;
-			return BUILD_NN_RESULT(NN_RESULT_LEVEL_SUCCESS, NN_RESULT_MODULE_NN_BOSS, 0);
-		}
-#endif
 
 		TaskId m_taskId;
 		uint32 m_persistentId;
@@ -956,11 +939,7 @@ namespace iosu::boss
 	private:
 		void BossDaemonThread()
 		{
-#ifndef __ANDROID__
 			CURL* curl = curl_easy_init();
-#else
-			void* curl = nullptr;
-#endif
 			while ( m_threadRunning )
 			{
 				// check for tasks to run
@@ -968,17 +947,13 @@ namespace iosu::boss
 					std::shared_ptr<RegisteredTask> task = GetNextRunableTask();
 					if (task)
 					{
-#ifndef __ANDROID__
 						task->TaskDoRequest(curl);
-#endif
 						cemu_assert_debug(task->GetState() != TaskState::Ready);
 					}
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			}
-#ifndef __ANDROID__
 			curl_easy_cleanup(curl);
-#endif
 		}
 
 		std::shared_ptr<RegisteredTask> GetNextRunableTask()
@@ -1457,4 +1432,3 @@ namespace iosu::boss
 		return static_cast<IOSUModule*>(&sIOSUModuleNNBOSS);
 	}
 }
-#endif // !__ANDROID__
