@@ -3,6 +3,8 @@
 #include "Cafe/OS/libs/nn_act/nn_act.h"
 #include <time.h>
 
+#ifndef __ANDROID__
+
 namespace nn
 {
 	namespace olv
@@ -310,4 +312,4 @@ namespace nn
 			return g_IsInitialized;
 		}
 	}
-}
+}#endif // __ANDROID__

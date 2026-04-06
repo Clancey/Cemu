@@ -266,6 +266,7 @@ namespace nn
 			return true;
 		}
 
+#ifndef __ANDROID__
 		sint32 olv_curlformcode_to_error(CURLFORMcode code)
 		{
 			switch (code)
@@ -281,5 +282,6 @@ namespace nn
 					return OLV_RESULT_LVL6(50);
 			}
 		}
+#endif
 	}
 }

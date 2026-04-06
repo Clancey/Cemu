@@ -152,10 +152,6 @@ VKFUNC_INSTANCE(vkCreateWin32SurfaceKHR);
 VKFUNC_INSTANCE(vkCreateMetalSurfaceEXT);
 #endif
 
-#ifdef __ANDROID__
-VKFUNC_INSTANCE(vkCreateAndroidSurfaceKHR);
-#endif
-
 VKFUNC_INSTANCE(vkDestroySurfaceKHR);
 VKFUNC_DEVICE(vkCreateSwapchainKHR);
 VKFUNC_DEVICE(vkDestroySwapchainKHR);

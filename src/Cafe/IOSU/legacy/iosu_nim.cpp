@@ -3,7 +3,9 @@
 #include "iosu_act.h"
 #include "iosu_mcp.h"
 #include "util/crypto/aes128.h"
+#ifndef __ANDROID__
 #include "curl/curl.h"
+#endif
 #include "openssl/bn.h"
 #include "openssl/x509.h"
 #include "openssl/ssl.h"

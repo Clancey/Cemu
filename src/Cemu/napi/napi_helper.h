@@ -4,8 +4,6 @@
 #include "curl/curl.h"
 #include "pugixml.hpp"
 
-typedef void CURL;
-
 class CurlRequestHelper
 {
 	struct HeaderExtraField

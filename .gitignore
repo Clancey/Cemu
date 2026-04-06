@@ -76,3 +76,7 @@ DerivedData/
 # Example/template files
 src/*.example
 src/CMakeLists_android.txt.example
+
+# CMake build directories
+build-visionos/
+build-android/

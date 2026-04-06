@@ -1,6 +1,11 @@
 #include "Fiber.h"
 #ifndef __ANDROID__
 #include <ucontext.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#include <cstdint>
+#include <cstring>
 #endif
 #include <atomic>
 

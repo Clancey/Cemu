@@ -13,7 +13,9 @@
 #include "boss_common.h"
 
 #include <pugixml.hpp>
+#ifndef __ANDROID__
 #include <curl/curl.h>
+#endif
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -365,6 +367,7 @@ namespace iosu::boss
 			return m_contentLength; // todo - unlike content length, this value is getting updated as the download happens. But for now we just return the content length
 		}
 
+#ifndef __ANDROID__
 		nnResult TaskDoRequest(CURL* curl)
 		{
 			std::unique_lock _l(m_mutex);
@@ -817,6 +820,15 @@ namespace iosu::boss
 			m_fadDb.Store();
 			// todo - DIDX and ref database
 		}
+#else
+		nnResult TaskDoRequest(void* curl)
+		{
+			// Stub implementation for Android
+			m_taskState = TaskState::Done;
+			m_taskTurnState = TaskTurnState::DoneError;
+			return BUILD_NN_RESULT(NN_RESULT_LEVEL_SUCCESS, NN_RESULT_MODULE_NN_BOSS, 0);
+		}
+#endif
 
 		TaskId m_taskId;
 		uint32 m_persistentId;
@@ -937,7 +949,11 @@ namespace iosu::boss
 	private:
 		void BossDaemonThread()
 		{
+#ifndef __ANDROID__
 			CURL* curl = curl_easy_init();
+#else
+			void* curl = nullptr;
+#endif
 			while ( m_threadRunning )
 			{
 				// check for tasks to run
@@ -945,13 +961,17 @@ namespace iosu::boss
 					std::shared_ptr<RegisteredTask> task = GetNextRunableTask();
 					if (task)
 					{
+#ifndef __ANDROID__
 						task->TaskDoRequest(curl);
+#endif
 						cemu_assert_debug(task->GetState() != TaskState::Ready);
 					}
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			}
+#ifndef __ANDROID__
 			curl_easy_cleanup(curl);
+#endif
 		}
 
 		std::shared_ptr<RegisteredTask> GetNextRunableTask()

@@ -11,6 +11,15 @@ set(EMULATOR_VERSION_PATCH "0" CACHE STRING "")
 
 set(THREADS_PREFER_PTHREAD_FLAG true) # needs to be set before vcpkg
 
+# visionOS threading workaround
+if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+    set(CMAKE_THREAD_LIBS_INIT "")
+    set(CMAKE_HAVE_THREADS_LIBRARY TRUE)
+    set(CMAKE_USE_WIN32_THREADS_INIT FALSE)
+    set(CMAKE_USE_PTHREADS_INIT TRUE)
+    set(Threads_FOUND TRUE)
+endif()
+
 execute_process(
 		COMMAND git log --format=%h -1
 		WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
@@ -47,6 +56,10 @@ if (ENABLE_VCPKG)
 		else()
 			set(VCPKG_OVERLAY_PORTS "")
 		endif()
+	elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+		# Set visionOS-specific vcpkg triplet (try arm64-osx first, fallback to generic if needed)
+		set(VCPKG_TARGET_TRIPLET arm64-osx)
+		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_mac;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
 	elseif(UNIX AND NOT APPLE)
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_linux;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
 	elseif(APPLE)
@@ -136,6 +149,28 @@ if (ANDROID)
 	set(ENABLE_HIDAPI OFF CACHE BOOL "Disable HIDAPI on Android" FORCE)
 endif()
 
+# visionOS-specific configuration
+if (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+	# Force disable desktop-only features
+	set(ENABLE_WAYLAND OFF CACHE BOOL "Disable Wayland on visionOS" FORCE)
+	set(ENABLE_FERAL_GAMEMODE OFF CACHE BOOL "Disable GameMode on visionOS" FORCE)
+	set(ENABLE_BLUEZ OFF CACHE BOOL "Disable Bluez on visionOS" FORCE)
+	set(ENABLE_WXWIDGETS OFF CACHE BOOL "Disable wxWidgets on visionOS" FORCE)
+	set(ENABLE_OPENGL OFF CACHE BOOL "Disable OpenGL on visionOS (Metal only)" FORCE)
+	set(ENABLE_DISCORD_RPC OFF CACHE BOOL "Disable Discord RPC on visionOS" FORCE)
+	set(ENABLE_VULKAN OFF CACHE BOOL "Disable Vulkan on visionOS (Metal only)" FORCE)
+
+	# Force enable supported features
+	set(ENABLE_METAL ON CACHE BOOL "Enable Metal on visionOS" FORCE)
+
+	# Disable input/audio APIs not available on visionOS
+	set(ENABLE_SDL OFF CACHE BOOL "Disable SDL on visionOS (using native input)" FORCE)
+	set(ENABLE_CUBEB OFF CACHE BOOL "Disable cubeb on visionOS (using native audio)" FORCE)
+	set(ENABLE_HIDAPI OFF CACHE BOOL "Disable HIDAPI on visionOS" FORCE)
+	set(ENABLE_XINPUT OFF CACHE BOOL "Disable XInput on visionOS" FORCE)
+	set(ENABLE_DIRECTINPUT OFF CACHE BOOL "Disable DirectInput on visionOS" FORCE)
+endif()
+
 if (APPLE)
     set(ENABLE_METAL_DEFAULT ON)
 else()
@@ -199,7 +234,7 @@ find_package(OpenSSL COMPONENTS Crypto SSL QUIET)
 find_package(PNG QUIET)
 
 if(NOT ANDROID)
-	# Desktop builds use vcpkg or system packages
+	# Desktop and visionOS builds use vcpkg or system packages
 	find_package(Boost COMPONENTS program_options filesystem nowide REQUIRED)
 	find_package(glm REQUIRED)
 	find_package(fmt 9 REQUIRED)
@@ -214,13 +249,18 @@ if(NOT ANDROID)
 endif()
 
 # Platform-specific dependencies
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
 	# Desktop-only dependencies
 	find_package(SDL2 REQUIRED)
 	find_package(CURL REQUIRED)
-else()
+elseif(ANDROID)
 	# Android-specific dependency handling
 	message(STATUS "Android build: using core dependencies, skipping desktop-only packages")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+	# visionOS-specific dependency handling
+	message(STATUS "visionOS build: using core dependencies, skipping desktop-only packages")
+	# For now, disable CURL on visionOS (uses native networking)
+	# find_package(CURL REQUIRED)
 endif()
 
 # glslang versions older than 11.11.0 define targets without a namespace
@@ -297,7 +337,7 @@ if (ANDROID AND ENABLE_VULKAN)
 	endif()
 endif()
 
-if (ENABLE_WXWIDGETS AND NOT ANDROID)
+if (ENABLE_WXWIDGETS AND NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
 	find_package(wxWidgets 3.3 REQUIRED COMPONENTS base core gl propgrid xrc)
 endif()
 

@@ -6,6 +6,8 @@
 #include <pugixml.hpp>
 #include <zlib.h>
 
+#ifndef __ANDROID__
+
 namespace nn
 {
 	namespace olv
@@ -461,3 +463,4 @@ namespace nn
 
 	}
 }
+#endif // __ANDROID__

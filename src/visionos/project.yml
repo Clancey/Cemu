@@ -29,6 +29,9 @@ targets:
       - path: CemuBridge
         type: group
         buildPhase: sources
+        excludes:
+          - "CemuBridge.mm"
+          - "MetalLayerVisionOS.mm"
       - path: CemuVision-Bridging-Header.h
         buildPhase: none
 

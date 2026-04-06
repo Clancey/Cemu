@@ -26,6 +26,13 @@ elseif(UNIX)
 			_POSIX_C_SOURCE=200809L
 			_GNU_SOURCE
 		)
+	elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+		add_compile_definitions(
+			TARGET_OS_VISION=1
+			VK_USE_PLATFORM_MACOS_MVK
+			VK_USE_PLATFORM_METAL_EXT
+			_XOPEN_SOURCE
+		)
 	else()
 		add_compile_definitions(
 			VK_USE_PLATFORM_XLIB_KHR # legacy. Do we need to support XLIB surfaces?
@@ -69,6 +76,11 @@ if(ANDROID)
 	add_subdirectory(android)
 endif()
 
+# visionOS-specific sources
+if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+	add_subdirectory(visionos)
+endif()
+
 if(ANDROID)
 	# For Android, create a shared library instead of executable
 	add_library(CemuBin SHARED
@@ -76,6 +88,13 @@ if(ANDROID)
 	)
 	# Link our Android native sources
 	target_link_libraries(CemuBin PRIVATE cemu_android)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+	# For visionOS, create a shared library instead of executable
+	add_library(CemuBin SHARED
+		mainLLE.cpp
+	)
+	# Link our visionOS native sources
+	target_link_libraries(CemuBin PRIVATE cemu_visionos)
 else()
 	add_executable(CemuBin
 		main.cpp
@@ -187,7 +206,7 @@ target_link_libraries(CemuBin PRIVATE
 	CemuUtil
 )
 
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
 	target_link_libraries(CemuBin PRIVATE SDL2::SDL2)
 endif()
 
