@@ -21,6 +21,9 @@
 #include "Common/ExceptionHandler/ExceptionHandler.h"
 #include "Common/cpu_features.h"
 #include "Cemu/ncrypto/ncrypto.h"
+#include "gui/android/AndroidCanvas.h"
+#include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
+#include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 
 #include <android/log.h>
 #include <android/asset_manager.h>
@@ -31,6 +34,7 @@
 #include <fmt/format.h>
 #include <fstream>
 #include <boost/algorithm/string.hpp>
+#include "Cafe/Filesystem/fsc.h" // for fs namespace
 
 #define LOG_TAG "CemuAndroid"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
@@ -127,6 +131,11 @@ namespace AndroidBridge
 	static std::atomic<bool> s_coreInitDone{false};
 	static std::atomic<bool> s_coreInitStarted{false};
 
+	bool IsCoreInitDone()
+	{
+		return s_coreInitDone;
+	}
+
 	void InitializeCore()
 	{
 		if (s_coreInitStarted.exchange(true))
@@ -149,6 +158,47 @@ namespace AndroidBridge
 				g_androidState.emulationState = EmulationState::Stopped;
 			}
 		}).detach();
+	}
+
+	void InitializeVulkanRenderer()
+	{
+		if (g_androidState.vulkanInitialized || !g_androidState.window)
+		{
+			LOGD("Vulkan already initialized or no window available");
+			return;
+		}
+
+		LOGD("Initializing Vulkan renderer");
+
+		try
+		{
+			// Initialize global Vulkan (equivalent to SSimco's InitializeGlobalVulkan)
+			InitializeGlobalVulkan();
+
+			// Create and initialize the Vulkan renderer
+			g_renderer = std::make_unique<VulkanRenderer>();
+
+			// Set up window handle info for Vulkan surface
+			auto& windowInfo = WindowSystem::GetWindowInfo();
+			windowInfo.canvas_main.backend = WindowSystem::WindowHandleInfo::Backend::Android;
+			windowInfo.canvas_main.surface = g_androidState.window;
+			windowInfo.canvas_main.nativeWindow = g_androidState.window;
+			windowInfo.width = g_androidState.windowWidth;
+			windowInfo.height = g_androidState.windowHeight;
+			windowInfo.phys_width = g_androidState.windowWidth;
+			windowInfo.phys_height = g_androidState.windowHeight;
+
+			// Initialize the Vulkan surface
+			VulkanRenderer::GetInstance()->InitializeSurface({g_androidState.windowWidth, g_androidState.windowHeight}, true);
+
+			g_androidState.vulkanInitialized = true;
+			LOGD("Vulkan renderer initialized successfully");
+		}
+		catch (const std::exception& e)
+		{
+			LOGE("Failed to initialize Vulkan renderer: %s", e.what());
+			g_androidState.vulkanInitialized = false;
+		}
 	}
 
 	void StartEmulationThread()
@@ -222,8 +272,26 @@ namespace AndroidBridge
 		// Stage 2: Initialize core systems now that we have a window
 		InitializeCore();
 
-		// Initialize the existing Android window system using the C API
-		cemuAndroid_initWindowSystem(window);
+		// Wait for core initialization to complete before setting up Vulkan
+		std::thread([window]() {
+			// Wait for core initialization
+			while (!IsCoreInitDone())
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+			}
+
+			// Initialize Vulkan renderer after core is ready
+			InitializeVulkanRenderer();
+
+			// Initialize the existing Android window system using the C API
+			cemuAndroid_initWindowSystem(window);
+
+			LOGD("Core initialization and Vulkan setup complete");
+
+			// Notify waiting emulation thread
+			g_androidState.stateCondition.notify_all();
+
+		}).detach();
 
 		// Start emulation if we have focus
 		if (g_androidState.hasFocus)
@@ -391,11 +459,13 @@ namespace AndroidBridge
 	{
 		LOGD("Emulation thread started");
 
-		// Wait for proper initialization
+		// Wait for proper initialization (core, window, and Vulkan)
 		std::unique_lock<std::mutex> lock(g_androidState.stateMutex);
 		g_androidState.stateCondition.wait(lock, []() {
 			return g_androidState.emulationState != EmulationState::Stopped &&
-				   g_androidState.windowReady;
+				   g_androidState.windowReady &&
+				   IsCoreInitDone() &&
+				   g_androidState.vulkanInitialized;
 		});
 
 		if (g_androidState.emulationState == EmulationState::Stopped)
@@ -406,11 +476,41 @@ namespace AndroidBridge
 
 		lock.unlock();
 
-		// Launch emulator LLE - this will block until emulation ends
-		LOGD("Starting Cemu LLE emulation");
-		cemuAndroid_launchEmulatorLLE();
+		// Auto-load the OOT game
+		const char* gamePath = "/sdcard/CemuGames/OOT/code/VESSEL.rpx";
+		LOGD("Auto-loading game: %s", gamePath);
 
-		LOGD("Emulation thread exiting - LLE emulation ended");
+		// Check if the file exists first (basic validation)
+		if (!fs::exists(gamePath))
+		{
+			LOGE("Game file does not exist: %s", gamePath);
+			LOGD("Starting Cemu LLE emulation without game");
+			cemuAndroid_launchEmulatorLLE();
+		}
+		else
+		{
+			int result = cemuAndroid_launchGame(gamePath);
+			if (result == 0)
+			{
+				LOGD("Game loaded successfully, emulation running");
+
+				// Wait for emulation to end or be stopped
+				std::unique_lock<std::mutex> emulationLock(g_androidState.stateMutex);
+				g_androidState.stateCondition.wait(emulationLock, []() {
+					return g_androidState.emulationState == EmulationState::Stopped ||
+						   !CafeSystem::IsTitleRunning();
+				});
+			}
+			else
+			{
+				LOGE("Failed to load game, error code: %d", result);
+				// Fall back to LLE emulation without a game
+				LOGD("Starting Cemu LLE emulation without game");
+				cemuAndroid_launchEmulatorLLE();
+			}
+		}
+
+		LOGD("Emulation thread exiting");
 
 		// Update state to stopped
 		{

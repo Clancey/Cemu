@@ -321,6 +321,9 @@ extern "C" DLLEXPORT uint64 gameMeta_getTitleId()
 #include "gui/android/AndroidWindowSystem.h"
 #include <android/native_window.h>
 #include "Cafe/HW/Latte/Core/LatteOverlay.h"
+#include "Cafe/TitleList/TitleInfo.h"
+#include "Cafe/TitleList/TitleList.h"
+#include <thread>
 
 // Android-callable functions - following SSimco's safer staged initialization
 extern "C" DLLEXPORT void cemuAndroid_initializeEmulation()
@@ -384,6 +387,97 @@ extern "C" DLLEXPORT int cemuAndroid_isTitleRunning()
 extern "C" DLLEXPORT void cemuAndroid_shutdownTitle()
 {
 	CafeSystem::ShutdownTitle();
+}
+
+// Game loading functionality - following SSimco's pattern from NativeEmulation.cpp
+enum class CemuAndroidPrepareTitleResult : int32_t
+{
+	SUCCESSFUL = 0,
+	ERROR_GAME_BASE_FILES_NOT_FOUND = 1,
+	ERROR_NO_DISC_KEY = 2,
+	ERROR_NO_TITLE_TIK = 3,
+	ERROR_UNKNOWN = 4,
+};
+
+extern "C" DLLEXPORT int cemuAndroid_prepareTitle(const char* launch_path)
+{
+	if (!launch_path)
+		return static_cast<int>(CemuAndroidPrepareTitleResult::ERROR_UNKNOWN);
+
+	fs::path launchPath(launch_path);
+	TitleInfo launchTitle{launchPath};
+
+	using enum CemuAndroidPrepareTitleResult;
+
+	if (launchTitle.IsValid())
+	{
+		// the title might not be in the TitleList, so we add it as a temporary entry
+		CafeTitleList::AddTitleFromPath(launchPath);
+		// title is valid, launch from TitleId
+		TitleId baseTitleId;
+		if (!CafeTitleList::FindBaseTitleId(launchTitle.GetAppTitleId(), baseTitleId))
+		{
+			return static_cast<int>(ERROR_GAME_BASE_FILES_NOT_FOUND);
+		}
+		CafeSystem::PREPARE_STATUS_CODE r = CafeSystem::PrepareForegroundTitle(baseTitleId);
+		if (r != CafeSystem::PREPARE_STATUS_CODE::SUCCESS)
+		{
+			return static_cast<int>(ERROR_UNKNOWN);
+		}
+	}
+	else // if (launchTitle.GetFormat() == TitleInfo::TitleDataFormat::INVALID_STRUCTURE )
+	{
+		// title is invalid, if it's an RPX/ELF we can launch it directly
+		// otherwise it's an error
+		CafeTitleFileType fileType = DetermineCafeSystemFileType(launchPath);
+		if (fileType == CafeTitleFileType::RPX || fileType == CafeTitleFileType::ELF)
+		{
+			CafeSystem::PREPARE_STATUS_CODE r = CafeSystem::PrepareForegroundTitleFromStandaloneRPX(launchPath);
+			if (r != CafeSystem::PREPARE_STATUS_CODE::SUCCESS)
+			{
+				return static_cast<int>(ERROR_UNKNOWN);
+			}
+		}
+		else if (launchTitle.GetInvalidReason() == TitleInfo::InvalidReason::NO_DISC_KEY)
+		{
+			return static_cast<int>(ERROR_NO_DISC_KEY);
+		}
+		else if (launchTitle.GetInvalidReason() == TitleInfo::InvalidReason::NO_TITLE_TIK)
+		{
+			return static_cast<int>(ERROR_NO_TITLE_TIK);
+		}
+		else
+		{
+			return static_cast<int>(ERROR_UNKNOWN);
+		}
+	}
+
+	return static_cast<int>(SUCCESSFUL);
+}
+
+extern "C" DLLEXPORT void cemuAndroid_launchTitle()
+{
+	CafeSystem::LaunchForegroundTitle();
+}
+
+extern "C" DLLEXPORT int cemuAndroid_launchGame(const char* launch_path)
+{
+	if (!launch_path)
+		return static_cast<int>(CemuAndroidPrepareTitleResult::ERROR_UNKNOWN);
+
+	// First prepare the title
+	int prepareResult = cemuAndroid_prepareTitle(launch_path);
+	if (prepareResult != static_cast<int>(CemuAndroidPrepareTitleResult::SUCCESSFUL))
+	{
+		return prepareResult;
+	}
+
+	// Launch the prepared title on a separate thread to avoid blocking
+	std::thread([]() {
+		cemuAndroid_launchTitle();
+	}).detach();
+
+	return static_cast<int>(CemuAndroidPrepareTitleResult::SUCCESSFUL);
 }
 
 #endif

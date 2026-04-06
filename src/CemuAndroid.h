@@ -48,6 +48,14 @@ int cemuAndroid_isTitleRunning();
 // Shutdown the currently running title
 void cemuAndroid_shutdownTitle();
 
+// Game loading functionality
+// Prepare a title from file path - returns 0 on success, error codes on failure
+int cemuAndroid_prepareTitle(const char* launch_path);
+// Launch the prepared title
+void cemuAndroid_launchTitle();
+// Combined prepare and launch in one call - returns prepare result code
+int cemuAndroid_launchGame(const char* launch_path);
+
 #ifdef __cplusplus
 }
 #endif

@@ -43,6 +43,7 @@ namespace AndroidBridge
 		int32_t windowHeight = 0;
 		bool windowReady = false;
 		bool hasFocus = false;
+		bool vulkanInitialized = false;
 
 		// Emulation state
 		std::atomic<EmulationState> emulationState{EmulationState::Stopped};
@@ -61,10 +62,14 @@ namespace AndroidBridge
 	// Core Android functions
 	void InitializeAndroidPaths();
 	void InitializeEmulation();
+	void InitializeVulkanRenderer();
 	void StartEmulationThread();
 	void StopEmulationThread();
 	void PauseEmulation();
 	void ResumeEmulation();
+
+	// Check if core initialization is complete
+	bool IsCoreInitDone();
 
 	// Window management
 	void OnWindowInit(ANativeWindow* window);
