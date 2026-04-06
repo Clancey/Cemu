@@ -3,49 +3,73 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- Vulkan required -->
     <uses-feature
         android:name="android.hardware.vulkan.version"
-        android:version="0x401000"
-        android:required="true" />
-
-    <!-- Game controller optional -->
-    <uses-feature
-        android:name="android.hardware.gamepad"
-        android:required="false" />
+        android:required="true"
+        android:version="0x401000" />
 
     <application
+        android:name=".CemuApplication"
         android:allowBackup="true"
         android:appCategory="game"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-        android:hasCode="false"
-        android:debuggable="true">
-
-        <!-- NativeActivity for flat 2D panel mode -->
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Cemu">
         <activity
-            android:name="android.app.NativeActivity"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:configChanges="orientation|keyboardHidden|screenSize"
-            android:screenOrientation="landscape">
-
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+        <activity
+            android:name=".emulation.EmulationActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:parentActivityName=".MainActivity"
+            android:process=":EmulationProcess"
+            android:screenOrientation="userLandscape"
+            tools:ignore="DiscouragedApi">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
 
-            <meta-data
-                android:name="android.app.lib_name"
-                android:value="cemu" />
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:scheme="content" />
+                <data android:mimeType="*/*" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.wud" />
+                <data android:pathPattern=".*\\.wux" />
+                <data android:pathPattern=".*\\.wua" />
+                <data android:pathPattern=".*\\.wuhb" />
+                <data android:pathPattern=".*\\.iso" />
+                <data android:pathPattern=".*\\.elf" />
+                <data android:pathPattern=".*\\.rpx" />
+                <!--
+                TODO?
+                <data android:pathPattern=".*/title.tmd" />
+                -->
+            </intent-filter>
         </activity>
 
+        <provider
+            android:name=".provider.DocumentsProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
     </application>
-
 </manifest>
