@@ -84,8 +84,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -Wall -Wextra")
 set(CMAKE_C_LINK_OPTIONS_IPO "-fuse-ld=lld" CACHE STRING "" FORCE)
 set(CMAKE_CXX_LINK_OPTIONS_IPO "-fuse-ld=lld" CACHE STRING "" FORCE)
 
-# Explicitly disable SDL for Android
-add_compile_definitions(HAS_SDL=0)
+# SDL not used on Android (native input instead)
 
 # Set release flags for optimization
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -ffast-math")
