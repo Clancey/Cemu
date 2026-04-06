@@ -139,11 +139,10 @@ class CemuApplication : Application() {
         )
         setNativeLibDir(applicationInfo.nativeLibraryDir)
         setInternalDir(dataDir.absolutePath)
-        initializeEmulation()
-        // Add internal files/games as a scan path
+        // Ensure games directory exists
         val gamesDir = java.io.File(filesDir, "games")
         if (!gamesDir.exists()) gamesDir.mkdirs()
-        NativeSettings.addGamePath(gamesDir.absolutePath)
+        initializeEmulation()
         initializeSwkbd()
         refreshGraphicPacks()
     }
