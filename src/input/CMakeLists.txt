@@ -93,6 +93,15 @@ if (SUPPORTS_WIIMOTE)
 endif ()
 
 
+if(ANDROID)
+	target_sources(CemuInput PRIVATE
+		api/Android/AndroidControllerProvider.cpp
+		api/Android/AndroidControllerProvider.h
+		api/Android/AndroidController.cpp
+		api/Android/AndroidController.h
+	)
+endif()
+
 target_include_directories(CemuInput PUBLIC "../")
 
 target_link_libraries(CemuInput PRIVATE

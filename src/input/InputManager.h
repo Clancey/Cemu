@@ -11,17 +11,18 @@
 
 #include "util/helpers/Singleton.h"
 
-#ifndef ANDROID
 #include "input/api/SDL/SDLControllerProvider.h"
-#else
-#include "android/AndroidControllerProvider.h"
-#endif
 #include "input/api/Keyboard/KeyboardControllerProvider.h"
 #include "input/api/DSU/DSUControllerProvider.h"
 #include "input/api/GameCube/GameCubeControllerProvider.h"
 
+#if __ANDROID
+#include "input/api/Android/AndroidControllerProvider.h"
+#endif
+
 #include "input/emulated/VPADController.h"
 #include "input/emulated/WPADController.h"
+#include "input/motion/MotionSample.h"
 
 #include <atomic>
 #include <optional>
@@ -39,7 +40,10 @@ public:
 	constexpr static size_t kMaxController = 8;
 	constexpr static size_t kMaxVPADControllers = 2;
 	constexpr static size_t kMaxWPADControllers = 7;
-	
+
+	static bool input_config_window_has_focus();
+	static void set_input_config_window_focus(bool has_focus);
+
 	void load() noexcept;
 	bool load(size_t player_index, std::string_view filename = {});
 
@@ -95,6 +99,14 @@ public:
 	std::optional<glm::ivec2> get_right_down_mouse_info(bool* is_pad);
 
 	std::atomic<float> m_mouse_wheel;
+	struct DeviceMotion
+	{
+		mutable std::shared_mutex m_mutex;
+		MotionSample m_motion_sample;
+		bool m_device_motion_enabled;
+	} m_device_motion{};
+
+	MotionSample get_device_motion_sample() const;
 
 private:
 	void update_thread();

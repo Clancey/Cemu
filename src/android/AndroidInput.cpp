@@ -1,6 +1,6 @@
 #include "AndroidInput.h"
 #include "AndroidMain.h"
-#include "AndroidControllerProvider.h"
+#include "input/api/Android/AndroidControllerProvider.h"
 #include "input/InputManager.h"
 
 #include <android/log.h>
@@ -286,7 +286,7 @@ namespace AndroidBridge
 
 				// Notify AndroidControllerProvider
 				auto& inputManager = InputManager::instance();
-				auto provider = inputManager.get_api_provider(InputAPI::AndroidController);
+				auto provider = inputManager.get_api_provider(InputAPI::Android);
 				auto androidProvider = std::dynamic_pointer_cast<AndroidControllerProvider>(provider);
 				if (androidProvider)
 				{
@@ -304,7 +304,7 @@ namespace AndroidBridge
 
 			// Notify AndroidControllerProvider
 			auto& inputManager = InputManager::instance();
-			auto provider = inputManager.get_api_provider(InputAPI::AndroidController);
+			auto provider = inputManager.get_api_provider(InputAPI::Android);
 			auto androidProvider = std::dynamic_pointer_cast<AndroidControllerProvider>(provider);
 			if (androidProvider)
 			{
@@ -619,7 +619,7 @@ namespace AndroidBridge
 
 			// Get the AndroidControllerProvider from InputManager
 			auto& inputManager = InputManager::instance();
-			auto provider = inputManager.get_api_provider(InputAPI::AndroidController);
+			auto provider = inputManager.get_api_provider(InputAPI::Android);
 			auto androidProvider = std::dynamic_pointer_cast<AndroidControllerProvider>(provider);
 
 			if (!androidProvider)
