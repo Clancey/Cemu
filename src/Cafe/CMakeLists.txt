@@ -658,7 +658,9 @@ target_link_libraries(CemuCafe PRIVATE
 )
 
 # CURL available on all platforms via vcpkg
-target_link_libraries(CemuCafe PRIVATE CURL::libcurl)
+if(TARGET CURL::libcurl)
+	target_link_libraries(CemuCafe PRIVATE CURL::libcurl)
+endif()
 
 if (ENABLE_WAYLAND)
 	# PUBLIC because wayland-client.h is included in VulkanAPI.h

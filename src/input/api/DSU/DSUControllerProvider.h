@@ -7,10 +7,7 @@
 
 #include <boost/asio.hpp>
 
-#ifndef HAS_DSU
-#define HAS_DSU 1
-#endif
-
+#ifdef HAS_DSU
 // #define DEBUG_DSU_CLIENT
 
 struct DSUProviderSettings : public ControllerProviderSettings
@@ -116,3 +113,4 @@ private:
 	std::array<WiiUMotionHandler, kMaxClients> m_motion_handler;
 	std::array<uint64, kMaxClients> m_last_motion_timestamp{};
 };
+#endif // HAS_DSU

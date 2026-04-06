@@ -5,12 +5,16 @@
 #include "input/emulated/ClassicController.h"
 #include "input/emulated/WiimoteController.h"
 
-#ifndef ANDROID
+#ifdef HAS_SDL
 #include "input/api/SDL/SDLController.h"
 #endif
 #include "input/api/Keyboard/KeyboardController.h"
+#ifdef HAS_DSU
 #include "input/api/DSU/DSUController.h"
+#endif
+#ifdef HAS_GAMECUBE
 #include "input/api/GameCube/GameCubeController.h"
+#endif
 
 #if BOOST_OS_WINDOWS
 #include "input/api/XInput/XInputController.h"

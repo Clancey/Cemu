@@ -1,6 +1,6 @@
 #include "input/emulated/VPADController.h"
 #include "input/api/Controller.h"
-#ifndef ANDROID
+#ifdef HAS_SDL
 #include "input/api/SDL/SDLController.h"
 #endif
 #include "WindowSystem.h"
@@ -512,7 +512,7 @@ bool VPADController::set_default_mapping(const std::shared_ptr<ControllerBase>& 
 	std::vector<std::pair<uint64, uint64>> mapping;
 	switch (controller->api())
 	{
-#ifndef ANDROID
+#ifdef HAS_SDL
 	case InputAPI::SDLController: {
 		const auto sdl_controller = std::static_pointer_cast<SDLController>(controller);
 		if (sdl_controller->get_guid() == SDLController::kLeftJoyCon)

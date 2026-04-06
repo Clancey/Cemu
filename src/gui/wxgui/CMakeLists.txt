@@ -148,9 +148,11 @@ target_link_libraries(CemuWxGui PRIVATE
   SDL2::SDL2
   pugixml::pugixml
   CemuCafe
-  PUBLIC
-  CURL::libcurl
 )
+
+if(TARGET CURL::libcurl)
+	target_link_libraries(CemuWxGui PUBLIC CURL::libcurl)
+endif()
 
 if(ENABLE_WXWIDGETS AND UNIX AND NOT APPLE)
 	# PUBLIC because gdk/gdkkeysyms.h is included in guiWrapper.h

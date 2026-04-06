@@ -9,20 +9,10 @@ add_library(CemuInput
 	api/ControllerState.cpp
 	api/InputAPI.h
 	api/ControllerProvider.h
-	api/DSU/DSUController.h
-	api/DSU/DSUControllerProvider.cpp
-	api/DSU/DSUController.cpp
-	api/DSU/DSUControllerProvider.h
-	api/DSU/DSUMessages.h
-	api/DSU/DSUMessages.cpp
 	api/Keyboard/KeyboardControllerProvider.h
 	api/Keyboard/KeyboardControllerProvider.cpp
 	api/Keyboard/KeyboardController.cpp
 	api/Keyboard/KeyboardController.h
-	api/GameCube/GameCubeController.cpp
-	api/GameCube/GameCubeControllerProvider.h
-	api/GameCube/GameCubeControllerProvider.cpp
-	api/GameCube/GameCubeController.h
 	emulated/ProController.cpp
 	emulated/EmulatedController.h
 	emulated/EmulatedController.cpp
@@ -59,13 +49,35 @@ if(WIN32)
 	)
 endif()
 
-# SDL support (not on Android)
-if(NOT ANDROID)
+# SDL support (not on Android or visionOS)
+if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
 	target_sources(CemuInput PRIVATE
 		api/SDL/SDLController.cpp
 		api/SDL/SDLControllerProvider.cpp
 		api/SDL/SDLController.h
 		api/SDL/SDLControllerProvider.h
+	)
+endif()
+
+# DSU support (not on Android or visionOS)
+if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
+	target_sources(CemuInput PRIVATE
+		api/DSU/DSUController.h
+		api/DSU/DSUControllerProvider.cpp
+		api/DSU/DSUController.cpp
+		api/DSU/DSUControllerProvider.h
+		api/DSU/DSUMessages.h
+		api/DSU/DSUMessages.cpp
+	)
+endif()
+
+# GameCube support (not on Android or visionOS)
+if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
+	target_sources(CemuInput PRIVATE
+		api/GameCube/GameCubeController.cpp
+		api/GameCube/GameCubeControllerProvider.h
+		api/GameCube/GameCubeControllerProvider.cpp
+		api/GameCube/GameCubeController.h
 	)
 endif()
 

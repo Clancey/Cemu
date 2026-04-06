@@ -11,7 +11,7 @@
 
 #include "util/helpers/Singleton.h"
 
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(VISIONOS)
 #include "input/api/SDL/SDLControllerProvider.h"
 #include "input/api/DSU/DSUControllerProvider.h"
 #include "input/api/GameCube/GameCubeControllerProvider.h"

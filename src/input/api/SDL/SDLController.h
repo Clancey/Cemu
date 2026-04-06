@@ -3,6 +3,7 @@
 #include "input/api/Controller.h"
 #include "input/api/SDL/SDLControllerProvider.h"
 
+#ifdef HAS_SDL
 #include <SDL2/SDL_gamecontroller.h>
 
 class SDLController : public Controller<SDLControllerProvider>
@@ -57,4 +58,5 @@ private:
 	std::array<bool, SDL_CONTROLLER_BUTTON_MAX> m_buttons{};
 	std::array<bool, SDL_CONTROLLER_AXIS_MAX> m_axis{};
 };
+#endif // HAS_SDL
 

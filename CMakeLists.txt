@@ -49,8 +49,8 @@ if (ENABLE_VCPKG)
 			set(VCPKG_OVERLAY_PORTS "")
 		endif()
 	elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
-		# Set visionOS-specific vcpkg triplet (try arm64-osx first, fallback to generic if needed)
-		set(VCPKG_TARGET_TRIPLET arm64-osx)
+		# Set visionOS-specific vcpkg triplet
+		set(VCPKG_TARGET_TRIPLET arm64-xros-simulator)
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_mac;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
 	elseif(UNIX AND NOT APPLE)
 		set(VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports_linux;${CMAKE_CURRENT_LIST_DIR}/dependencies/vcpkg_overlay_ports")
@@ -198,6 +198,16 @@ endif()
 option(ENABLE_HIDAPI "Build with HIDAPI" ON)
 option(ENABLE_SDL "Enables the SDLController backend" ON)
 
+if(ENABLE_SDL)
+	add_compile_definitions(HAS_SDL)
+endif()
+
+# Enable DSU and GameCube controllers on desktop platforms only
+if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
+	add_compile_definitions(HAS_DSU)
+	add_compile_definitions(HAS_GAMECUBE)
+endif()
+
 # audio backends
 if (WIN32)
 	option(ENABLE_DIRECTAUDIO "Enables the directaudio backend" ON)
@@ -338,7 +348,15 @@ if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
 endif()
 
 # CURL is needed on all platforms (vcpkg builds it for Android too)
-find_package(CURL REQUIRED)
+# Skip CURL for visionOS for now due to build issues
+if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+	find_package(CURL QUIET)
+	if(NOT CURL_FOUND)
+		message(STATUS "CURL not found for visionOS, networking features will be disabled")
+	endif()
+else()
+	find_package(CURL REQUIRED)
+endif()
 
 # glslang versions older than 11.11.0 define targets without a namespace
 if (NOT TARGET glslang::SPIRV AND TARGET SPIRV)
