@@ -452,4 +452,8 @@ if (NOT ZArchive_FOUND)
 	add_subdirectory("dependencies/ZArchive" EXCLUDE_FROM_ALL)
 endif()
 
+if(ANDROID)
+	add_subdirectory("dependencies/stb" EXCLUDE_FROM_ALL)
+endif()
+
 add_subdirectory(src)

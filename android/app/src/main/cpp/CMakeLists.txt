@@ -19,6 +19,12 @@ add_library(CemuAndroid SHARED
         WuaConverter.cpp
 )
 
+target_include_directories(CemuAndroid PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src
+)
+
+cemu_use_precompiled_header(CemuAndroid)
+
 target_link_libraries(CemuAndroid PRIVATE
         -landroid
         CemuCommon
@@ -27,6 +33,9 @@ target_link_libraries(CemuAndroid PRIVATE
         CemuCafe
         CemuBin
         CemuGui
+        CemuInput
+        CemuConfig
         ZArchive::zarchive
         stb
+        Threads::Threads
 )

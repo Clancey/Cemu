@@ -15,35 +15,11 @@ if(ANDROID)
         AndroidStubs.cpp
     )
 
-    # JNI bridge files from app/src/main/cpp (for Kotlin UI integration)
-    set(JNI_BRIDGE_SOURCES
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeLib.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeEmulation.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeSettings.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeInput.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeAccount.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeActiveSettings.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeGameTitles.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeGraphicPacks.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeLocalization.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeLogging.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/NativeSwkbd.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/JNIUtils.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/JNIUtils.h
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/AndroidAudio.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/AndroidAudio.h
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/AndroidEmulatedController.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/AndroidEmulatedController.h
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/AndroidFilesystemCallbacks.h
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/AndroidGameTitleLoadedCallback.h
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/GameTitleLoader.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/GameTitleLoader.h
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/Image.cpp
-        ${CMAKE_SOURCE_DIR}/android/app/src/main/cpp/Image.h
-    )
+    # JNI bridge files are in android/app/src/main/cpp/CMakeLists.txt (CemuAndroid target)
+    # This target only contains our Android helper code
 
     # Create Android library
-    add_library(cemu_android STATIC ${ANDROID_SOURCES} ${JNI_BRIDGE_SOURCES})
+    add_library(cemu_android STATIC ${ANDROID_SOURCES})
 
     # Include directories
     target_include_directories(cemu_android PRIVATE

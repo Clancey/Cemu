@@ -44,7 +44,7 @@ val cemuDataFilesFolder = "../../bin"
 android {
     namespace = "info.cemu.cemu"
     compileSdk = 36
-    ndkVersion = "29.0.14206865"
+    ndkVersion = "26.3.11579264"
     defaultConfig {
         applicationId = "info.cemu.cemu"
         minSdk = 30
@@ -115,10 +115,15 @@ android {
         @Suppress("UnstableApiUsage")
         externalNativeBuild {
             cmake {
+                val vcpkgRoot = file("${projectDir}/../../dependencies/vcpkg").absolutePath
+                val ndkDir = android.ndkDirectory.absolutePath
                 arguments(
                     "-DANDROID_STL=c++_shared",
                     "-DANDROID_PLATFORM=android-29",
                     "-DCMAKE_BUILD_TYPE=Release",
+                    "-DVCPKG_TARGET_TRIPLET=arm64-android",
+                    "-DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${ndkDir}/build/cmake/android.toolchain.cmake",
+                    "-DCMAKE_TOOLCHAIN_FILE=${vcpkgRoot}/scripts/buildsystems/vcpkg.cmake",
                     "-DENABLE_VCPKG=ON",
                     "-DENABLE_SDL=OFF",
                     "-DENABLE_WXWIDGETS=OFF",

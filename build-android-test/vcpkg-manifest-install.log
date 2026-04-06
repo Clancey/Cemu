@@ -1,0 +1,569 @@
+Detecting compiler hash for triplet arm64-osx...
+Compiler found: /usr/bin/c++
+Detecting compiler hash for triplet arm64-android...
+Compiler found: /Users/clancey/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++
+The following packages will be built and installed:
+    boost-algorithm:arm64-android@1.88.0
+  * boost-align:arm64-android@1.88.0
+  * boost-any:arm64-android@1.88.0
+  * boost-array:arm64-android@1.88.0
+    boost-asio:arm64-android@1.88.0
+  * boost-assert:arm64-android@1.88.0
+  * boost-atomic:arm64-android@1.88.0
+  * boost-bind:arm64-android@1.88.0
+  * boost-chrono:arm64-android@1.88.0
+  * boost-circular-buffer:arm64-android@1.88.0
+  * boost-cmake:arm64-android@1.88.0
+  * boost-concept-check:arm64-android@1.88.0
+  * boost-config:arm64-android@1.88.0
+    boost-container:arm64-android@1.88.0
+  * boost-container-hash:arm64-android@1.88.0
+    boost-context:arm64-android@1.88.0
+  * boost-conversion:arm64-android@1.88.0
+  * boost-core:arm64-android@1.88.0
+  * boost-date-time:arm64-android@1.88.0
+  * boost-describe:arm64-android@1.88.0
+  * boost-detail:arm64-android@1.88.0
+  * boost-dynamic-bitset:arm64-android@1.88.0
+  * boost-endian:arm64-android@1.88.0
+  * boost-exception:arm64-android@1.88.0
+  * boost-filesystem:arm64-android@1.88.0
+  * boost-function:arm64-android@1.88.0
+  * boost-function-types:arm64-android@1.88.0
+    boost-functional:arm64-android@1.88.0
+  * boost-fusion:arm64-android@1.88.0
+  * boost-headers:arm64-android@1.88.0
+  * boost-integer:arm64-android@1.88.0
+  * boost-intrusive:arm64-android@1.88.0
+  * boost-io:arm64-android@1.88.0
+  * boost-iterator:arm64-android@1.88.0
+  * boost-lexical-cast:arm64-android@1.88.0
+  * boost-move:arm64-android@1.88.0
+  * boost-mp11:arm64-android@1.88.0
+  * boost-mpl:arm64-android@1.88.0
+  * boost-multi-index:arm64-android@1.88.0
+    boost-nowide:arm64-android@1.88.0
+  * boost-numeric-conversion:arm64-android@1.88.0
+    boost-optional:arm64-android@1.88.0
+  * boost-parameter:arm64-android@1.88.0
+  * boost-phoenix:arm64-android@1.88.0
+  * boost-pool:arm64-android@1.88.0
+  * boost-predef:arm64-android@1.88.0
+  * boost-preprocessor:arm64-android@1.88.0
+    boost-program-options:arm64-android@1.88.0
+    boost-property-tree:arm64-android@1.88.0
+  * boost-proto:arm64-android@1.88.0
+    boost-ptr-container:arm64-android@1.88.0
+    boost-random:arm64-android@1.88.0
+  * boost-range:arm64-android@1.88.0
+  * boost-ratio:arm64-android@1.88.0
+  * boost-regex:arm64-android@1.88.0
+  * boost-scope:arm64-android@1.88.0
+  * boost-serialization:arm64-android@1.88.0
+    boost-signals2:arm64-android@1.88.0
+  * boost-smart-ptr:arm64-android@1.88.0
+  * boost-spirit:arm64-android@1.88.0
+  * boost-static-assert:arm64-android@1.88.0
+    boost-static-string:arm64-android@1.88.0
+  * boost-system:arm64-android@1.88.0
+  * boost-thread:arm64-android@1.88.0
+  * boost-throw-exception:arm64-android@1.88.0
+    boost-tokenizer:arm64-android@1.88.0
+  * boost-tuple:arm64-android@1.88.0
+  * boost-type-index:arm64-android@1.88.0
+  * boost-type-traits:arm64-android@1.88.0
+  * boost-typeof:arm64-android@1.88.0
+  * boost-uninstall:arm64-android@1.88.0
+  * boost-unordered:arm64-android@1.88.0
+  * boost-utility:arm64-android@1.88.0
+  * boost-variant:arm64-android@1.88.0
+  * boost-variant2:arm64-android@1.88.0
+  * boost-winapi:arm64-android@1.88.0
+    curl[core,openssl]:arm64-android@8.14.1
+    fmt:arm64-android@12.1.0
+    glm:arm64-android@1.0.1#3
+    glslang:arm64-android@15.1.0
+  * libjpeg-turbo:arm64-android@3.1.0#1
+    libpng:arm64-android@1.6.48
+    libzip:arm64-android@1.11.4
+    openssl:arm64-android@3.5.0#1
+    pugixml:arm64-android@1.15
+    rapidjson:arm64-android@2025-02-26
+    tiff[core,jpeg,zip]:arm64-android@4.7.0
+  * vcpkg-boost:arm64-osx@2025-03-29
+  * vcpkg-cmake:arm64-osx@2024-04-23
+  * vcpkg-cmake-config:arm64-osx@2024-05-23
+  * vcpkg-cmake-get-vars:arm64-osx@2025-05-29
+    zlib:arm64-android@1.3.1
+    zstd:arm64-android@1.5.7
+Additional packages (*) will be modified to complete this operation.
+Restored 93 package(s) from /Users/clancey/.cache/vcpkg/archives in 1.7 s. Use --debug to see more details.
+Installing 1/93 vcpkg-cmake-config:arm64-osx@2024-05-23...
+Elapsed time to handle vcpkg-cmake-config:arm64-osx: 1.57 ms
+vcpkg-cmake-config:arm64-osx package ABI: 0a0a26715fab6192bfc63febc9c015e6baae5ed3383050285ec8f56fa99b771f
+Installing 2/93 vcpkg-cmake:arm64-osx@2024-04-23...
+Elapsed time to handle vcpkg-cmake:arm64-osx: 1.9 ms
+vcpkg-cmake:arm64-osx package ABI: 56b4aedecb5a0c682f981075683397bffe5e77eb4c3dd51554beb5a40e7689b6
+Installing 3/93 vcpkg-boost:arm64-osx@2025-03-29...
+Elapsed time to handle vcpkg-boost:arm64-osx: 1.86 ms
+vcpkg-boost:arm64-osx package ABI: 18dd3e0de651b068af30d2d369db5f766fb2bcbb1edb8f72e513a2469611a951
+Installing 4/93 boost-uninstall:arm64-android@1.88.0...
+Elapsed time to handle boost-uninstall:arm64-android: 1.27 ms
+boost-uninstall:arm64-android package ABI: a532ed8228df578fc041ae70af54a6438bf9f9285948eb56a472bafaf645375d
+Installing 5/93 boost-cmake:arm64-android@1.88.0...
+Elapsed time to handle boost-cmake:arm64-android: 3.29 ms
+boost-cmake:arm64-android package ABI: 24833672e5ded9a038bbdd1e710dee0b042c15f15ab50e7c4007ecb3bf9c9112
+Installing 6/93 boost-headers:arm64-android@1.88.0...
+Elapsed time to handle boost-headers:arm64-android: 2.21 ms
+boost-headers:arm64-android package ABI: 89d435bc1248951f43526f3a5a574e2734dee0ccc681043b9af9e1eb29896dd4
+Installing 7/93 boost-config:arm64-android@1.88.0...
+Elapsed time to handle boost-config:arm64-android: 67 ms
+boost-config:arm64-android package ABI: 10ce1842bbfa5cd781ff9eff7d32995199c5bd1fc82ee9d5067c2b6a05880d5a
+Installing 8/93 boost-assert:arm64-android@1.88.0...
+Elapsed time to handle boost-assert:arm64-android: 3.12 ms
+boost-assert:arm64-android package ABI: f3097d14fffda3a8587b639427e36f74dbc222e067323825f3931ce6cb3585da
+Installing 9/93 boost-throw-exception:arm64-android@1.88.0...
+Elapsed time to handle boost-throw-exception:arm64-android: 2.65 ms
+boost-throw-exception:arm64-android package ABI: 031e0a8222744b632502ac95a96461f7581b0e570a4b883e332833c0d24a6e19
+Installing 10/93 boost-predef:arm64-android@1.88.0...
+Elapsed time to handle boost-predef:arm64-android: 46.9 ms
+boost-predef:arm64-android package ABI: cbbe33efa4dbfa103ecdf5c9b21f119a01f2aa3bf15a2c9ce3a5e1b73bfbd918
+Installing 11/93 boost-mp11:arm64-android@1.88.0...
+Elapsed time to handle boost-mp11:arm64-android: 10.7 ms
+boost-mp11:arm64-android package ABI: 382c78cb93b18e50407aba177c7fbd247a76f187b407d6b6fae22e2178f330fc
+Installing 12/93 boost-static-assert:arm64-android@1.88.0...
+Elapsed time to handle boost-static-assert:arm64-android: 3.07 ms
+boost-static-assert:arm64-android package ABI: 2639863790590c99318704ab8e2ee639aeee2a7cfe20cce3e7603758f8c468f7
+Installing 13/93 boost-core:arm64-android@1.88.0...
+Elapsed time to handle boost-core:arm64-android: 19.3 ms
+boost-core:arm64-android package ABI: 11fd013afdf386861dc674232117a24fb7a283c0909f77395ab060300da4dd5d
+Installing 14/93 boost-describe:arm64-android@1.88.0...
+Elapsed time to handle boost-describe:arm64-android: 7.42 ms
+boost-describe:arm64-android package ABI: dc8415a2cc23282e04125d518a3da6f4c7828f9be70cd6e4525d90a68e716eee
+Installing 15/93 boost-container-hash:arm64-android@1.88.0...
+Elapsed time to handle boost-container-hash:arm64-android: 6.55 ms
+boost-container-hash:arm64-android package ABI: 028a38a93d8d1a5ea9894fff63d5b32f8b18804daf355cbdc55ff1a60acc4892
+Installing 16/93 boost-unordered:arm64-android@1.88.0...
+Elapsed time to handle boost-unordered:arm64-android: 16.7 ms
+boost-unordered:arm64-android package ABI: f13e95c6040283aad9964dbc3118246f209054170e74c46bec2df82e22d9e7a5
+Installing 17/93 boost-type-traits:arm64-android@1.88.0...
+Elapsed time to handle boost-type-traits:arm64-android: 51.7 ms
+boost-type-traits:arm64-android package ABI: 9fe1bf7189f3c739ac37463c54caf55c27145f978a652bf1ca65d968013111a7
+Installing 18/93 boost-tuple:arm64-android@1.88.0...
+Elapsed time to handle boost-tuple:arm64-android: 3.41 ms
+boost-tuple:arm64-android package ABI: b5d14523284d6ef65505cd0d85e90b6020a4a2526419273ef129310bb63e09fd
+Installing 19/93 boost-smart-ptr:arm64-android@1.88.0...
+Elapsed time to handle boost-smart-ptr:arm64-android: 26.3 ms
+boost-smart-ptr:arm64-android package ABI: 81b11b95413608be94cb145043a4f4a66b4521db0b22a238348e0609a8256442
+Installing 20/93 boost-preprocessor:arm64-android@1.88.0...
+Elapsed time to handle boost-preprocessor:arm64-android: 121 ms
+boost-preprocessor:arm64-android package ABI: 5a39b3aebfd3f8d81f6f0ca94afa52c963017ada70987e150ebe97fde9eb3d5b
+Installing 21/93 boost-io:arm64-android@1.88.0...
+Elapsed time to handle boost-io:arm64-android: 4.66 ms
+boost-io:arm64-android package ABI: 6a8bf48f6c612a4f17654e16ace73d0640e909aa8423b149335f32d503aefd12
+Installing 22/93 boost-utility:arm64-android@1.88.0...
+Elapsed time to handle boost-utility:arm64-android: 8.09 ms
+boost-utility:arm64-android package ABI: 057d2db9546a9ebc493b23312172c7dd233d47a4ce0872f3692550ab7485125a
+Installing 23/93 boost-mpl:arm64-android@1.88.0...
+Elapsed time to handle boost-mpl:arm64-android: 272 ms
+boost-mpl:arm64-android package ABI: 00dd8e72c39d88e48352fde951c1a7b4b3a25014280c82ece8421b9b9550e098
+Installing 24/93 boost-integer:arm64-android@1.88.0...
+Elapsed time to handle boost-integer:arm64-android: 14 ms
+boost-integer:arm64-android package ABI: 7ae00c34d3a83e3daf3eeefe667d6d342be39d32ac6ca52846ec7e9b1f410483
+Installing 25/93 boost-concept-check:arm64-android@1.88.0...
+Elapsed time to handle boost-concept-check:arm64-android: 7.9 ms
+boost-concept-check:arm64-android package ABI: e12e49c692433dc5685329391fd1a3ae79bfd5cf94e0644e5d3b589a711768ff
+Installing 26/93 boost-regex:arm64-android@1.88.0...
+Elapsed time to handle boost-regex:arm64-android: 28.6 ms
+boost-regex:arm64-android package ABI: a9a1cbf1cff8dd2c6060e2cb581451d2f702c20890be457e8a24cec9ed1a5852
+Installing 27/93 boost-optional:arm64-android@1.88.0...
+Elapsed time to handle boost-optional:arm64-android: 7.71 ms
+boost-optional:arm64-android package ABI: 20282f643318fad1f86f2f624d78cee0d24f42f3905923d2ba71249f08b9cdbf
+Installing 28/93 boost-typeof:arm64-android@1.88.0...
+Elapsed time to handle boost-typeof:arm64-android: 9.71 ms
+boost-typeof:arm64-android package ABI: d0dbe47d255161818f48f05bdee9ce588262236b72b033628d634e0f52a172a7
+Installing 29/93 boost-detail:arm64-android@1.88.0...
+Elapsed time to handle boost-detail:arm64-android: 9.63 ms
+boost-detail:arm64-android package ABI: b79dcf6cb2b54472d98cdb72b0b1d683b98b55e8af1db25f5ac0f77e604ca2b4
+Installing 30/93 boost-function-types:arm64-android@1.88.0...
+Elapsed time to handle boost-function-types:arm64-android: 22.6 ms
+boost-function-types:arm64-android package ABI: ba5fe79ac759e0b386a9c477631d86db4abc0ebc47ecf071e4901403f7c19d8f
+Installing 31/93 boost-bind:arm64-android@1.88.0...
+Elapsed time to handle boost-bind:arm64-android: 7.2 ms
+boost-bind:arm64-android package ABI: 5e38255bd9a4f7b6142571e1076642617c9599304f2d127203121dc2c2742ed4
+Installing 32/93 boost-function:arm64-android@1.88.0...
+Elapsed time to handle boost-function:arm64-android: 7.8 ms
+boost-function:arm64-android package ABI: 58d3aa93e8f3ba16ee00407af25fc7d2446fe0725cfa761d31430c71ada923c7
+Installing 33/93 boost-functional:arm64-android@1.88.0...
+Elapsed time to handle boost-functional:arm64-android: 6.72 ms
+boost-functional:arm64-android package ABI: 23ef2464cff030b8fc4a01fb50b40ebab3c9f72074dc48d9cd79ef0ad35b9237
+Installing 34/93 boost-fusion:arm64-android@1.88.0...
+Elapsed time to handle boost-fusion:arm64-android: 280 ms
+boost-fusion:arm64-android package ABI: 7f51dd82a6eeab3def5e1df83674997fca4f9662b6097ed94648abee71220c1d
+Installing 35/93 boost-iterator:arm64-android@1.88.0...
+Elapsed time to handle boost-iterator:arm64-android: 16 ms
+boost-iterator:arm64-android package ABI: 77f6c242f1ce8cc747da25051447afce786c4cea9cf5e6201ad09967fa19d1be
+Installing 36/93 boost-conversion:arm64-android@1.88.0...
+Elapsed time to handle boost-conversion:arm64-android: 4.85 ms
+boost-conversion:arm64-android package ABI: a8e1a9be250aa12e481a93ebcca7494957091beb6d5424f0fa33c0f379a63d67
+Installing 37/93 boost-array:arm64-android@1.88.0...
+Elapsed time to handle boost-array:arm64-android: 4.6 ms
+boost-array:arm64-android package ABI: 72cb90d4fed2fd55e9345d386410363e3fc1921c6b295dbf189e038f88845ed1
+Installing 38/93 boost-range:arm64-android@1.88.0...
+Elapsed time to handle boost-range:arm64-android: 52.9 ms
+boost-range:arm64-android package ABI: 98702aec8974ab82d1e81ef70b7bac31ddc1a70ce7295221d3d6b71c86d395cd
+Installing 39/93 boost-exception:arm64-android@1.88.0...
+Elapsed time to handle boost-exception:arm64-android: 11.1 ms
+boost-exception:arm64-android package ABI: 4a4d377818165ed022049c5ab1cc676da866155fda70d3dbb3a3a59b21d923c2
+Installing 40/93 boost-algorithm:arm64-android@1.88.0...
+Elapsed time to handle boost-algorithm:arm64-android: 25.3 ms
+boost-algorithm:arm64-android package ABI: 143a924c8546a20cf495887a658765eff73cc2c07f54e5578f2e562d748e0e18
+Installing 41/93 boost-winapi:arm64-android@1.88.0...
+Elapsed time to handle boost-winapi:arm64-android: 33.9 ms
+boost-winapi:arm64-android package ABI: 3560c08dd26792ae7722a595c8bce34eba0faf1e28ec1bdf3567d3dee20aba2b
+Installing 42/93 boost-variant2:arm64-android@1.88.0...
+Elapsed time to handle boost-variant2:arm64-android: 5.84 ms
+boost-variant2:arm64-android package ABI: 13087c91c47594de494584ad194417eeca2265fb0467cba9753b08baaee1c61f
+Installing 43/93 boost-system:arm64-android@1.88.0...
+Elapsed time to handle boost-system:arm64-android: 14.7 ms
+boost-system:arm64-android package ABI: 0912473792fd88ebb72f585aa5e4b0ca8b2d92712e787d29f63a25ba168f4275
+Installing 44/93 boost-tokenizer:arm64-android@1.88.0...
+Elapsed time to handle boost-tokenizer:arm64-android: 5.73 ms
+boost-tokenizer:arm64-android package ABI: d3def6aa10f8e26c3c5f2edd415eaeb334ed9ce3f00df4083af6cfc9653133fd
+Installing 45/93 boost-numeric-conversion:arm64-android@1.88.0...
+Elapsed time to handle boost-numeric-conversion:arm64-android: 10.9 ms
+boost-numeric-conversion:arm64-android package ABI: a1977efd276aba14c374f566dacce167ac2091007e0fef523c387615fba21079
+Installing 46/93 boost-move:arm64-android@1.88.0...
+Elapsed time to handle boost-move:arm64-android: 15.8 ms
+boost-move:arm64-android package ABI: f0f6dd8cc7e6d1cdfaf87cf735ff6b2766ce9951afbac4f8c39a9b722d6aa48c
+Installing 47/93 boost-intrusive:arm64-android@1.88.0...
+Elapsed time to handle boost-intrusive:arm64-android: 28.6 ms
+boost-intrusive:arm64-android package ABI: dea7ce6b313b6e149f161ebf07df5a262f142ccd2d7844559cda8437a6c7298e
+Installing 48/93 boost-container:arm64-android@1.88.0...
+Elapsed time to handle boost-container:arm64-android: 39.9 ms
+boost-container:arm64-android package ABI: a8d22dd1b652c41c15a836f9f0897a68d261338d2c86c966061cd163f000a275
+Installing 49/93 boost-lexical-cast:arm64-android@1.88.0...
+Elapsed time to handle boost-lexical-cast:arm64-android: 10.1 ms
+boost-lexical-cast:arm64-android package ABI: 12bfdefe34bcdc4cc1553db2b999aa9eb044a1974b02f52c6f8f0fa8b2e93664
+Installing 50/93 boost-date-time:arm64-android@1.88.0...
+Elapsed time to handle boost-date-time:arm64-android: 30.3 ms
+boost-date-time:arm64-android package ABI: 046c18af03d9c0e55e8be38fc3d073f3277461da2c3ca87c410aeedd13828b3d
+Installing 51/93 boost-pool:arm64-android@1.88.0...
+Elapsed time to handle boost-pool:arm64-android: 9.06 ms
+boost-pool:arm64-android package ABI: c57c36e7141f17bb7002e16c436f1381bec8fedd3f04609e98122635b7b1d497
+Installing 52/93 boost-context:arm64-android@1.88.0...
+Elapsed time to handle boost-context:arm64-android: 12.5 ms
+boost-context:arm64-android package ABI: 6397eea02a1575598a7a0cd4b9b088015d167c89d3d1d2dd16ffef86f5aaa930
+Installing 53/93 boost-align:arm64-android@1.88.0...
+Elapsed time to handle boost-align:arm64-android: 15.9 ms
+boost-align:arm64-android package ABI: eb78c8bba1128e6de607f3e8b57829a77f6bcbb49af9dc53f98a34c8cc9c4b1a
+Installing 54/93 boost-asio:arm64-android@1.88.0...
+Elapsed time to handle boost-asio:arm64-android: 160 ms
+boost-asio:arm64-android package ABI: 857fb5f9a44bb3e2c885466aa8a668ecc5c0610b5d09bc1f051238769602e8c4
+Installing 55/93 boost-scope:arm64-android@1.88.0...
+Elapsed time to handle boost-scope:arm64-android: 11.6 ms
+boost-scope:arm64-android package ABI: 88823d3fcdb04d2241fe1c43a2dd7327600fcf207e3771999c762c2630b6c40d
+Installing 56/93 boost-atomic:arm64-android@1.88.0...
+Elapsed time to handle boost-atomic:arm64-android: 39.8 ms
+boost-atomic:arm64-android package ABI: a2ff5dd643dfe8fd032662b2dab54168153830ed6f9a93deeacebf0e2bef31e2
+Installing 57/93 boost-filesystem:arm64-android@1.88.0...
+Elapsed time to handle boost-filesystem:arm64-android: 10.1 ms
+boost-filesystem:arm64-android package ABI: 08d88e3e742b314871cb20e5243a15893a01bc97079e868eb31da144c4da3e31
+Installing 58/93 boost-nowide:arm64-android@1.88.0...
+Elapsed time to handle boost-nowide:arm64-android: 11.1 ms
+boost-nowide:arm64-android package ABI: 3db89ed416e772f7c370caa6e18253e9191fea4e83c484d5eac9344d7ea70f68
+Installing 59/93 boost-type-index:arm64-android@1.88.0...
+Elapsed time to handle boost-type-index:arm64-android: 9.14 ms
+boost-type-index:arm64-android package ABI: 1726aef3e047953c6e40bd4b5d493ef47fe9eb4a198529c66e441796f9ebe21d
+Installing 60/93 boost-any:arm64-android@1.88.0...
+Elapsed time to handle boost-any:arm64-android: 7.05 ms
+boost-any:arm64-android package ABI: 16dc01941e7e10e2482a765d1a3fcd005b83b1574b24edfd143fdc7607aa67ec
+Installing 61/93 boost-program-options:arm64-android@1.88.0...
+Elapsed time to handle boost-program-options:arm64-android: 11.5 ms
+boost-program-options:arm64-android package ABI: 91ec98740c240e74ffb6ce4b37137f87d9bb3640bb2bb4972c97ad1593add34b
+Installing 62/93 boost-variant:arm64-android@1.88.0...
+Elapsed time to handle boost-variant:arm64-android: 13.9 ms
+boost-variant:arm64-android package ABI: b54868176e456140460474b22b3468adb5705baf03d3baa23f9243e2630c7079
+Installing 63/93 boost-ratio:arm64-android@1.88.0...
+Elapsed time to handle boost-ratio:arm64-android: 19.6 ms
+boost-ratio:arm64-android package ABI: 7469c315700e81b503a5280ff8ea3866c31a83417a40c84b2d8ec48bed1d367c
+Installing 64/93 boost-chrono:arm64-android@1.88.0...
+Elapsed time to handle boost-chrono:arm64-android: 19.7 ms
+boost-chrono:arm64-android package ABI: e35efb5ab626e5c4d95ca6b5e52f4c55098c58ca6df521c79add386e31d165f5
+Installing 65/93 boost-thread:arm64-android@1.88.0...
+Elapsed time to handle boost-thread:arm64-android: 49.5 ms
+boost-thread:arm64-android package ABI: c7eef3137f3e9deecaa2dd7e0e0905bdf13985b1a70e8dfd164063dd7f65f8fd
+Installing 66/93 boost-proto:arm64-android@1.88.0...
+Elapsed time to handle boost-proto:arm64-android: 43.2 ms
+boost-proto:arm64-android package ABI: 44148025619472da316363fb078fff9e542761051326d1d04afdf666b4e48b89
+Installing 67/93 boost-phoenix:arm64-android@1.88.0...
+Elapsed time to handle boost-phoenix:arm64-android: 97.4 ms
+boost-phoenix:arm64-android package ABI: c3057133b4d573f67c8d17ada055c79bab0953190f53b3dec085b47266a233d8
+Installing 68/93 boost-endian:arm64-android@1.88.0...
+Elapsed time to handle boost-endian:arm64-android: 10.3 ms
+boost-endian:arm64-android package ABI: 5296f906a78e03d282a8c845d0bc0139df84fa3500e9f28b60a4adf8335c1668
+Installing 69/93 boost-spirit:arm64-android@1.88.0...
+Elapsed time to handle boost-spirit:arm64-android: 290 ms
+boost-spirit:arm64-android package ABI: 2f4e14c145b4cfe439ab2007a25eb17601b5008d859ec4f7d8a660a6546b6fed
+Installing 70/93 boost-serialization:arm64-android@1.88.0...
+Elapsed time to handle boost-serialization:arm64-android: 69.7 ms
+boost-serialization:arm64-android package ABI: f6d5bad775f0b3b427d22d11d56effab594e26b6c6327f674d4c45c45b4e7646
+Installing 71/93 boost-multi-index:arm64-android@1.88.0...
+Elapsed time to handle boost-multi-index:arm64-android: 26.8 ms
+boost-multi-index:arm64-android package ABI: 9a19d2dd604ef9648c0f4fd8f723a2905cbfd4d40f1b61a84ee6b4fae6a2c359
+Installing 72/93 boost-property-tree:arm64-android@1.88.0...
+Elapsed time to handle boost-property-tree:arm64-android: 15.5 ms
+boost-property-tree:arm64-android package ABI: 7f784e114d06aa316d8ec20fb4180a2bf373b84f8a2753c9c66b1e06d6d6361c
+Installing 73/93 boost-circular-buffer:arm64-android@1.88.0...
+Elapsed time to handle boost-circular-buffer:arm64-android: 8.76 ms
+boost-circular-buffer:arm64-android package ABI: eb3e1ecdf6f22140ebd68d8c262b907bf6c463e449641ea77401d28b4dc5bddb
+Installing 74/93 boost-ptr-container:arm64-android@1.88.0...
+Elapsed time to handle boost-ptr-container:arm64-android: 17.1 ms
+boost-ptr-container:arm64-android package ABI: 70d82227c31e9fa9f8689c6240fc2eb9cede4fdc12ece0830901cfe3c1a9c56b
+Installing 75/93 boost-dynamic-bitset:arm64-android@1.88.0...
+Elapsed time to handle boost-dynamic-bitset:arm64-android: 8.82 ms
+boost-dynamic-bitset:arm64-android package ABI: 78a348bd36175b335da5e0e0393a534658d877260729277e58e9dc982d435f0b
+Installing 76/93 boost-random:arm64-android@1.88.0...
+Elapsed time to handle boost-random:arm64-android: 28.3 ms
+boost-random:arm64-android package ABI: 71e1ca73e607b446ebfdc1e451ee03957aa466b100ba702a49660494de035ce3
+Installing 77/93 boost-parameter:arm64-android@1.88.0...
+Elapsed time to handle boost-parameter:arm64-android: 30.3 ms
+boost-parameter:arm64-android package ABI: 889470f45888a3465e7634298a7fa134fcca89efcdcfc92b2a6bd218dfd387ce
+Installing 78/93 boost-signals2:arm64-android@1.88.0...
+Elapsed time to handle boost-signals2:arm64-android: 17.4 ms
+boost-signals2:arm64-android package ABI: 973c678ff3dbcd658bfc9d10d618dda71861bc8c6d0a098ebf0055f249d15b54
+Installing 79/93 boost-static-string:arm64-android@1.88.0...
+Elapsed time to handle boost-static-string:arm64-android: 8.27 ms
+boost-static-string:arm64-android package ABI: 45de76fdc04f28ea7f32548638a7831dd586c93d8bbd51d90d4c5690e1488f14
+Installing 80/93 vcpkg-cmake-get-vars:arm64-osx@2025-05-29...
+Elapsed time to handle vcpkg-cmake-get-vars:arm64-osx: 4.18 ms
+vcpkg-cmake-get-vars:arm64-osx package ABI: ee08bf679ae510af2f6bf6b50db6b5fa63204650bd61683849099e96a9766c46
+Installing 81/93 openssl:arm64-android@3.5.0#1...
+Elapsed time to handle openssl:arm64-android: 43.2 ms
+openssl:arm64-android package ABI: eb14a248819fff66636a4ec1f82d6f130346e6895fd921af754e1ae3a6688ab5
+Installing 82/93 zlib:arm64-android@1.3.1...
+Elapsed time to handle zlib:arm64-android: 8.93 ms
+zlib:arm64-android package ABI: 2cfe539ec4eb5ecea728911a1ef61ac27ae36d478c99f4a359e01f9895b4e742
+Installing 83/93 curl[core,openssl]:arm64-android@8.14.1...
+Elapsed time to handle curl:arm64-android: 14.1 ms
+curl:arm64-android package ABI: b58525d3dfa51e652b5d657e23f4965b43b2908dfe1741bcebdcdf63363398b2
+Installing 84/93 fmt:arm64-android@12.1.0...
+Elapsed time to handle fmt:arm64-android: 12.1 ms
+fmt:arm64-android package ABI: b01112170192d1ef2e1017feb61b5d1f0e40e28167ba10e07ebc947f638419b4
+Installing 85/93 glm:arm64-android@1.0.1#3...
+Elapsed time to handle glm:arm64-android: 118 ms
+glm:arm64-android package ABI: a2720a373123a3edde019f101c7664838c0db8d8c02a4c779a43a90c67b5c3c0
+Installing 86/93 glslang:arm64-android@15.1.0...
+Elapsed time to handle glslang:arm64-android: 16.2 ms
+glslang:arm64-android package ABI: f36b301fdd98297366bffd65307fb36f213b45c9747e4dc4c447366445ee5183
+Installing 87/93 libpng:arm64-android@1.6.48...
+Elapsed time to handle libpng:arm64-android: 12.4 ms
+libpng:arm64-android package ABI: 6fb668af045d0f906fdc599c85d3bdebe5c94e1e0037a7c29de58093a5905f2a
+Installing 88/93 libzip:arm64-android@1.11.4...
+Elapsed time to handle libzip:arm64-android: 9.7 ms
+libzip:arm64-android package ABI: da369b3f38c2f4e303c260545aa222d4d0f1ea4b395481b495bf029cb33a144b
+Installing 89/93 pugixml:arm64-android@1.15...
+Elapsed time to handle pugixml:arm64-android: 10.1 ms
+pugixml:arm64-android package ABI: 064836bb971612b877eb64d006ee952cc66e7ee3c761a5b05f30b17e37a47004
+Installing 90/93 rapidjson:arm64-android@2025-02-26...
+Elapsed time to handle rapidjson:arm64-android: 17.5 ms
+rapidjson:arm64-android package ABI: 75deb9b15a2f1b68fa5999bd6cc1226a275b3e22e3a9d3bbad066e7dacac4ab5
+Installing 91/93 libjpeg-turbo:arm64-android@3.1.0#1...
+Elapsed time to handle libjpeg-turbo:arm64-android: 12.7 ms
+libjpeg-turbo:arm64-android package ABI: 65160ae2db9cc569689beeb28d97dbf3cb174835909db6c394a7d31b213caf8c
+Installing 92/93 tiff[core,jpeg,zip]:arm64-android@4.7.0...
+Elapsed time to handle tiff:arm64-android: 9.8 ms
+tiff:arm64-android package ABI: 77354e291d2002882003835adcc24a19a7ff22153d3582d4862a2d86347d9404
+Installing 93/93 zstd:arm64-android@1.5.7...
+Elapsed time to handle zstd:arm64-android: 10.3 ms
+zstd:arm64-android package ABI: b249e7dec3f3f52aaece929492d33f1bbd0134f963729bcd3ebdf8c54150e7e4
+Installed contents are licensed to you by owners. Microsoft is not responsible for, nor does it grant any licenses to, third-party packages.
+Packages installed in this vcpkg installation declare the following licenses:
+(BSD-3-Clause OR GPL-2.0-only)
+Apache-2.0
+BSD-3-Clause
+BSL-1.0
+GPL-3.0-or-later
+ISC
+MIT
+Zlib
+curl
+libpng-2.0
+libtiff
+boost-optional provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_optional CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::optional)
+
+boost-functional provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_functional CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::functional)
+
+boost-algorithm provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_algorithm CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::algorithm)
+
+boost-tokenizer provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_tokenizer CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::tokenizer)
+
+boost-container provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_container CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::container)
+
+boost-context provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_context CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::context)
+
+boost-asio provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_asio CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::asio)
+
+boost-nowide provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_nowide CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::nowide)
+
+boost-program-options provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_program_options CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::program_options)
+
+boost-property-tree provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_property_tree CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::property_tree)
+
+boost-ptr-container provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_ptr_container CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::ptr_container)
+
+boost-random provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_random CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::random)
+
+boost-signals2 provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_signals2 CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::signals2)
+
+boost-static-string provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(boost_static_string CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE Boost::static_string)
+
+openssl is compatible with built-in CMake targets:
+
+  find_package(OpenSSL REQUIRED)
+  target_link_libraries(main PRIVATE OpenSSL::SSL)
+  target_link_libraries(main PRIVATE OpenSSL::Crypto)
+
+The package zlib is compatible with built-in CMake targets:
+
+    find_package(ZLIB REQUIRED)
+    target_link_libraries(main PRIVATE ZLIB::ZLIB)
+
+curl is compatible with built-in CMake targets:
+
+    find_package(CURL REQUIRED)
+    target_link_libraries(main PRIVATE CURL::libcurl)
+
+The package fmt provides CMake targets:
+
+    find_package(fmt CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE fmt::fmt)
+
+    # Or use the header-only version
+    find_package(fmt CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE fmt::fmt-header-only)
+
+The package glm provides CMake targets:
+
+    find_package(glm CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE glm::glm)
+
+    # Or use the header-only version
+    find_package(glm CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE glm::glm-header-only)
+
+glslang provides CMake targets:
+
+    find_package(glslang CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE glslang::glslang glslang::glslang-default-resource-limits glslang::SPIRV glslang::SPVRemapper)
+
+libpng provides CMake targets:
+
+  find_package(PNG REQUIRED)
+  target_link_libraries(main PRIVATE PNG::PNG)
+
+libzip provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(libzip CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE libzip::zip)
+
+libzip provides pkg-config modules:
+
+  # library for handling zip archives
+  libzip
+
+pugixml provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(pugixml CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE pugixml::static pugixml::pugixml)
+
+pugixml provides pkg-config modules:
+
+  # Light-weight, simple and fast XML parser for C++ with XPath support.
+  pugixml
+
+rapidjson provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(RapidJSON CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE RapidJSON rapidjson)
+
+rapidjson provides pkg-config modules:
+
+  # A fast JSON parser/generator for C++ with both SAX/DOM style API
+  RapidJSON
+
+tiff is compatible with built-in CMake targets:
+
+    find_package(TIFF REQUIRED)
+    target_link_libraries(main PRIVATE TIFF::TIFF)
+
+tiff provides pkg-config modules:
+
+    #  Tag Image File Format (TIFF) library.
+    libtiff-4
+
+zstd provides CMake targets:
+
+  find_package(zstd CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE zstd::libzstd)
+
+All requested installations completed successfully in: 2.8 s

@@ -89,8 +89,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
 endif()
 
 if(ANDROID)
-	# For Android, create a shared library instead of executable
-	add_library(CemuBin SHARED
+	# For Android, create a STATIC library — JNI wrapper (CemuAndroid) is the SHARED lib
+	add_library(CemuBin STATIC
 		main.cpp
 		mainLLE.cpp
 	)
@@ -229,4 +229,9 @@ endif()
 
 if (BSD)
 	target_link_libraries(CemuBin PRIVATE execinfo SPIRV-Tools SPIRV-Tools-opt)
+endif()
+
+# JNI wrapper for Android — creates the CemuAndroid shared library
+if(ANDROID)
+	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../android/app/src/main/cpp ${CMAKE_CURRENT_BINARY_DIR}/android_jni)
 endif()
