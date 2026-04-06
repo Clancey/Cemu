@@ -81,3 +81,5 @@ src/CMakeLists_android.txt.example
 build-visionos/
 build-android/
 build_visionos/
+build_visionos_sim/
+build_xcframework/
