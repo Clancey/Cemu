@@ -32,6 +32,10 @@
       "platform": "android"
     },
     {
+      "name": "boost-iostreams",
+      "platform": "android"
+    },
+    {
       "name": "fmt",
       "version>=": "12.1.0"
     },
