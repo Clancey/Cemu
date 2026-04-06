@@ -38,6 +38,7 @@ void LatteDraw_handleSpecialState8_clearAsDepth();
 
 std::vector<MetalRenderer::DeviceInfo> MetalRenderer::GetDevices()
 {
+#if TARGET_OS_OSX
     NS_STACK_SCOPED auto devices = MTL::CopyAllDevices();
     std::vector<MetalRenderer::DeviceInfo> result;
     result.reserve(devices->count());
@@ -46,8 +47,15 @@ std::vector<MetalRenderer::DeviceInfo> MetalRenderer::GetDevices()
         MTL::Device* device = static_cast<MTL::Device*>(devices->object(i));
         result.push_back({std::string(device->name()->utf8String()), device->registryID()});
     }
-
     return result;
+#else
+    // On iOS/visionOS only one device is available
+    auto* device = MTL::CreateSystemDefaultDevice();
+    std::vector<MetalRenderer::DeviceInfo> result;
+    if (device)
+        result.push_back({std::string(device->name()->utf8String()), device->registryID()});
+    return result;
+#endif
 }
 
 MetalRenderer::MetalRenderer()
@@ -126,6 +134,7 @@ MetalRenderer::MetalRenderer()
     const bool hasDeviceSet = config.mtl_graphic_device_uuid != 0;
 
     // If a device is set, try to find it
+#if TARGET_OS_OSX
     if (hasDeviceSet)
     {
         NS_STACK_SCOPED auto devices = MTL::CopyAllDevices();
@@ -139,6 +148,7 @@ MetalRenderer::MetalRenderer()
             }
         }
     }
+#endif
 
     if (!m_device)
     {
@@ -170,7 +180,12 @@ MetalRenderer::MetalRenderer()
     m_hasUnifiedMemory = m_device->hasUnifiedMemory();
     m_supportsMetal3 = m_device->supportsFamily(MTL::GPUFamilyMetal3);
     m_supportsMeshShaders = (m_supportsMetal3 && (m_vendor != GfxVendor::Intel || GetConfig().force_mesh_shaders.GetValue())); // Intel GPUs have issues with mesh shaders
+#if TARGET_OS_OSX
     m_recommendedMaxVRAMUsage = m_device->recommendedMaxWorkingSetSize();
+#else
+    // recommendedMaxWorkingSetSize is macOS-only; use a sensible default for unified memory
+    m_recommendedMaxVRAMUsage = 0; // 0 = no limit tracking
+#endif
     m_pixelFormatSupport = MetalPixelFormatSupport(m_device);
 
     CheckForPixelFormatSupport(m_pixelFormatSupport);

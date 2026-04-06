@@ -3,6 +3,8 @@
 #include "Cafe/GameProfile/GameProfile.h"
 #include "JNIUtils.h"
 #include "GameTitleLoader.h"
+#include <atomic>
+#include <thread>
 #include "WuaConverter.h"
 #include "CompressTitleCallbacks.h"
 #include "config/ActiveSettings.h"
@@ -152,9 +154,16 @@ Java_info_cemu_cemu_nativeinterface_NativeGameTitles_setGameTitleLoadedCallback(
 	NativeGameTitles::s_gameTitleLoader.setOnTitleLoaded(std::make_shared<AndroidGameTitleLoadedCallback>(onGameTitleLoadedMID, game_title_loaded_callback));
 }
 
+// Declared in NativeEmulation.cpp
+extern std::atomic<bool> s_emulationInitialized;
+
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeGameTitles_reloadGameTitles([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
+	// Wait for CemuCommonInit to finish (runs async on Quest)
+	// so game paths are in config before scanning
+	while (!s_emulationInitialized.load())
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	NativeGameTitles::s_gameTitleLoader.reloadGameTitles();
 }
 

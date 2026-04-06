@@ -7,10 +7,24 @@ MetalLayerHandle::MetalLayerHandle(MTL::Device* device, const Vector2i& size, bo
 {
     const auto& windowInfo = (mainWindow ? WindowSystem::GetWindowInfo().window_main : WindowSystem::GetWindowInfo().window_pad);
 
+#if TARGET_OS_VISION
+    // On visionOS, the CAMetalLayer is passed directly from Swift via windowInfo.surface
+    m_layer = (CA::MetalLayer*)windowInfo.surface.load();
+    m_layerScaleX = 1.0f;
+    m_layerScaleY = 1.0f;
+    if (m_layer)
+    {
+        m_layer->retain();
+        m_layer->setDevice(device);
+        m_layer->setDrawableSize(CGSize{(float)size.x, (float)size.y});
+        m_layer->setFramebufferOnly(true);
+    }
+#else
     m_layer = (CA::MetalLayer*)CreateMetalLayer(windowInfo.surface, m_layerScaleX, m_layerScaleY);
     m_layer->setDevice(device);
     m_layer->setDrawableSize(CGSize{(float)size.x * m_layerScaleX, (float)size.y * m_layerScaleY});
     m_layer->setFramebufferOnly(true);
+#endif
 }
 
 MetalLayerHandle::~MetalLayerHandle()
