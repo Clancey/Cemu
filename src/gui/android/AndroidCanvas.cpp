@@ -175,7 +175,7 @@ namespace AndroidWindowSystem
 		if (!m_nativeWindow)
 			return;
 
-		auto& windowInfo = AndroidWindowSystem::GetWindowInfo();
+		auto& windowInfo = WindowSystem::GetWindowInfo();
 		auto& canvas = m_is_main_window ? windowInfo.canvas_main : windowInfo.canvas_pad;
 
 		canvas.backend = WindowSystem::WindowHandleInfo::Backend::Android;

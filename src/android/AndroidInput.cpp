@@ -402,96 +402,96 @@ namespace AndroidBridge
 				cemuKey = it->second;
 				return true;
 			}
-
-			bool HandleGamepadKeyEvent(AInputEvent* event)
-			{
-				int32_t deviceId = AInputEvent_getDeviceId(event);
-				int32_t keycode = AKeyEvent_getKeyCode(event);
-				int32_t action = AKeyEvent_getAction(event);
-
-				std::lock_guard<std::mutex> lock(s_inputMutex);
-
-				// Ensure gamepad state exists
-				GamepadState& gamepad = s_gamepads[deviceId];
-				gamepad.deviceId = deviceId;
-				gamepad.type = GetDeviceType(deviceId);
-				gamepad.isQuestController = IsQuestController(deviceId);
-
-				bool pressed = (action == AKEY_EVENT_ACTION_DOWN);
-
-				// Map Android gamepad keycodes to our button flags
-				uint32_t buttonFlag = 0;
-				switch (keycode)
-				{
-				case AKEYCODE_BUTTON_A:
-					buttonFlag = GamepadButtons::A;
-					break;
-				case AKEYCODE_BUTTON_B:
-					buttonFlag = GamepadButtons::B;
-					break;
-				case AKEYCODE_BUTTON_X:
-					buttonFlag = GamepadButtons::X;
-					break;
-				case AKEYCODE_BUTTON_Y:
-					buttonFlag = GamepadButtons::Y;
-					break;
-				case AKEYCODE_BUTTON_L1:
-					buttonFlag = GamepadButtons::LeftShoulder;
-					break;
-				case AKEYCODE_BUTTON_R1:
-					buttonFlag = GamepadButtons::RightShoulder;
-					break;
-				case AKEYCODE_BUTTON_L2:
-					buttonFlag = 1 << 6; // ZL
-					break;
-				case AKEYCODE_BUTTON_R2:
-					buttonFlag = 1 << 7; // ZR
-					break;
-				case AKEYCODE_BUTTON_START:
-					buttonFlag = GamepadButtons::Start;
-					break;
-				case AKEYCODE_BUTTON_SELECT:
-					buttonFlag = GamepadButtons::Back;
-					break;
-				case AKEYCODE_DPAD_UP:
-					buttonFlag = GamepadButtons::DpadUp;
-					break;
-				case AKEYCODE_DPAD_DOWN:
-					buttonFlag = GamepadButtons::DpadDown;
-					break;
-				case AKEYCODE_DPAD_LEFT:
-					buttonFlag = GamepadButtons::DpadLeft;
-					break;
-				case AKEYCODE_DPAD_RIGHT:
-					buttonFlag = GamepadButtons::DpadRight;
-					break;
-				case AKEYCODE_BUTTON_THUMBL:
-					buttonFlag = GamepadButtons::LeftThumb;
-					break;
-				case AKEYCODE_BUTTON_THUMBR:
-					buttonFlag = GamepadButtons::RightThumb;
-					break;
-				}
-
-				// Update button state
-				if (buttonFlag != 0)
-				{
-					if (pressed)
-					{
-						gamepad.buttons |= buttonFlag;
-					}
-					else
-					{
-						gamepad.buttons &= ~buttonFlag;
-					}
-
-					LOGD("Gamepad button: device=%d, keycode=%d, pressed=%d, buttons=0x%x",
-						deviceId, keycode, pressed, gamepad.buttons);
-				}
-
-				return buttonFlag != 0; // Return true if we handled the key
-			}
 			return false;
+		}
+
+		bool HandleGamepadKeyEvent(AInputEvent* event)
+		{
+			int32_t deviceId = AInputEvent_getDeviceId(event);
+			int32_t keycode = AKeyEvent_getKeyCode(event);
+			int32_t action = AKeyEvent_getAction(event);
+
+			std::lock_guard<std::mutex> lock(s_inputMutex);
+
+			// Ensure gamepad state exists
+			GamepadState& gamepad = s_gamepads[deviceId];
+			gamepad.deviceId = deviceId;
+			gamepad.type = GetDeviceType(deviceId);
+			gamepad.isQuestController = IsQuestController(deviceId);
+
+			bool pressed = (action == AKEY_EVENT_ACTION_DOWN);
+
+			// Map Android gamepad keycodes to our button flags
+			uint32_t buttonFlag = 0;
+			switch (keycode)
+			{
+			case AKEYCODE_BUTTON_A:
+				buttonFlag = GamepadButtons::A;
+				break;
+			case AKEYCODE_BUTTON_B:
+				buttonFlag = GamepadButtons::B;
+				break;
+			case AKEYCODE_BUTTON_X:
+				buttonFlag = GamepadButtons::X;
+				break;
+			case AKEYCODE_BUTTON_Y:
+				buttonFlag = GamepadButtons::Y;
+				break;
+			case AKEYCODE_BUTTON_L1:
+				buttonFlag = GamepadButtons::LeftShoulder;
+				break;
+			case AKEYCODE_BUTTON_R1:
+				buttonFlag = GamepadButtons::RightShoulder;
+				break;
+			case AKEYCODE_BUTTON_L2:
+				buttonFlag = 1 << 6; // ZL
+				break;
+			case AKEYCODE_BUTTON_R2:
+				buttonFlag = 1 << 7; // ZR
+				break;
+			case AKEYCODE_BUTTON_START:
+				buttonFlag = GamepadButtons::Start;
+				break;
+			case AKEYCODE_BUTTON_SELECT:
+				buttonFlag = GamepadButtons::Back;
+				break;
+			case AKEYCODE_DPAD_UP:
+				buttonFlag = GamepadButtons::DpadUp;
+				break;
+			case AKEYCODE_DPAD_DOWN:
+				buttonFlag = GamepadButtons::DpadDown;
+				break;
+			case AKEYCODE_DPAD_LEFT:
+				buttonFlag = GamepadButtons::DpadLeft;
+				break;
+			case AKEYCODE_DPAD_RIGHT:
+				buttonFlag = GamepadButtons::DpadRight;
+				break;
+			case AKEYCODE_BUTTON_THUMBL:
+				buttonFlag = GamepadButtons::LeftThumb;
+				break;
+			case AKEYCODE_BUTTON_THUMBR:
+				buttonFlag = GamepadButtons::RightThumb;
+				break;
+			}
+
+			// Update button state
+			if (buttonFlag != 0)
+			{
+				if (pressed)
+				{
+					gamepad.buttons |= buttonFlag;
+				}
+				else
+				{
+					gamepad.buttons &= ~buttonFlag;
+				}
+
+				LOGD("Gamepad button: device=%d, keycode=%d, pressed=%d, buttons=0x%x",
+					deviceId, keycode, pressed, gamepad.buttons);
+			}
+
+			return buttonFlag != 0; // Return true if we handled the key
 		}
 
 		void MapQuestButtonsToCemu(const GamepadState& state)

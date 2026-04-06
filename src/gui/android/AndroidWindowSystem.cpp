@@ -3,13 +3,14 @@
 #include "AndroidWindowSystem.h"
 #include "AndroidCanvas.h"
 #include "gui/interface/WindowSystem.h"
+#include "android/AndroidInput.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "config/ActiveSettings.h"
 #include "config/NetworkSettings.h"
 #include "config/CemuConfig.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/CafeSystem.h"
-#include "input/HotkeySettings.h"
+// HotkeySettings is wxWidgets-specific, not needed on Android
 
 #include <android/native_window.h>
 #include <android/input.h>
@@ -52,6 +53,9 @@ namespace AndroidWindowSystem
 			UpdateWindowInfo();
 		}
 
+		// Initialize Android input system
+		AndroidBridge::Input::Initialize();
+
 		m_appState = AppState::Resumed;
 		m_initialized = true;
 
@@ -61,6 +65,9 @@ namespace AndroidWindowSystem
 	void AndroidWindowSystem::Shutdown()
 	{
 		LOGD("AndroidWindowSystem::Shutdown called");
+
+		// Shutdown Android input system
+		AndroidBridge::Input::Shutdown();
 
 		m_mainCanvas.reset();
 		m_padCanvas.reset();
@@ -136,26 +143,38 @@ namespace AndroidWindowSystem
 	{
 		int32_t event_type = AInputEvent_getType(event);
 
+		// Forward all input events to AndroidInput system first
+		bool handled = false;
+
 		switch (event_type)
 		{
 		case AINPUT_EVENT_TYPE_KEY:
 		{
-			int32_t keycode = AKeyEvent_getKeyCode(event);
-			int32_t action = AKeyEvent_getAction(event);
-			bool pressed = (action == AKEY_EVENT_ACTION_DOWN);
+			// Forward to AndroidInput system for gamepad/keyboard handling
+			handled = AndroidBridge::Input::HandleKeyEvent(event);
 
-			g_window_info.set_keystate(keycode, pressed);
-			return 1; // Event consumed
+			// Also handle for window system (backward compatibility)
+			if (!handled)
+			{
+				int32_t keycode = AKeyEvent_getKeyCode(event);
+				int32_t action = AKeyEvent_getAction(event);
+				bool pressed = (action == AKEY_EVENT_ACTION_DOWN);
+				g_window_info.set_keystate(keycode, pressed);
+				handled = true;
+			}
+			break;
 		}
 		case AINPUT_EVENT_TYPE_MOTION:
 		{
-			// Handle touch input for GamePad if needed
-			// For now, just return consumed
-			return 1;
+			// Forward motion events to AndroidInput system for gamepad/touch handling
+			handled = AndroidBridge::Input::HandleMotionEvent(event);
+			break;
 		}
 		default:
-			return 0; // Event not handled
+			handled = false;
 		}
+
+		return handled ? 1 : 0;
 	}
 
 	std::shared_ptr<AndroidCanvas> AndroidWindowSystem::CreateMainCanvas()
@@ -397,7 +416,7 @@ namespace AndroidWindowSystem
 
 	void CaptureInput(const ControllerState& currentState, const ControllerState& lastState)
 	{
-		HotkeySettings::CaptureInput(currentState, lastState);
+		// HotkeySettings is wxWidgets-specific; hotkeys handled differently on Android
 	}
 
 } // namespace AndroidWindowSystem

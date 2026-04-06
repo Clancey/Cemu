@@ -84,6 +84,7 @@ endif()
 if(ANDROID)
 	# For Android, create a shared library instead of executable
 	add_library(CemuBin SHARED
+		main.cpp
 		mainLLE.cpp
 	)
 	# Link our Android native sources
@@ -170,8 +171,8 @@ if (MACOS_BUNDLE)
 		COMMAND bash -c "install_name_tool -add_rpath @executable_path/../Frameworks ${CMAKE_SOURCE_DIR}/bin/${OUTPUT_NAME}.app/Contents/MacOS/${OUTPUT_NAME}"
 		COMMAND bash -c "install_name_tool -change ${LIBUSB_PATH} @executable_path/../Frameworks/libusb-1.0.0.dylib ${CMAKE_SOURCE_DIR}/bin/${OUTPUT_NAME}.app/Contents/MacOS/${OUTPUT_NAME}")
 else()
-    if(APPLE)
-        find_library(MOLTENVK_LIBRARY 
+    if(APPLE AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
+        find_library(MOLTENVK_LIBRARY
             NAMES MoltenVK moltenvk libMoltenVK.dylib
             PATHS /usr/local/lib /opt/homebrew/lib
         )
@@ -181,7 +182,7 @@ else()
         else()
             message(WARNING "libMoltenVK.dylib not found")
         endif()
-        set_target_properties(CemuBin PROPERTIES 
+        set_target_properties(CemuBin PROPERTIES
             BUILD_WITH_INSTALL_RPATH TRUE
             INSTALL_RPATH "/usr/local/lib;/opt/homebrew/lib"
         )

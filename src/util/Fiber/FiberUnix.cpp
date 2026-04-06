@@ -53,6 +53,8 @@ extern "C" {
 
 // Implementation of context switching using ARM64 assembly
 asm(
+    ".hidden android_fiber_switch\n"
+    ".hidden android_fiber_setup\n"
     ".global android_fiber_switch\n"
     ".type android_fiber_switch, %function\n"
     "android_fiber_switch:\n"
@@ -119,7 +121,8 @@ asm(
     "    str x1, [x0, #80]\n"          // Set fp in context
     "    \n"
     "    // Set link register to a safe return address (not used in our case)\n"
-    "    adr x2, android_fiber_setup\n"
+    "    adrp x2, android_fiber_setup\n"
+    "    add x2, x2, :lo12:android_fiber_setup\n"
     "    str x2, [x0, #88]\n"          // Set lr in context
     "    \n"
     "    // Mark as initial context\n"

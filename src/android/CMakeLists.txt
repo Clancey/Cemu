@@ -16,6 +16,7 @@ if(ANDROID)
         AndroidControllerProvider.h
         AndroidController.cpp
         AndroidController.h
+        AndroidStubs.cpp
     )
 
     # Create Android library
@@ -52,6 +53,7 @@ if(ANDROID)
     target_link_libraries(cemu_android
         # Core Cemu libraries we need for our implementations
         CemuCommon
+        Threads::Threads
 
         # Android-specific libraries
         ${ANDROID_LIB}
@@ -96,6 +98,9 @@ if(ANDROID)
         -Wno-unused-parameter
         -Wno-unused-variable
     )
+
+    # Reuse precompiled header from CemuCommon
+    cemu_use_precompiled_header(cemu_android)
 
     # Set Android-specific properties
     set_target_properties(cemu_android PROPERTIES

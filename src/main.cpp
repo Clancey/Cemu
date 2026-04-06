@@ -32,8 +32,10 @@
 #pragma comment(lib,"Dbghelp.lib")
 #endif
 
+#ifndef __ANDROID__
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
+#endif
 
 #ifdef __ANDROID__
 #include <android/log.h>

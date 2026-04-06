@@ -112,7 +112,11 @@ endif()
 
 if (APPLE)
     enable_language(OBJC OBJCXX)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.4")
+    if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "2.0")
+    else()
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "13.4")
+    endif()
 endif()
 
 if (UNIX AND NOT APPLE AND NOT ANDROID)
@@ -213,12 +217,21 @@ option(ENABLE_WXWIDGETS "Build with wxWidgets UI (Currently required)" ON)
 if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
     # visionOS uses pthreads but CMake has trouble detecting them in cross-compilation
     # Create a fake Threads target since visionOS includes threading in the system
-    add_library(Threads::Threads INTERFACE IMPORTED)
     set(CMAKE_THREAD_LIBS_INIT "")
     set(CMAKE_HAVE_THREADS_LIBRARY TRUE)
     set(CMAKE_USE_WIN32_THREADS_INIT FALSE)
     set(CMAKE_USE_PTHREADS_INIT TRUE)
     set(Threads_FOUND TRUE)
+    set(CMAKE_HAVE_LIBC_PTHREAD TRUE)
+    # Create the imported target
+    add_library(Threads::Threads INTERFACE IMPORTED GLOBAL)
+    # Set properties for the target
+    set_target_properties(Threads::Threads PROPERTIES
+        INTERFACE_COMPILE_DEFINITIONS "CMAKE_HAVE_LIBC_PTHREAD=1"
+    )
+    # Make sure the package variables are set for find_dependency calls
+    set(Threads_DIR "")
+    set_property(GLOBAL PROPERTY FIND_PACKAGE_Threads_FOUND TRUE)
 else()
     find_package(Threads REQUIRED)
 endif()
@@ -239,17 +252,83 @@ find_package(PNG QUIET)
 
 if(NOT ANDROID)
 	# Desktop and visionOS builds use vcpkg or system packages
-	find_package(Boost COMPONENTS program_options filesystem nowide REQUIRED)
-	find_package(glm REQUIRED)
-	find_package(fmt 9 REQUIRED)
-	find_package(pugixml REQUIRED)
-	find_package(RapidJSON REQUIRED)
-	find_package(libzip REQUIRED)
-	find_package(glslang REQUIRED)
-	find_package(ZLIB REQUIRED)
-	find_package(zstd MODULE REQUIRED) # MODULE so that zstd::zstd is available
-	find_package(OpenSSL COMPONENTS Crypto SSL REQUIRED)
-	find_package(PNG REQUIRED)
+	if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+		# visionOS: Manual setup since cross-compilation has issues
+		find_package(PkgConfig REQUIRED)
+
+		# Set up Boost manually with targets
+		set(Boost_FOUND TRUE)
+		set(Boost_INCLUDE_DIRS "/opt/homebrew/include")
+		set(Boost_LIBRARY_DIRS "/opt/homebrew/lib")
+		set(Boost_LIBRARIES
+			"/opt/homebrew/lib/libboost_program_options.a"
+			"/opt/homebrew/lib/libboost_filesystem.a"
+			"/opt/homebrew/lib/libboost_nowide.a"
+		)
+
+		# Create Boost targets
+		if(NOT TARGET Boost::headers)
+			add_library(Boost::headers INTERFACE IMPORTED GLOBAL)
+			set_target_properties(Boost::headers PROPERTIES
+				INTERFACE_INCLUDE_DIRECTORIES "/opt/homebrew/include"
+			)
+		endif()
+		if(NOT TARGET Boost::program_options)
+			add_library(Boost::program_options STATIC IMPORTED GLOBAL)
+			set_target_properties(Boost::program_options PROPERTIES
+				IMPORTED_LOCATION "/opt/homebrew/lib/libboost_program_options.a"
+				INTERFACE_INCLUDE_DIRECTORIES "/opt/homebrew/include"
+			)
+		endif()
+		if(NOT TARGET Boost::filesystem)
+			add_library(Boost::filesystem STATIC IMPORTED GLOBAL)
+			set_target_properties(Boost::filesystem PROPERTIES
+				IMPORTED_LOCATION "/opt/homebrew/lib/libboost_filesystem.a"
+				INTERFACE_INCLUDE_DIRECTORIES "/opt/homebrew/include"
+			)
+		endif()
+		if(NOT TARGET Boost::nowide)
+			add_library(Boost::nowide STATIC IMPORTED GLOBAL)
+			set_target_properties(Boost::nowide PROPERTIES
+				IMPORTED_LOCATION "/opt/homebrew/lib/libboost_nowide.a"
+				INTERFACE_INCLUDE_DIRECTORIES "/opt/homebrew/include"
+			)
+		endif()
+
+		# Use pkg-config for glm and create target
+		pkg_check_modules(glm REQUIRED glm)
+		if(NOT TARGET glm::glm)
+			add_library(glm::glm INTERFACE IMPORTED GLOBAL)
+			set_target_properties(glm::glm PROPERTIES
+				INTERFACE_INCLUDE_DIRECTORIES "${glm_INCLUDE_DIRS}"
+			)
+		endif()
+
+		find_package(fmt 9 REQUIRED)
+		find_package(pugixml REQUIRED)
+		find_package(RapidJSON REQUIRED)
+		find_package(libzip REQUIRED)
+		find_package(glslang REQUIRED)
+		find_package(ZLIB REQUIRED)
+
+		# Set up zstd manually
+		pkg_check_modules(zstd REQUIRED libzstd)
+
+		find_package(OpenSSL COMPONENTS Crypto SSL REQUIRED)
+		find_package(PNG REQUIRED)
+	else()
+		find_package(Boost COMPONENTS program_options filesystem nowide REQUIRED)
+		find_package(glm REQUIRED)
+		find_package(fmt 9 REQUIRED)
+		find_package(pugixml REQUIRED)
+		find_package(RapidJSON REQUIRED)
+		find_package(libzip REQUIRED)
+		find_package(glslang REQUIRED)
+		find_package(ZLIB REQUIRED)
+		find_package(zstd MODULE REQUIRED) # MODULE so that zstd::zstd is available
+		find_package(OpenSSL COMPONENTS Crypto SSL REQUIRED)
+		find_package(PNG REQUIRED)
+	endif()
 endif()
 
 # Platform-specific dependencies

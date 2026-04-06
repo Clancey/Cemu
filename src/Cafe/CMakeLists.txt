@@ -645,8 +645,8 @@ target_link_libraries(CemuCafe PRIVATE
   OpenSSL::SSL
 )
 
-# Link CURL only on non-Android platforms
-if(NOT ANDROID)
+# Link CURL only on non-Android, non-visionOS platforms
+if(NOT ANDROID AND NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
   target_link_libraries(CemuCafe PRIVATE CURL::libcurl)
 endif()
 
@@ -655,17 +655,19 @@ if (ENABLE_WAYLAND)
   target_link_libraries(CemuCafe PUBLIC Wayland::Client)
 endif()
 
-if (ENABLE_VCPKG)
-  if(WIN32)
-    set(PKG_CONFIG_EXECUTABLE "${VCPKG_INSTALLED_DIR}/x64-windows/tools/pkgconf/pkgconf.exe")
-  endif()
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(libusb REQUIRED IMPORTED_TARGET libusb-1.0)
-  target_link_libraries(CemuCafe PRIVATE PkgConfig::libusb)
-else ()
-  find_package(libusb MODULE REQUIRED)
-  target_link_libraries(CemuCafe PRIVATE libusb::libusb)
-endif ()
+if(NOT ANDROID)
+  if (ENABLE_VCPKG)
+    if(WIN32)
+      set(PKG_CONFIG_EXECUTABLE "${VCPKG_INSTALLED_DIR}/x64-windows/tools/pkgconf/pkgconf.exe")
+    endif()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(libusb REQUIRED IMPORTED_TARGET libusb-1.0)
+    target_link_libraries(CemuCafe PRIVATE PkgConfig::libusb)
+  else ()
+    find_package(libusb MODULE REQUIRED)
+    target_link_libraries(CemuCafe PRIVATE libusb::libusb)
+  endif ()
+endif()
 
 if(WIN32)
 	target_link_libraries(CemuCafe PRIVATE iphlpapi)

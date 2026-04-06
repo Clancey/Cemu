@@ -1,5 +1,6 @@
 #pragma once
 #include "napi.h"
+
 #ifndef __ANDROID__
 #include "curl/curl.h"
 #include "pugixml.hpp"

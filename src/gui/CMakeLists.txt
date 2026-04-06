@@ -25,6 +25,7 @@ if(ANDROID)
         android
         log
         glm::glm
+        Threads::Threads
     )
 
     target_compile_definitions(CemuAndroidGui PRIVATE

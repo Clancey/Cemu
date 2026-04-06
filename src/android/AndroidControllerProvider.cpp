@@ -1,5 +1,6 @@
 #include "AndroidControllerProvider.h"
 #include "AndroidController.h"
+#include "AndroidInput.h"
 #include <android/log.h>
 
 #define LOG_TAG "AndroidControllerProvider"

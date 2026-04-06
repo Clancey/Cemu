@@ -4,12 +4,49 @@
 #include <filesystem>
 #include <string_view>
 #include <set>
+#include <sstream>
+#include <cstdint>
 
 #include "util/math/vector2.h"
 #include "util/math/vector3.h"
 
 #ifdef __clang__
 #include "Common/unix/fast_float.h"
+#endif
+
+// Type definitions for compatibility
+using uint64 = uint64_t;
+using uint32 = uint32_t;
+using uint16 = uint16_t;
+using uint8 = uint8_t;
+
+using sint64 = int64_t;
+using sint32 = int32_t;
+using sint16 = int16_t;
+using sint8 = int8_t;
+
+// Filesystem alias
+namespace fs = std::filesystem;
+
+#if !defined(__ANDROID__)
+// Windows-specific types
+using DWORD = uint32_t;
+#endif
+
+#ifdef __ANDROID__
+// For Android builds, stub boost functionality
+namespace boost {
+    template<typename T>
+    bool iequals(const T& a, const T& b) {
+        if (a.size() != b.size()) return false;
+        return std::equal(a.begin(), a.end(), b.begin(),
+            [](char a, char b) {
+                return std::tolower(a) == std::tolower(b);
+            });
+    }
+}
+#else
+#include <boost/algorithm/string.hpp>
 #endif
 
 template <typename TType>
@@ -78,7 +115,9 @@ std::string GenerateRandomString(size_t length);
 std::string GenerateRandomString(size_t length, std::string_view characters);
 
 std::string GetSystemErrorMessage();
+#if !defined(__ANDROID__)
 std::string GetSystemErrorMessage(DWORD error_code);
+#endif
 std::string GetSystemErrorMessage(const std::exception& ex);
 std::string GetSystemErrorMessage(const std::error_code& ec);
 
@@ -251,9 +290,11 @@ static bool IsValidFilename(std::string_view sv)
 }
 
 // MAJOR; MINOR
+#if !defined(__ANDROID__)
 std::pair<DWORD, DWORD> GetWindowsVersion();
 bool IsWindows81OrGreater();
 bool IsWindows10OrGreater();
+#endif
 
 fs::path GetParentProcess();
 
