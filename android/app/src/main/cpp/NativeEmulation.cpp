@@ -224,34 +224,86 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env
 	// Create OpenXR manager
 	g_openxrManager = std::make_unique<OpenXRManager>();
 
-	// Initialize Vulkan first
+	// Initialize Vulkan loader (loads function pointers)
 	InitializeGlobalVulkan();
 
-	// Create a minimal VulkanRenderer for device/instance creation
-	// We'll modify this to work with OpenXR's Vulkan requirements
+	// For OpenXR, we create our own minimal Vulkan instance/device
+	// because VulkanRenderer's constructor requires a valid surface
+	// which Quest doesn't provide outside of OpenXR
 	try {
-		g_renderer = std::make_unique<VulkanRenderer>();
-		s_rendererInitialized = true;
+		// Create minimal Vulkan instance for OpenXR
+		VkApplicationInfo appInfo = {};
+		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+		appInfo.pApplicationName = "Cemu";
+		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+		appInfo.pEngineName = "Cemu";
+		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+		appInfo.apiVersion = VK_API_VERSION_1_1;
 
-		// Get Vulkan objects from renderer
-		auto* vulkanRenderer = VulkanRenderer::GetInstance();
-		VkInstance vkInstance = vulkanRenderer->GetVkInstance();
-		VkPhysicalDevice vkPhysicalDevice = vulkanRenderer->GetPhysicalDevice();
-		VkDevice vkDevice = vulkanRenderer->GetLogicalDevice();
-		// For OpenXR, we typically use graphics queue family index 0
-		uint32_t queueFamilyIndex = 0;
+		std::vector<const char*> instanceExts = {
+			VK_KHR_SURFACE_EXTENSION_NAME,
+			VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
+		};
 
-		// Initialize OpenXR with Vulkan objects
-		// TODO: Pass Android activity context if available
-		if (!g_openxrManager->Initialize(vkInstance, vkPhysicalDevice, vkDevice, queueFamilyIndex)) {
+		VkInstanceCreateInfo instanceCI = {};
+		instanceCI.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+		instanceCI.pApplicationInfo = &appInfo;
+		instanceCI.enabledExtensionCount = instanceExts.size();
+		instanceCI.ppEnabledExtensionNames = instanceExts.data();
+
+		VkInstance vkInstance;
+		if (vkCreateInstance(&instanceCI, nullptr, &vkInstance) != VK_SUCCESS) {
+			cemuLog_log(LogType::Force, "Failed to create Vulkan instance for OpenXR");
+			g_useOpenXR = false;
+			return false;
+		}
+
+		// Pick physical device
+		uint32_t deviceCount = 0;
+		vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);
+		std::vector<VkPhysicalDevice> physDevices(deviceCount);
+		vkEnumeratePhysicalDevices(vkInstance, &deviceCount, physDevices.data());
+		VkPhysicalDevice vkPhysicalDevice = physDevices[0];
+
+		// Create device with graphics queue
+		float queuePriority = 1.0f;
+		VkDeviceQueueCreateInfo queueCI = {};
+		queueCI.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCI.queueFamilyIndex = 0;
+		queueCI.queueCount = 1;
+		queueCI.pQueuePriorities = &queuePriority;
+
+		std::vector<const char*> deviceExts = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+
+		VkDeviceCreateInfo deviceCI = {};
+		deviceCI.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		deviceCI.queueCreateInfoCount = 1;
+		deviceCI.pQueueCreateInfos = &queueCI;
+		deviceCI.enabledExtensionCount = deviceExts.size();
+		deviceCI.ppEnabledExtensionNames = deviceExts.data();
+
+		VkDevice vkDevice;
+		if (vkCreateDevice(vkPhysicalDevice, &deviceCI, nullptr, &vkDevice) != VK_SUCCESS) {
+			cemuLog_log(LogType::Force, "Failed to create Vulkan device for OpenXR");
+			vkDestroyInstance(vkInstance, nullptr);
+			g_useOpenXR = false;
+			return false;
+		}
+
+		cemuLog_log(LogType::Force, "Vulkan instance/device created for OpenXR");
+
+		// Initialize OpenXR with our Vulkan objects
+		if (!g_openxrManager->Initialize(vkInstance, vkPhysicalDevice, vkDevice, 0)) {
 			cemuLog_log(LogType::Force, "Failed to initialize OpenXR");
+			vkDestroyDevice(vkDevice, nullptr);
+			vkDestroyInstance(vkInstance, nullptr);
 			g_openxrManager.reset();
 			g_useOpenXR = false;
 			return false;
 		}
 
-		// Create OpenXR swapchain (typical Quest resolution)
-		if (!g_openxrManager->CreateSwapchain(2048, 2048, VK_FORMAT_R8G8B8A8_SRGB)) {
+		// Create OpenXR swapchain
+		if (!g_openxrManager->CreateSwapchain(1920, 1080, VK_FORMAT_R8G8B8A8_SRGB)) {
 			cemuLog_log(LogType::Force, "Failed to create OpenXR swapchain");
 			g_openxrManager.reset();
 			g_useOpenXR = false;
@@ -259,10 +311,11 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env
 		}
 
 		cemuLog_log(LogType::Force, "OpenXR initialized successfully");
+		s_rendererInitialized = true;
 		return true;
 
 	} catch (const std::exception& e) {
-		cemuLog_log(LogType::Force, "Failed to create VulkanRenderer for OpenXR: {}", e.what());
+		cemuLog_log(LogType::Force, "Failed to initialize OpenXR: {}", e.what());
 		g_openxrManager.reset();
 		g_useOpenXR = false;
 		return false;

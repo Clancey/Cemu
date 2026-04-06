@@ -1928,7 +1928,7 @@ COSModule* RPLLoader_GetHLECafeOSModule(std::string_view moduleName)
 	std::span<COSModule*> cosModules = GetCOSModules();
 	for (auto& module : cosModules)
 	{
-		if (boost::iequals(module->GetName(), moduleName))
+		if (module && boost::iequals(module->GetName(), moduleName))
 			return module;
 	}
 	return nullptr;

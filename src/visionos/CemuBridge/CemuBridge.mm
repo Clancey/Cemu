@@ -379,7 +379,8 @@ namespace WindowSystem
         return NO;
     }
 
-    // Launch on a background thread -- this blocks until the title exits.
+    // Launch emulation — LaunchForegroundTitle() starts scheduler threads
+    // and returns immediately. We keep a thread alive to monitor for exit.
     _emulationState = CemuEmulationStateRunning;
     if (_emulationThread.joinable()) {
         _emulationThread.join();
@@ -387,7 +388,12 @@ namespace WindowSystem
     _emulationThread = std::thread([self] {
         os_log_info(cemuLog(), "Emulation thread started");
         CafeSystem::LaunchForegroundTitle();
-        os_log_info(cemuLog(), "Emulation thread finished");
+        os_log_info(cemuLog(), "Emulation launched, scheduler running");
+        // Wait until the title stops running
+        while (CafeSystem::IsTitleRunning()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        os_log_info(cemuLog(), "Emulation thread finished — title exited");
         dispatch_async(dispatch_get_main_queue(), ^{
             self->_emulationState = CemuEmulationStateStopped;
         });

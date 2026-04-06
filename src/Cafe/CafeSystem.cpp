@@ -691,7 +691,7 @@ namespace CafeSystem
         iosu::fsa::Shutdown();
 		// shutdown IOSU modules
 		for(auto it = s_iosuModules.rbegin(); it != s_iosuModules.rend(); ++it)
-			(*it)->SystemExit();
+			if(*it) (*it)->SystemExit();
         s_initialized = false;
     }
 
@@ -915,7 +915,7 @@ namespace CafeSystem
 	void _LaunchTitleThread()
 	{
 		for(auto& module : s_iosuModules)
-			module->TitleStart();
+			if(module) module->TitleStart();
 		cemu_initForGame();
 		// enter scheduler
 		if ((ActiveSettings::GetCPUMode() == CPUMode::MulticoreRecompiler || LaunchSettings::ForceMultiCoreInterpreter()) && !LaunchSettings::ForceInterpreter())
@@ -1097,7 +1097,7 @@ namespace CafeSystem
         coreinit::__OSDeleteAllActivePPCThreads();
         RPLLoader_UnloadAll();
 		for(auto it = s_iosuModules.rbegin(); it != s_iosuModules.rend(); ++it)
-			(*it)->TitleStop();
+			if(*it) (*it)->TitleStop();
         // reset Cemu subsystems
         PPCRecompiler_Shutdown();
         GraphicPack2::Reset();

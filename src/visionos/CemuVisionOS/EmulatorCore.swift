@@ -50,8 +50,38 @@ final class EmulatorCore {
             let message = error.localizedDescription
             lastError = message
             logger.error("Cemu core init failed: \(message)")
+            return
         }
+
+        #if DEBUG && targetEnvironment(simulator)
+        autoLaunchDebugGame()
+        #endif
     }
+
+    #if DEBUG && targetEnvironment(simulator)
+    /// In debug simulator builds, automatically launch BOTW if available.
+    private func autoLaunchDebugGame() {
+        let basePath = "/Users/clancey/Documents/Games/WiiU"
+        let gameDirs = [
+            "The Legend of Zelda Breath of the Wild [Game] [00050000101c9400]",
+        ]
+        let fm = FileManager.default
+        for dir in gameDirs {
+            let codePath = "\(basePath)/\(dir)/code"
+            guard let files = try? fm.contentsOfDirectory(atPath: codePath) else { continue }
+            for file in files where file.hasSuffix(".rpx") {
+                let rpxPath = "\(codePath)/\(file)"
+                logger.info("Auto-launching debug game: \(rpxPath)")
+                // Small delay to let the Metal layer attach first
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    self?.loadGame(at: rpxPath)
+                }
+                return
+            }
+        }
+        logger.info("No debug game found for auto-launch")
+    }
+    #endif
 
     // MARK: - Display
 
