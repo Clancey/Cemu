@@ -196,17 +196,16 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeEmulation([[maybe_
 	}).detach();
 }
 
+static std::atomic<bool> s_rendererInitialized{false};
+
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
 	InitializeGlobalVulkan();
-	JNIUtils::handleNativeException(env, [&]() {
-		NativeEmulation::g_testSurface = std::make_unique<NativeEmulation::TestSurface>();
-
-		WindowSystem::GetWindowInfo().window_main.surface = NativeEmulation::g_testSurface->getWindow();
-
-		g_renderer = std::make_unique<VulkanRenderer>();
-	});
+	// On Quest, TestSurface AHardwareBuffer allocation fails.
+	// Defer VulkanRenderer creation until setSurface provides a real surface.
+	// The renderer will be created lazily in initializeSurface.
+	s_rendererInitialized = false;
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
@@ -249,6 +248,16 @@ extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeSurface(JNIEnv* env, [[maybe_unused]] jclass clazz, jboolean is_main_canvas)
 {
 	JNIUtils::handleNativeException(env, [&]() {
+		// Create VulkanRenderer lazily using the real surface (Quest compatible)
+		if (!s_rendererInitialized && is_main_canvas) {
+			auto surface = WindowSystem::GetWindowInfo().canvas_main.surface.load();
+			if (surface) {
+				WindowSystem::GetWindowInfo().window_main.surface = surface;
+				g_renderer = std::make_unique<VulkanRenderer>();
+				s_rendererInitialized = true;
+			}
+		}
+
 		int width, height;
 		if (is_main_canvas)
 		{

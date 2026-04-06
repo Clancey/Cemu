@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -51,7 +51,7 @@
 		4F13C49A5369C03A81638E11 /* SPIRVToolsOpt.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SPIRVToolsOpt.xcframework; path = ../../build_xcframework/SPIRVToolsOpt.xcframework; sourceTree = "<group>"; };
 		5A10D58E47F032DC00F22EB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6E27825C5AF1C0BEE8BF50C3 /* CemuMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CemuMetalView.swift; sourceTree = "<group>"; };
-		7590881E11776B3A7414FBA2 /* CemuVisionOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CemuVisionOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7590881E11776B3A7414FBA2 /* CemuVisionOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CemuVisionOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		83EA4E6590F0EEF9FEB4378F /* MetalHostView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MetalHostView.h; sourceTree = "<group>"; };
 		86AADB4BCA4BFAA3A974479E /* InputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputManager.swift; sourceTree = "<group>"; };
 		86ECDF07BB87CC9A206E234C /* SPIRVTools.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SPIRVTools.xcframework; path = ../../build_xcframework/SPIRVTools.xcframework; sourceTree = "<group>"; };
@@ -165,7 +165,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					B79705A09F4CE32C136ABA39 = {
 						DevelopmentTeam = "";
@@ -182,7 +182,6 @@
 			);
 			mainGroup = B662674DABB25656B467AC67;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -247,6 +246,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -259,6 +259,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
@@ -269,7 +270,6 @@
 		6D891EAA1B4AFE21361A1519 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CURRENT_PROJECT_VERSION = 1;
@@ -300,10 +300,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.cemu.CemuVisionOS;
 				SDKROOT = xros;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-					"$(inherited)",
-					VISION_OS,
-				);
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) VISION_OS";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "CemuVision-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = 7;
@@ -314,7 +311,6 @@
 		97EAA04EB0300380620E1E8D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CURRENT_PROJECT_VERSION = 1;
@@ -345,10 +341,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.cemu.CemuVisionOS;
 				SDKROOT = xros;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-					"$(inherited)",
-					VISION_OS,
-				);
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) VISION_OS";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "CemuVision-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = 7;
@@ -393,6 +386,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -412,6 +406,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;

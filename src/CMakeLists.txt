@@ -108,6 +108,17 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
 		"LINKER:-force_load,$<TARGET_FILE:cemu_visionos>"
 	)
 	target_link_libraries(CemuBin PRIVATE cemu_visionos)
+
+	# Fix install names: rewrite absolute homebrew paths to @rpath/ so the
+	# app finds dependency dylibs in its Frameworks/ bundle directory
+	add_custom_command(TARGET CemuBin POST_BUILD
+		COMMAND install_name_tool
+			-change "/opt/homebrew/opt/glslang/lib/libglslang.16.dylib" "@rpath/libglslang.dylib"
+			-change "/opt/homebrew/opt/spirv-tools/lib/libSPIRV-Tools-opt.dylib" "@rpath/libSPIRV-Tools-opt.dylib"
+			-change "/opt/homebrew/opt/spirv-tools/lib/libSPIRV-Tools.dylib" "@rpath/libSPIRV-Tools.dylib"
+			"$<TARGET_FILE:CemuBin>"
+		COMMENT "Fixing dylib install names for visionOS bundle"
+	)
 else()
 	add_executable(CemuBin
 		main.cpp
