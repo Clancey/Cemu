@@ -28,6 +28,10 @@
     "boost-static-string",
     "boost-random",
     {
+      "name": "boost-context",
+      "platform": "android"
+    },
+    {
       "name": "fmt",
       "version>=": "12.1.0"
     },

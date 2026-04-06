@@ -18,6 +18,9 @@ add_library(CemuUtil
   DXGIWrapper/DXGIWrapper.h
   EventService.h
   Fiber/Fiber.h
+  Fiber/FiberWin.h
+  Fiber/FiberUContext.h
+  Fiber/FiberFContext.h
   helpers/ClassWrapper.h
   helpers/ConcurrentQueue.h
   helpers/enum_array.hpp
@@ -74,8 +77,13 @@ if(WIN32)
 	target_sources(CemuUtil PRIVATE Fiber/FiberWin.cpp)
 	target_sources(CemuUtil PRIVATE MemMapper/MemMapperWin.cpp)
 	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoWin.cpp)
+elseif(ANDROID)
+	target_sources(CemuUtil PRIVATE Fiber/FiberFContext.cpp)
+	target_sources(CemuUtil PRIVATE MemMapper/MemMapperUnix.cpp)
+	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoUnix.cpp)
+	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoLinux.cpp)
 elseif(UNIX)
-	target_sources(CemuUtil PRIVATE Fiber/FiberUnix.cpp)
+	target_sources(CemuUtil PRIVATE Fiber/FiberUContext.cpp)
 	target_sources(CemuUtil PRIVATE MemMapper/MemMapperUnix.cpp)
 	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoUnix.cpp)
 	if(NOT APPLE)
@@ -96,3 +104,9 @@ target_include_directories(CemuUtil PUBLIC "../")
 target_link_libraries(CemuUtil PRIVATE
   CemuCommon
 )
+
+# Link boost_context for Android builds
+if(ANDROID)
+  find_package(Boost COMPONENTS context REQUIRED)
+  target_link_libraries(CemuUtil PRIVATE Boost::context)
+endif()

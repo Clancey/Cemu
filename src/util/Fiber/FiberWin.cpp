@@ -1,5 +1,15 @@
-#include "Fiber.h"
+#include "FiberWin.h"
 #include <Windows.h>
+
+// Simple assert fallback for debug builds if not already defined
+#ifndef cemu_assert_debug
+#ifdef _DEBUG
+#include <cassert>
+#define cemu_assert_debug(condition) assert(condition)
+#else
+#define cemu_assert_debug(condition) ((void)0)
+#endif
+#endif
 
 thread_local Fiber* sCurrentFiber{};
 
