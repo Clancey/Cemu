@@ -191,12 +191,14 @@ class EmulationViewModel(
     private suspend fun initializeRenderer(): Either<Unit, String> {
         return withContext(Dispatchers.IO) {
             try {
+                // Try OpenXR first (required for Quest)
+                if (NativeEmulation.initializeOpenXR()) {
+                    return@withContext Success(Unit)
+                }
+                // Fall back to SurfaceView-based rendering
                 NativeEmulation.initializeRenderer()
-
                 NativeEmulation.initializeSurface(isMainCanvas = true)
-
                 return@withContext Success(Unit)
-
             } catch (exception: NativeException) {
                 val errorMessage = tr("Failed creating renderer: {0}", exception.message!!)
                 return@withContext Error(errorMessage)

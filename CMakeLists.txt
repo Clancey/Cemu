@@ -371,9 +371,23 @@ if(NOT ANDROID)
 					execute_process(COMMAND ar rcs "${_patched_path}" ${_obj_files})
 					file(REMOVE_RECURSE "${_tmp_dir}")
 				else()
-					# For dylibs: copy and patch directly
+					# For dylibs: copy, patch platform, fix install name, and rewrite deps
 					execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${lib_path}" "${_patched_path}")
 					execute_process(COMMAND vtool -set-build-version ${VISIONOS_VTOOL_PLATFORM} 2.0 2.0 -replace -output "${_patched_path}" "${_patched_path}")
+					execute_process(COMMAND install_name_tool -id "@rpath/${_lib_name}" "${_patched_path}" ERROR_QUIET)
+					# Rewrite any homebrew dep paths to @rpath/
+					execute_process(
+						COMMAND otool -L "${_patched_path}"
+						OUTPUT_VARIABLE _otool_out
+					)
+					string(REGEX MATCHALL "/opt/homebrew/[^\n ]*\\.dylib" _brew_deps "${_otool_out}")
+					foreach(_dep ${_brew_deps})
+						get_filename_component(_dep_name "${_dep}" NAME)
+						# Strip version suffixes (e.g. libglslang.16.dylib -> libglslang.dylib)
+						string(REGEX REPLACE "\\.[0-9]+\\.[0-9]+\\.[0-9]+\\.dylib$" ".dylib" _dep_clean "${_dep_name}")
+						string(REGEX REPLACE "\\.[0-9]+\\.dylib$" ".dylib" _dep_clean "${_dep_clean}")
+						execute_process(COMMAND install_name_tool -change "${_dep}" "@rpath/${_dep_clean}" "${_patched_path}" ERROR_QUIET)
+					endforeach()
 				endif()
 				set_target_properties(${target_name} PROPERTIES
 					IMPORTED_LOCATION "${_patched_path}"

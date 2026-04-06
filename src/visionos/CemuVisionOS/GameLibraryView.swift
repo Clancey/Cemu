@@ -84,6 +84,15 @@ struct GameLibraryView: View {
     // MARK: - Actions
 
     private func launchGame(_ game: GameEntry) {
+        #if DEBUG && targetEnvironment(simulator)
+        // On simulator, paths are direct host filesystem paths — no bookmark needed
+        if game.bookmarkData.isEmpty {
+            core.loadGame(at: game.path)
+            dismiss()
+            return
+        }
+        #endif
+
         // Resolve the bookmark to a URL.
         var isStale = false
         guard let url = try? URL(
@@ -133,6 +142,9 @@ struct GameLibraryView: View {
     private func loadBookmarkedGames() {
         guard let stored = UserDefaults.standard.array(forKey: Self.bookmarksKey)
                 as? [[String: Any]] else {
+            #if DEBUG && targetEnvironment(simulator)
+            games = scanDebugGamePath()
+            #endif
             return
         }
 
@@ -144,7 +156,61 @@ struct GameLibraryView: View {
             }
             return GameEntry(name: name, path: path, bookmarkData: data)
         }
+
+        #if DEBUG && targetEnvironment(simulator)
+        // Append games from the debug path that aren't already bookmarked
+        let existingPaths = Set(games.map(\.path))
+        let debugGames = scanDebugGamePath().filter { !existingPaths.contains($0.path) }
+        games.append(contentsOf: debugGames)
+        #endif
     }
+
+    #if DEBUG && targetEnvironment(simulator)
+    /// Scan a well-known host path for game files when running in the simulator.
+    private func scanDebugGamePath() -> [GameEntry] {
+        let debugPath = "/Users/clancey/Documents/Games/WiiU"
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: debugPath) else { return [] }
+
+        let gameExtensions: Set<String> = ["rpx", "wud", "wux", "wua", "iso", "nsp"]
+        var entries: [GameEntry] = []
+
+        // Scan top-level items
+        guard let items = try? fm.contentsOfDirectory(atPath: debugPath) else { return [] }
+        for item in items {
+            let fullPath = (debugPath as NSString).appendingPathComponent(item)
+            var isDir: ObjCBool = false
+            fm.fileExists(atPath: fullPath, isDirectory: &isDir)
+
+            if isDir.boolValue {
+                // Check for code/<title>.rpx inside the folder
+                let codePath = (fullPath as NSString).appendingPathComponent("code")
+                if let codeContents = try? fm.contentsOfDirectory(atPath: codePath) {
+                    for file in codeContents where file.hasSuffix(".rpx") {
+                        let rpxPath = (codePath as NSString).appendingPathComponent(file)
+                        entries.append(GameEntry(
+                            name: item,
+                            path: rpxPath,
+                            bookmarkData: Data()  // No bookmark needed on simulator
+                        ))
+                        break
+                    }
+                }
+            } else {
+                let ext = (item as NSString).pathExtension.lowercased()
+                if gameExtensions.contains(ext) {
+                    entries.append(GameEntry(
+                        name: (item as NSString).deletingPathExtension,
+                        path: fullPath,
+                        bookmarkData: Data()
+                    ))
+                }
+            }
+        }
+
+        return entries
+    }
+    #endif
 
     private func saveBookmarkedGames() {
         let stored: [[String: Any]] = games.map { entry in

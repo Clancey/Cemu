@@ -25,6 +25,18 @@ object NativeEmulation {
     @JvmStatic
     external fun initializeRenderer()
 
+    @JvmStatic
+    external fun initializeOpenXR(): Boolean
+
+    @JvmStatic
+    external fun shutdownOpenXR()
+
+    @JvmStatic
+    external fun isOpenXRActive(): Boolean
+
+    @JvmStatic
+    external fun updateOpenXRFrame(): Boolean
+
     object PrepareTitleResult {
         const val SUCCESSFUL: Int = 0
         const val ERROR_GAME_BASE_FILES_NOT_FOUND: Int = 1

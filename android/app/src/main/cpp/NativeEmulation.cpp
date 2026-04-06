@@ -14,6 +14,7 @@
 #include "input/api/Android/AndroidControllerProvider.h"
 #include "config/ActiveSettings.h"
 #include "Cemu/ncrypto/ncrypto.h"
+#include "OpenXRManager.h"
 
 // forward declaration from main.cpp
 void CemuCommonInit();
@@ -169,6 +170,8 @@ namespace NativeEmulation
 	};
 
 	std::unique_ptr<TestSurface> g_testSurface;
+	std::unique_ptr<OpenXRManager> g_openxrManager;
+	std::atomic<bool> g_useOpenXR{false};
 } // namespace NativeEmulation
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
@@ -206,6 +209,130 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* e
 	// Defer VulkanRenderer creation until setSurface provides a real surface.
 	// The renderer will be created lazily in initializeSurface.
 	s_rendererInitialized = false;
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env, [[maybe_unused]] jclass clazz)
+{
+	using namespace NativeEmulation;
+
+	cemuLog_log(LogType::Force, "Initializing OpenXR for VR rendering");
+
+	// Enable OpenXR mode
+	g_useOpenXR = true;
+
+	// Create OpenXR manager
+	g_openxrManager = std::make_unique<OpenXRManager>();
+
+	// Initialize Vulkan first
+	InitializeGlobalVulkan();
+
+	// Create a minimal VulkanRenderer for device/instance creation
+	// We'll modify this to work with OpenXR's Vulkan requirements
+	try {
+		g_renderer = std::make_unique<VulkanRenderer>();
+		s_rendererInitialized = true;
+
+		// Get Vulkan objects from renderer
+		auto* vulkanRenderer = VulkanRenderer::GetInstance();
+		VkInstance vkInstance = vulkanRenderer->GetVkInstance();
+		VkPhysicalDevice vkPhysicalDevice = vulkanRenderer->GetPhysicalDevice();
+		VkDevice vkDevice = vulkanRenderer->GetLogicalDevice();
+		// For OpenXR, we typically use graphics queue family index 0
+		uint32_t queueFamilyIndex = 0;
+
+		// Initialize OpenXR with Vulkan objects
+		// TODO: Pass Android activity context if available
+		if (!g_openxrManager->Initialize(vkInstance, vkPhysicalDevice, vkDevice, queueFamilyIndex)) {
+			cemuLog_log(LogType::Force, "Failed to initialize OpenXR");
+			g_openxrManager.reset();
+			g_useOpenXR = false;
+			return false;
+		}
+
+		// Create OpenXR swapchain (typical Quest resolution)
+		if (!g_openxrManager->CreateSwapchain(2048, 2048, VK_FORMAT_R8G8B8A8_SRGB)) {
+			cemuLog_log(LogType::Force, "Failed to create OpenXR swapchain");
+			g_openxrManager.reset();
+			g_useOpenXR = false;
+			return false;
+		}
+
+		cemuLog_log(LogType::Force, "OpenXR initialized successfully");
+		return true;
+
+	} catch (const std::exception& e) {
+		cemuLog_log(LogType::Force, "Failed to create VulkanRenderer for OpenXR: {}", e.what());
+		g_openxrManager.reset();
+		g_useOpenXR = false;
+		return false;
+	}
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_shutdownOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
+{
+	using namespace NativeEmulation;
+
+	if (g_openxrManager) {
+		g_openxrManager->Shutdown();
+		g_openxrManager.reset();
+	}
+	g_useOpenXR = false;
+	cemuLog_log(LogType::Force, "OpenXR shutdown complete");
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_isOpenXRActive([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
+{
+	return NativeEmulation::g_useOpenXR && NativeEmulation::g_openxrManager != nullptr;
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_updateOpenXRFrame([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
+{
+	using namespace NativeEmulation;
+
+	if (!g_useOpenXR || !g_openxrManager) {
+		return false;
+	}
+
+	// Poll OpenXR events
+	g_openxrManager->PollEvents();
+
+	// Check if session is running and ready to render
+	if (!g_openxrManager->IsSessionRunning()) {
+		return false;
+	}
+
+	// Begin OpenXR frame
+	if (!g_openxrManager->BeginFrame()) {
+		return false;
+	}
+
+	// Acquire swapchain image
+	uint32_t imageIndex = g_openxrManager->AcquireSwapchainImage();
+	if (imageIndex == UINT32_MAX) {
+		return false;
+	}
+
+	// TODO: Render Cemu's frame to the OpenXR swapchain image
+	// This would involve:
+	// 1. Getting the current rendered TV texture from VulkanRenderer
+	// 2. Blitting it to the OpenXR swapchain image at imageIndex
+	// 3. Handling the image layout transitions properly
+
+	// Release swapchain image
+	g_openxrManager->ReleaseSwapchainImage();
+
+	// End frame with default quad pose and size
+	XrPosef quadPose = {
+		.orientation = {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f},
+		.position = {.x = 0.0f, .y = 0.0f, .z = -2.0f}
+	};
+	XrExtent2Df quadSize = {.width = 2.0f, .height = 1.125f};
+
+	return g_openxrManager->EndFrame(quadPose, quadSize);
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
