@@ -83,14 +83,7 @@ LatteTextureMtl::LatteTextureMtl(class MetalRenderer* mtlRenderer, Latte::E_DIM 
 		pixelFormat = MTL::PixelFormatDepth32Float_Stencil8;
 	else if (pixelFormat == MTL::PixelFormatDepth16Unorm)
 		pixelFormat = MTL::PixelFormatDepth32Float;
-	// Packed 16-bit formats not supported on simulator — use RGBA8
-	else if (pixelFormat == MTL::PixelFormatB5G6R5Unorm ||
-	         pixelFormat == MTL::PixelFormatA1BGR5Unorm ||
-	         pixelFormat == MTL::PixelFormatABGR4Unorm ||
-	         pixelFormat == MTL::PixelFormatBGR5A1Unorm)
-		pixelFormat = MTL::PixelFormatRGBA8Unorm;
-	// BC formats are now handled via software decompression in the format table
-	// (LatteToMtl.cpp maps them to RGBA8/R8/RG8 with TextureDecoder_BC*_uncompress)
+	// Packed and BC formats are handled via software decompression in the format table
 #endif
 	desc->setPixelFormat(pixelFormat);
 

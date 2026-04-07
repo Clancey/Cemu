@@ -61,11 +61,22 @@ class EmulationActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        android.util.Log.d("Cemu", "EmulationActivity.onCreate() called")
         currentActivity = this
         sensorManager = SensorManager(this)
         sensorManager.setDeviceRotationProvider { display.rotation }
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Request immersive mode for Quest VR
+        try {
+            // On Quest, requestVrMode tells the system this is a VR activity
+            val vrMethod = android.app.Activity::class.java.getMethod("requestVrMode", android.content.ComponentName::class.java)
+            vrMethod.invoke(this, null as android.content.ComponentName?)
+            android.util.Log.d("Cemu", "requestVrMode called successfully")
+        } catch (e: Exception) {
+            android.util.Log.d("Cemu", "requestVrMode not available: ${e.message}")
+        }
 
         setFullscreen()
 
@@ -89,9 +100,31 @@ class EmulationActivity : AppCompatActivity() {
         sensorManager.pauseListening()
     }
 
+    private var openxrInitialized = false
+
     override fun onResume() {
         super.onResume()
+        android.util.Log.d("Cemu", "EmulationActivity.onResume() called")
         sensorManager.resumeListening()
+
+        // Initialize OpenXR after window is ready — use post() to defer past layout
+        if (!openxrInitialized) {
+            openxrInitialized = true
+            // Wait for window to be fully drawn before OpenXR init
+            window.decorView.post {
+                android.util.Log.d("Cemu", "Window ready, starting OpenXR init")
+                Thread {
+                    // Small delay to let Quest compositor process the window
+                    Thread.sleep(500)
+                    try {
+                        val result = info.cemu.cemu.nativeinterface.NativeEmulation.initializeOpenXR(this)
+                        android.util.Log.d("Cemu", "OpenXR init result: $result")
+                    } catch (e: Exception) {
+                        android.util.Log.e("Cemu", "OpenXR init failed: ${e.message}")
+                    }
+                }.start()
+            }
+        }
     }
 
     override fun onDestroy() {

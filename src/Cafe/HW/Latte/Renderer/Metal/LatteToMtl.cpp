@@ -6,11 +6,20 @@
 std::map<Latte::E_GX2SURFFMT, MetalPixelFormatInfo> MTL_COLOR_FORMAT_TABLE = {
     {Latte::E_GX2SURFFMT::INVALID_FORMAT, {MTL::PixelFormatInvalid, MetalDataType::NONE, 0}},
 
+#if TARGET_OS_VISION
+	// visionOS simulator doesn't support packed 16-bit formats — decompress to RGBA8
+	{Latte::E_GX2SURFFMT::R4_G4_UNORM, {MTL::PixelFormatRGBA8Unorm, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_R4_G4_UNORM_To_RGBA4::getInstance()}},
+	{Latte::E_GX2SURFFMT::R5_G6_B5_UNORM, {MTL::PixelFormatRGBA8Unorm, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_R5_G5_B5_A1_UNORM_swappedRB_To_RGBA8::getInstance()}},
+	{Latte::E_GX2SURFFMT::R5_G5_B5_A1_UNORM, {MTL::PixelFormatRGBA8Unorm, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_R5_G5_B5_A1_UNORM_swappedRB_To_RGBA8::getInstance()}},
+	{Latte::E_GX2SURFFMT::R4_G4_B4_A4_UNORM, {MTL::PixelFormatRGBA8Unorm, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_R4_G4_UNORM_To_RGBA4::getInstance()}},
+	{Latte::E_GX2SURFFMT::A1_B5_G5_R5_UNORM, {MTL::PixelFormatRGBA8Unorm, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_A1_B5_G5_R5_UNORM_vulkan_To_RGBA8::getInstance()}},
+#else
 	{Latte::E_GX2SURFFMT::R4_G4_UNORM, {MTL::PixelFormatABGR4Unorm, MetalDataType::FLOAT, 2}},
 	{Latte::E_GX2SURFFMT::R5_G6_B5_UNORM, {MTL::PixelFormatB5G6R5Unorm, MetalDataType::FLOAT, 2}},
 	{Latte::E_GX2SURFFMT::R5_G5_B5_A1_UNORM, {MTL::PixelFormatBGR5A1Unorm, MetalDataType::FLOAT, 2}},
 	{Latte::E_GX2SURFFMT::R4_G4_B4_A4_UNORM, {MTL::PixelFormatABGR4Unorm, MetalDataType::FLOAT, 2}},
 	{Latte::E_GX2SURFFMT::A1_B5_G5_R5_UNORM, {MTL::PixelFormatA1BGR5Unorm, MetalDataType::FLOAT, 2}},
+#endif
 	{Latte::E_GX2SURFFMT::R8_UNORM, {MTL::PixelFormatR8Unorm, MetalDataType::FLOAT, 1}},
 	{Latte::E_GX2SURFFMT::R8_SNORM, {MTL::PixelFormatR8Snorm, MetalDataType::FLOAT, 1}},
 	{Latte::E_GX2SURFFMT::R8_UINT, {MTL::PixelFormatR8Uint, MetalDataType::UINT, 1}},
