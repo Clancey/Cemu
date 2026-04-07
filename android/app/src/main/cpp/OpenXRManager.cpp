@@ -1,5 +1,6 @@
 #include "OpenXRManager.h"
 #include "JNIUtils.h"
+#include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 #include <android/log.h>
 #include <array>
 #include <cstring>
@@ -344,19 +345,107 @@ bool OpenXRManager::GetSystem()
 
 bool OpenXRManager::CreateSession()
 {
+    LogInfo("Creating OpenXR session with Vulkan binding");
+    LogInfo("  VkInstance=%p PhysDevice=%p Device=%p QueueFamily=%d",
+        (void*)m_vkInstance, (void*)m_vkPhysicalDevice, (void*)m_vkDevice, m_queueFamilyIndex);
+
     XrGraphicsBindingVulkanKHR vulkanBinding = {XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR};
     vulkanBinding.instance = m_vkInstance;
     vulkanBinding.physicalDevice = m_vkPhysicalDevice;
     vulkanBinding.device = m_vkDevice;
     vulkanBinding.queueFamilyIndex = m_queueFamilyIndex;
-    vulkanBinding.queueIndex = 0; // Assume first queue in family
+    vulkanBinding.queueIndex = 0;
 
     XrSessionCreateInfo sessionCreateInfo = {XR_TYPE_SESSION_CREATE_INFO};
     sessionCreateInfo.next = &vulkanBinding;
     sessionCreateInfo.systemId = m_systemId;
 
     XrResult result = p_xrCreateSession(m_instance, &sessionCreateInfo, &m_session);
-    return CheckXrResult(result, "p_xrCreateSession");
+    __android_log_print(ANDROID_LOG_DEBUG, "OpenXRManager", "xrCreateSession result: %d", result);
+    if (XR_FAILED(result)) {
+        __android_log_print(ANDROID_LOG_DEBUG, "OpenXRManager", "First attempt failed, retrying with fresh Vulkan...");
+        LogInfo("Retrying with fresh Vulkan objects...");
+
+        // Create a minimal Vulkan instance
+        VkApplicationInfo appInfo = {};
+        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+        appInfo.pApplicationName = "Cemu";
+        appInfo.apiVersion = VK_API_VERSION_1_1;
+
+        std::vector<const char*> instExts = {
+            VK_KHR_SURFACE_EXTENSION_NAME,
+            VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_FENCE_CAPABILITIES_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME,
+            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+        };
+
+        VkInstanceCreateInfo instCI = {};
+        instCI.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+        instCI.pApplicationInfo = &appInfo;
+        instCI.enabledExtensionCount = instExts.size();
+        instCI.ppEnabledExtensionNames = instExts.data();
+
+        VkInstance freshInstance;
+        if (vkCreateInstance(&instCI, nullptr, &freshInstance) != VK_SUCCESS) {
+            LogError("Failed to create fresh Vulkan instance");
+            return false;
+        }
+
+        uint32_t devCount = 0;
+        vkEnumeratePhysicalDevices(freshInstance, &devCount, nullptr);
+        std::vector<VkPhysicalDevice> devs(devCount);
+        vkEnumeratePhysicalDevices(freshInstance, &devCount, devs.data());
+
+        float qp = 1.0f;
+        VkDeviceQueueCreateInfo qCI = {};
+        qCI.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        qCI.queueFamilyIndex = 0;
+        qCI.queueCount = 1;
+        qCI.pQueuePriorities = &qp;
+
+        std::vector<const char*> devExts = {
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+        };
+
+        VkDeviceCreateInfo devCI = {};
+        devCI.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        devCI.queueCreateInfoCount = 1;
+        devCI.pQueueCreateInfos = &qCI;
+        devCI.enabledExtensionCount = devExts.size();
+        devCI.ppEnabledExtensionNames = devExts.data();
+
+        VkDevice freshDevice;
+        if (vkCreateDevice(devs[0], &devCI, nullptr, &freshDevice) != VK_SUCCESS) {
+            LogError("Failed to create fresh Vulkan device");
+            vkDestroyInstance(freshInstance, nullptr);
+            return false;
+        }
+
+        LogInfo("Created fresh Vulkan objects with OpenXR-required extensions");
+
+        vulkanBinding.instance = freshInstance;
+        vulkanBinding.physicalDevice = devs[0];
+        vulkanBinding.device = freshDevice;
+
+        result = p_xrCreateSession(m_instance, &sessionCreateInfo, &m_session);
+        if (!CheckXrResult(result, "p_xrCreateSession (retry)")) {
+            vkDestroyDevice(freshDevice, nullptr);
+            vkDestroyInstance(freshInstance, nullptr);
+            return false;
+        }
+        // Store fresh objects (they need to stay alive)
+        m_vkInstance = freshInstance;
+        m_vkPhysicalDevice = devs[0];
+        m_vkDevice = freshDevice;
+    }
+    return true;
 }
 
 bool OpenXRManager::CreateReferenceSpace()
