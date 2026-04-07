@@ -183,15 +183,31 @@ struct GameLibraryView: View {
             fm.fileExists(atPath: fullPath, isDirectory: &isDir)
 
             if isDir.boolValue {
-                // Check for code/<title>.rpx inside the folder
+                // Check for a valid game directory (with code/ and meta/ or code/*.rpx)
                 let codePath = (fullPath as NSString).appendingPathComponent("code")
-                if let codeContents = try? fm.contentsOfDirectory(atPath: codePath) {
+                let metaPath = (fullPath as NSString).appendingPathComponent("meta")
+                // Skip Update and DLC folders — only show [Game] entries
+                if item.contains("[Update]") || item.contains("[DLC]") {
+                    continue
+                }
+                if fm.fileExists(atPath: codePath) && fm.fileExists(atPath: metaPath) {
+                    // Full game directory — pass the directory path (not the RPX)
+                    // Extract a clean name from the folder name
+                    let cleanName = item
+                        .replacingOccurrences(of: #"\s*\[Game\].*"#, with: "", options: .regularExpression)
+                        .trimmingCharacters(in: .whitespaces)
+                    entries.append(GameEntry(
+                        name: cleanName.isEmpty ? item : cleanName,
+                        path: fullPath,
+                        bookmarkData: Data()
+                    ))
+                } else if let codeContents = try? fm.contentsOfDirectory(atPath: codePath) {
                     for file in codeContents where file.hasSuffix(".rpx") {
                         let rpxPath = (codePath as NSString).appendingPathComponent(file)
                         entries.append(GameEntry(
                             name: item,
                             path: rpxPath,
-                            bookmarkData: Data()  // No bookmark needed on simulator
+                            bookmarkData: Data()
                         ))
                         break
                     }

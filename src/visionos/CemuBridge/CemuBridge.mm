@@ -5,6 +5,7 @@
 
 #include "Cafe/CafeSystem.h"
 #include "Cafe/TitleList/TitleList.h"
+#include "Cafe/TitleList/TitleInfo.h"
 #include "Cafe/TitleList/SaveList.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
@@ -378,10 +379,34 @@ namespace WindowSystem
     os_log_info(cemuLog(), "Loading game: %{public}@", path);
 
     fs::path gamePath([path UTF8String]);
-    auto status = CafeSystem::PrepareForegroundTitleFromStandaloneRPX(gamePath);
+    CafeSystem::PREPARE_STATUS_CODE status = CafeSystem::PREPARE_STATUS_CODE::UNABLE_TO_MOUNT;
+
+    // Try loading as a title (directory with meta/code/content, WUD, WUX, etc.)
+    TitleInfo launchTitle{gamePath};
+    if (launchTitle.IsValid())
+    {
+        cemuLog_log(LogType::Force, "visionOS: Loading valid title from path");
+        CafeTitleList::AddTitleFromPath(gamePath);
+        TitleId baseTitleId;
+        if (CafeTitleList::FindBaseTitleId(launchTitle.GetAppTitleId(), baseTitleId))
+        {
+            cemuLog_log(LogType::Force, "visionOS: Found base title ID {:016x}", baseTitleId);
+            status = CafeSystem::PrepareForegroundTitle(baseTitleId);
+        }
+        else
+        {
+            cemuLog_log(LogType::Force, "visionOS: Could not find base title, trying direct launch");
+            status = CafeSystem::PrepareForegroundTitleFromStandaloneRPX(gamePath);
+        }
+    }
+    else
+    {
+        // Not a valid title structure — try as standalone RPX/ELF
+        cemuLog_log(LogType::Force, "visionOS: Loading as standalone RPX");
+        status = CafeSystem::PrepareForegroundTitleFromStandaloneRPX(gamePath);
+    }
+
     if (status != CafeSystem::PREPARE_STATUS_CODE::SUCCESS) {
-        // Attempt as a title ID path (WUD/WUX).
-        // For standalone RPX that failed, report an error.
         _emulationState = CemuEmulationStateStopped;
         if (error) {
             *error = [NSError errorWithDomain:@"org.cemu.CemuVision"

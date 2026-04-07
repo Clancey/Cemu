@@ -41,19 +41,13 @@ public:
     OpenXRManager& operator=(const OpenXRManager&) = delete;
 
     /**
-     * Initialize OpenXR with existing Vulkan objects.
+     * Initialize OpenXR and create Vulkan objects through OpenXR.
      * Must be called before any other operations.
      *
-     * @param vkInstance        Existing Vulkan instance
-     * @param vkPhysicalDevice  Vulkan physical device
-     * @param vkDevice          Vulkan logical device
-     * @param queueFamilyIndex  Queue family index for graphics operations
      * @param activity          Android native activity (for instance creation)
      * @return true on success, false on failure
      */
-    bool Initialize(VkInstance vkInstance, VkPhysicalDevice vkPhysicalDevice,
-                   VkDevice vkDevice, uint32_t queueFamilyIndex,
-                   ANativeActivity* activity = nullptr);
+    bool Initialize(ANativeActivity* activity = nullptr);
 
     /**
      * Create OpenXR swapchain for rendering.
@@ -128,6 +122,14 @@ public:
     void Shutdown();
 
     /**
+     * Get OpenXR-created Vulkan objects.
+     */
+    VkInstance GetVkInstance() const { return m_vkInstance; }
+    VkPhysicalDevice GetVkPhysicalDevice() const { return m_vkPhysicalDevice; }
+    VkDevice GetVkDevice() const { return m_vkDevice; }
+    uint32_t GetQueueFamilyIndex() const { return m_queueFamilyIndex; }
+
+    /**
      * Get the OpenXR instance handle.
      */
     XrInstance GetInstance() const { return m_instance; }
@@ -164,11 +166,12 @@ private:
     VkFormat m_swapchainFormat = VK_FORMAT_UNDEFINED;
     uint32_t m_acquiredImageIndex = UINT32_MAX;
 
-    // Vulkan objects (not owned by this class)
+    // Vulkan objects (owned by this class when created through OpenXR)
     VkInstance m_vkInstance = VK_NULL_HANDLE;
     VkPhysicalDevice m_vkPhysicalDevice = VK_NULL_HANDLE;
     VkDevice m_vkDevice = VK_NULL_HANDLE;
     uint32_t m_queueFamilyIndex = 0;
+    bool m_ownVulkanObjects = false; // true if we created Vulkan objects, false if externally provided
 
     // Android
     ANativeActivity* m_activity = nullptr;
@@ -205,12 +208,16 @@ private:
 
     // Extension function pointers
     PFN_xrGetVulkanGraphicsRequirements2KHR m_xrGetVulkanGraphicsRequirements2KHR = nullptr;
+    PFN_xrCreateVulkanInstanceKHR m_xrCreateVulkanInstanceKHR = nullptr;
+    PFN_xrCreateVulkanDeviceKHR m_xrCreateVulkanDeviceKHR = nullptr;
+    PFN_xrGetVulkanGraphicsDevice2KHR m_xrGetVulkanGraphicsDevice2KHR = nullptr;
 
     // Helper methods
     bool LoadOpenXRLibrary();
     bool LoadInstanceFunctions();
     bool CreateInstance();
     bool GetSystem();
+    bool CreateVulkanObjects();
     bool CreateSession();
     bool CreateReferenceSpace();
     bool LoadExtensions();

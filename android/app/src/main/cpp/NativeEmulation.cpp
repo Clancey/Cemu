@@ -224,30 +224,34 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR([[maybe_unu
 	cemuLog_log(LogType::Force, "OpenXR: Initializing with dynamic loading");
 
 	try {
-		// Initialize global Vulkan first (this creates the VulkanRenderer)
+		// Initialize global Vulkan (loads function pointers only)
 		if (!InitializeGlobalVulkan()) {
 			cemuLog_log(LogType::Force, "OpenXR: Failed to initialize global Vulkan");
 			return false;
 		}
 
-		// Create VulkanRenderer normally
-		g_renderer = std::make_unique<VulkanRenderer>();
-
-		// Get Vulkan objects from the renderer
-		VkInstance vkInstance = VulkanRenderer::GetInstance()->GetVkInstance();
-		VkPhysicalDevice vkPhysicalDevice = VulkanRenderer::GetInstance()->GetPhysicalDevice();
-		VkDevice vkDevice = VulkanRenderer::GetInstance()->GetLogicalDevice();
-		uint32_t queueFamilyIndex = 0;  // TODO: Get actual graphics queue family index
-
-		// Create OpenXR manager
+		// Create OpenXR manager and let it create Vulkan objects via OpenXR
 		g_openxrManager = std::make_unique<OpenXRManager>();
 
-		// Initialize OpenXR with Vulkan objects
-		if (!g_openxrManager->Initialize(vkInstance, vkPhysicalDevice, vkDevice, queueFamilyIndex)) {
+		// Initialize OpenXR (this creates Vulkan objects through OpenXR)
+		if (!g_openxrManager->Initialize()) {
 			cemuLog_log(LogType::Force, "OpenXR: Failed to initialize OpenXR manager");
 			g_openxrManager.reset();
 			return false;
 		}
+
+		// Get OpenXR-created Vulkan objects
+		VkInstance vkInstance = g_openxrManager->GetVkInstance();
+		VkPhysicalDevice vkPhysicalDevice = g_openxrManager->GetVkPhysicalDevice();
+		VkDevice vkDevice = g_openxrManager->GetVkDevice();
+		uint32_t queueFamilyIndex = g_openxrManager->GetQueueFamilyIndex();
+
+		cemuLog_log(LogType::Force, "OpenXR: Created Vulkan objects - Instance={:p} PhysDevice={:p} Device={:p} QueueFamily={}",
+			(void*)vkInstance, (void*)vkPhysicalDevice, (void*)vkDevice, queueFamilyIndex);
+
+		// TODO: Pass these Vulkan objects to VulkanRenderer
+		// For now, just ensure the session is created successfully
+		// g_renderer = std::make_unique<VulkanRenderer>(vkInstance, vkPhysicalDevice, vkDevice, queueFamilyIndex);
 
 		// Create OpenXR swapchain (1920x1080 for now, typical TV resolution)
 		const uint32_t swapchainWidth = 1920;

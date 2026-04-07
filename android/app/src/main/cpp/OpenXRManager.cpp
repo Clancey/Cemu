@@ -66,17 +66,10 @@ void OpenXRManager::LogInfo(const char* fmt, ...) const
     LOGI("%s", buf);
 }
 
-bool OpenXRManager::Initialize(VkInstance vkInstance, VkPhysicalDevice vkPhysicalDevice,
-                              VkDevice vkDevice, uint32_t queueFamilyIndex,
-                              ANativeActivity* activity)
+bool OpenXRManager::Initialize(ANativeActivity* activity)
 {
     LogInfo("Initializing OpenXR with dynamic loading");
 
-    // Store Vulkan objects
-    m_vkInstance = vkInstance;
-    m_vkPhysicalDevice = vkPhysicalDevice;
-    m_vkDevice = vkDevice;
-    m_queueFamilyIndex = queueFamilyIndex;
     m_activity = activity;
 
     if (!LoadOpenXRLibrary()) {
@@ -101,6 +94,11 @@ bool OpenXRManager::Initialize(VkInstance vkInstance, VkPhysicalDevice vkPhysica
 
     if (!GetSystem()) {
         LogError("Failed to get OpenXR system");
+        return false;
+    }
+
+    if (!CreateVulkanObjects()) {
+        LogError("Failed to create Vulkan objects through OpenXR");
         return false;
     }
 
@@ -319,7 +317,31 @@ bool OpenXRManager::LoadExtensions()
 {
     XrResult result = p_xrGetInstanceProcAddr(m_instance, "xrGetVulkanGraphicsRequirements2KHR",
                                             reinterpret_cast<PFN_xrVoidFunction*>(&m_xrGetVulkanGraphicsRequirements2KHR));
-    return CheckXrResult(result, "xrGetInstanceProcAddr(xrGetVulkanGraphicsRequirements2KHR)");
+    if (!CheckXrResult(result, "xrGetInstanceProcAddr(xrGetVulkanGraphicsRequirements2KHR)")) {
+        return false;
+    }
+
+    // Load XR_KHR_vulkan_enable2 functions
+    result = p_xrGetInstanceProcAddr(m_instance, "xrCreateVulkanInstanceKHR",
+                                   reinterpret_cast<PFN_xrVoidFunction*>(&m_xrCreateVulkanInstanceKHR));
+    if (!CheckXrResult(result, "xrGetInstanceProcAddr(xrCreateVulkanInstanceKHR)")) {
+        return false;
+    }
+
+    result = p_xrGetInstanceProcAddr(m_instance, "xrCreateVulkanDeviceKHR",
+                                   reinterpret_cast<PFN_xrVoidFunction*>(&m_xrCreateVulkanDeviceKHR));
+    if (!CheckXrResult(result, "xrGetInstanceProcAddr(xrCreateVulkanDeviceKHR)")) {
+        return false;
+    }
+
+    result = p_xrGetInstanceProcAddr(m_instance, "xrGetVulkanGraphicsDevice2KHR",
+                                   reinterpret_cast<PFN_xrVoidFunction*>(&m_xrGetVulkanGraphicsDevice2KHR));
+    if (!CheckXrResult(result, "xrGetInstanceProcAddr(xrGetVulkanGraphicsDevice2KHR)")) {
+        return false;
+    }
+
+    LogInfo("OpenXR Vulkan enable2 functions loaded successfully");
+    return true;
 }
 
 bool OpenXRManager::GetSystem()
@@ -343,6 +365,137 @@ bool OpenXRManager::GetSystem()
     return true;
 }
 
+bool OpenXRManager::CreateVulkanObjects()
+{
+    LogInfo("Creating Vulkan objects through OpenXR");
+
+    // Create Vulkan instance through OpenXR
+    VkApplicationInfo appInfo = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
+    appInfo.pApplicationName = "Cemu";
+    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.pEngineName = "Cemu Engine";
+    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.apiVersion = VK_API_VERSION_1_1;
+
+    std::vector<const char*> instExts = {
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_FENCE_CAPABILITIES_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME,
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+    };
+
+    VkInstanceCreateInfo vkInstanceCI = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    vkInstanceCI.pApplicationInfo = &appInfo;
+    vkInstanceCI.enabledExtensionCount = static_cast<uint32_t>(instExts.size());
+    vkInstanceCI.ppEnabledExtensionNames = instExts.data();
+
+    XrVulkanInstanceCreateInfoKHR xrVulkanInstanceCI = {XR_TYPE_VULKAN_INSTANCE_CREATE_INFO_KHR};
+    xrVulkanInstanceCI.systemId = m_systemId;
+    xrVulkanInstanceCI.pfnGetInstanceProcAddr = vkGetInstanceProcAddr;
+    xrVulkanInstanceCI.vulkanCreateInfo = &vkInstanceCI;
+
+    VkResult vkResult;
+    XrResult xrResult = m_xrCreateVulkanInstanceKHR(m_instance, &xrVulkanInstanceCI, &m_vkInstance, &vkResult);
+
+    if (!CheckXrResult(xrResult, "xrCreateVulkanInstanceKHR")) {
+        return false;
+    }
+    if (vkResult != VK_SUCCESS) {
+        LogError("xrCreateVulkanInstanceKHR returned VkResult %d", vkResult);
+        return false;
+    }
+
+    LogInfo("OpenXR created Vulkan instance successfully");
+
+    // Initialize Vulkan instance functions for the OpenXR-created instance
+    if (!InitializeInstanceVulkan(m_vkInstance)) {
+        LogError("Failed to initialize Vulkan instance functions");
+        return false;
+    }
+
+    // Get physical device from OpenXR
+    XrVulkanGraphicsDeviceGetInfoKHR deviceGetInfo = {XR_TYPE_VULKAN_GRAPHICS_DEVICE_GET_INFO_KHR};
+    deviceGetInfo.systemId = m_systemId;
+    deviceGetInfo.vulkanInstance = m_vkInstance;
+
+    xrResult = m_xrGetVulkanGraphicsDevice2KHR(m_instance, &deviceGetInfo, &m_vkPhysicalDevice);
+    if (!CheckXrResult(xrResult, "xrGetVulkanGraphicsDevice2KHR")) {
+        return false;
+    }
+
+    LogInfo("OpenXR selected Vulkan physical device successfully");
+
+    // Find graphics queue family
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(m_vkPhysicalDevice, &queueFamilyCount, nullptr);
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(m_vkPhysicalDevice, &queueFamilyCount, queueFamilies.data());
+
+    m_queueFamilyIndex = UINT32_MAX;
+    for (uint32_t i = 0; i < queueFamilyCount; i++) {
+        if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            m_queueFamilyIndex = i;
+            break;
+        }
+    }
+
+    if (m_queueFamilyIndex == UINT32_MAX) {
+        LogError("No graphics queue family found");
+        return false;
+    }
+
+    // Create logical device through OpenXR
+    float queuePriority = 1.0f;
+    VkDeviceQueueCreateInfo queueCI = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+    queueCI.queueFamilyIndex = m_queueFamilyIndex;
+    queueCI.queueCount = 1;
+    queueCI.pQueuePriorities = &queuePriority;
+
+    std::vector<const char*> devExts = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+    };
+
+    VkDeviceCreateInfo vkDeviceCI = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+    vkDeviceCI.queueCreateInfoCount = 1;
+    vkDeviceCI.pQueueCreateInfos = &queueCI;
+    vkDeviceCI.enabledExtensionCount = static_cast<uint32_t>(devExts.size());
+    vkDeviceCI.ppEnabledExtensionNames = devExts.data();
+
+    XrVulkanDeviceCreateInfoKHR xrVulkanDeviceCI = {XR_TYPE_VULKAN_DEVICE_CREATE_INFO_KHR};
+    xrVulkanDeviceCI.systemId = m_systemId;
+    xrVulkanDeviceCI.pfnGetInstanceProcAddr = vkGetInstanceProcAddr;
+    xrVulkanDeviceCI.vulkanPhysicalDevice = m_vkPhysicalDevice;
+    xrVulkanDeviceCI.vulkanCreateInfo = &vkDeviceCI;
+
+    xrResult = m_xrCreateVulkanDeviceKHR(m_instance, &xrVulkanDeviceCI, &m_vkDevice, &vkResult);
+
+    if (!CheckXrResult(xrResult, "xrCreateVulkanDeviceKHR")) {
+        return false;
+    }
+    if (vkResult != VK_SUCCESS) {
+        LogError("xrCreateVulkanDeviceKHR returned VkResult %d", vkResult);
+        return false;
+    }
+
+    // Initialize Vulkan device functions for the OpenXR-created device
+    if (!InitializeDeviceVulkan(m_vkDevice)) {
+        LogError("Failed to initialize Vulkan device functions");
+        return false;
+    }
+
+    m_ownVulkanObjects = true;
+    LogInfo("OpenXR created Vulkan device successfully - Instance=%p PhysDevice=%p Device=%p QueueFamily=%d",
+        (void*)m_vkInstance, (void*)m_vkPhysicalDevice, (void*)m_vkDevice, m_queueFamilyIndex);
+    return true;
+}
+
 bool OpenXRManager::CreateSession()
 {
     LogInfo("Creating OpenXR session with Vulkan binding");
@@ -361,91 +514,7 @@ bool OpenXRManager::CreateSession()
     sessionCreateInfo.systemId = m_systemId;
 
     XrResult result = p_xrCreateSession(m_instance, &sessionCreateInfo, &m_session);
-    __android_log_print(ANDROID_LOG_DEBUG, "OpenXRManager", "xrCreateSession result: %d", result);
-    if (XR_FAILED(result)) {
-        __android_log_print(ANDROID_LOG_DEBUG, "OpenXRManager", "First attempt failed, retrying with fresh Vulkan...");
-        LogInfo("Retrying with fresh Vulkan objects...");
-
-        // Create a minimal Vulkan instance
-        VkApplicationInfo appInfo = {};
-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "Cemu";
-        appInfo.apiVersion = VK_API_VERSION_1_1;
-
-        std::vector<const char*> instExts = {
-            VK_KHR_SURFACE_EXTENSION_NAME,
-            VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_FENCE_CAPABILITIES_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME,
-            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-        };
-
-        VkInstanceCreateInfo instCI = {};
-        instCI.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        instCI.pApplicationInfo = &appInfo;
-        instCI.enabledExtensionCount = instExts.size();
-        instCI.ppEnabledExtensionNames = instExts.data();
-
-        VkInstance freshInstance;
-        if (vkCreateInstance(&instCI, nullptr, &freshInstance) != VK_SUCCESS) {
-            LogError("Failed to create fresh Vulkan instance");
-            return false;
-        }
-
-        uint32_t devCount = 0;
-        vkEnumeratePhysicalDevices(freshInstance, &devCount, nullptr);
-        std::vector<VkPhysicalDevice> devs(devCount);
-        vkEnumeratePhysicalDevices(freshInstance, &devCount, devs.data());
-
-        float qp = 1.0f;
-        VkDeviceQueueCreateInfo qCI = {};
-        qCI.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        qCI.queueFamilyIndex = 0;
-        qCI.queueCount = 1;
-        qCI.pQueuePriorities = &qp;
-
-        std::vector<const char*> devExts = {
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
-        };
-
-        VkDeviceCreateInfo devCI = {};
-        devCI.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        devCI.queueCreateInfoCount = 1;
-        devCI.pQueueCreateInfos = &qCI;
-        devCI.enabledExtensionCount = devExts.size();
-        devCI.ppEnabledExtensionNames = devExts.data();
-
-        VkDevice freshDevice;
-        if (vkCreateDevice(devs[0], &devCI, nullptr, &freshDevice) != VK_SUCCESS) {
-            LogError("Failed to create fresh Vulkan device");
-            vkDestroyInstance(freshInstance, nullptr);
-            return false;
-        }
-
-        LogInfo("Created fresh Vulkan objects with OpenXR-required extensions");
-
-        vulkanBinding.instance = freshInstance;
-        vulkanBinding.physicalDevice = devs[0];
-        vulkanBinding.device = freshDevice;
-
-        result = p_xrCreateSession(m_instance, &sessionCreateInfo, &m_session);
-        if (!CheckXrResult(result, "p_xrCreateSession (retry)")) {
-            vkDestroyDevice(freshDevice, nullptr);
-            vkDestroyInstance(freshInstance, nullptr);
-            return false;
-        }
-        // Store fresh objects (they need to stay alive)
-        m_vkInstance = freshInstance;
-        m_vkPhysicalDevice = devs[0];
-        m_vkDevice = freshDevice;
-    }
-    return true;
+    return CheckXrResult(result, "xrCreateSession");
 }
 
 bool OpenXRManager::CreateReferenceSpace()
@@ -685,6 +754,19 @@ void OpenXRManager::Shutdown()
         m_session = XR_NULL_HANDLE;
     }
 
+    // Clean up Vulkan objects if we created them
+    if (m_ownVulkanObjects) {
+        if (m_vkDevice != VK_NULL_HANDLE) {
+            vkDestroyDevice(m_vkDevice, nullptr);
+            m_vkDevice = VK_NULL_HANDLE;
+        }
+        if (m_vkInstance != VK_NULL_HANDLE) {
+            vkDestroyInstance(m_vkInstance, nullptr);
+            m_vkInstance = VK_NULL_HANDLE;
+        }
+        m_ownVulkanObjects = false;
+    }
+
     if (m_instance != XR_NULL_HANDLE) {
         p_xrDestroyInstance(m_instance);
         m_instance = XR_NULL_HANDLE;
@@ -720,6 +802,9 @@ void OpenXRManager::Shutdown()
     p_xrPollEvent = nullptr;
     p_xrResultToString = nullptr;
     m_xrGetVulkanGraphicsRequirements2KHR = nullptr;
+    m_xrCreateVulkanInstanceKHR = nullptr;
+    m_xrCreateVulkanDeviceKHR = nullptr;
+    m_xrGetVulkanGraphicsDevice2KHR = nullptr;
 
     // Clear state
     m_openxrLoaded = false;

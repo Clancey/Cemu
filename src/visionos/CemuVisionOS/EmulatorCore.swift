@@ -70,13 +70,22 @@ final class EmulatorCore {
         ]
         let fm = FileManager.default
         for dir in gameDirs {
-            let codePath = "\(basePath)/\(dir)/code"
-            guard let files = try? fm.contentsOfDirectory(atPath: codePath) else { continue }
-            for file in files where file.hasSuffix(".rpx") {
-                let rpxPath = "\(codePath)/\(file)"
-                logger.info("Debug game queued for auto-launch: \(rpxPath)")
-                pendingDebugGamePath = rpxPath
+            let gameDirPath = "\(basePath)/\(dir)"
+            // Check if this is a valid game directory (has code/ and meta/)
+            if fm.fileExists(atPath: "\(gameDirPath)/code") && fm.fileExists(atPath: "\(gameDirPath)/meta") {
+                logger.info("Debug game queued for auto-launch: \(gameDirPath)")
+                pendingDebugGamePath = gameDirPath
                 return
+            }
+            // Fallback: check for RPX directly
+            let codePath = "\(gameDirPath)/code"
+            if let files = try? fm.contentsOfDirectory(atPath: codePath) {
+                for file in files where file.hasSuffix(".rpx") {
+                    let rpxPath = "\(codePath)/\(file)"
+                    logger.info("Debug game queued for auto-launch (RPX): \(rpxPath)")
+                    pendingDebugGamePath = rpxPath
+                    return
+                }
             }
         }
         logger.info("No debug game found for auto-launch")
