@@ -16,6 +16,9 @@ struct EmulatorView: View {
     /// Controls presentation of the game library sheet.
     @State private var showGameLibrary = false
 
+    /// Toggle on-screen controls visibility.
+    @State private var showControls = false
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -23,6 +26,15 @@ struct EmulatorView: View {
             // Always show the Metal view
             MetalEmulatorView(core: core)
                 .aspectRatio(854.0 / 480.0, contentMode: .fit)
+
+            // On-screen controls — toggle with toolbar button
+            if core.isRunning && showControls {
+                VStack {
+                    Spacer()
+                    onScreenControls
+                        .padding(.bottom, 20)
+                }
+            }
         }
         .toolbar {
             toolbarContent
@@ -172,5 +184,109 @@ struct EmulatorView: View {
             as? [String: Data] ?? [:]
         bookmarks[url.lastPathComponent] = bookmarkData
         UserDefaults.standard.set(bookmarks, forKey: "GameBookmarks")
+    }
+
+    // MARK: - On-Screen Controls
+
+    private var onScreenControls: some View {
+        HStack(spacing: 30) {
+            // D-pad
+            VStack(spacing: 2) {
+                gameButton("▲", vkey: 0x1008)
+                HStack(spacing: 2) {
+                    gameButton("◀", vkey: 0x1010)
+                    Color.clear.frame(width: 44, height: 44)
+                    gameButton("▶", vkey: 0x1011)
+                }
+                gameButton("▼", vkey: 0x1009)
+            }
+
+            // Face buttons
+            VStack(spacing: 2) {
+                gameButton("X", vkey: 0x1002)
+                HStack(spacing: 2) {
+                    gameButton("Y", vkey: 0x1003)
+                    Color.clear.frame(width: 44, height: 44)
+                    gameButton("A", vkey: 0x1000)
+                }
+                gameButton("B", vkey: 0x1001)
+            }
+
+            // Shoulders + menu
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    gameButton("L", vkey: 0x1004)
+                    gameButton("R", vkey: 0x1005)
+                }
+                HStack(spacing: 8) {
+                    gameButton("ZL", vkey: 0x1006)
+                    gameButton("ZR", vkey: 0x1007)
+                }
+                HStack(spacing: 8) {
+                    gameButton("+", vkey: 0x1012)
+                    gameButton("−", vkey: 0x1013)
+                }
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// A single on-screen button that sends key down on press, key up on release.
+    private func gameButton(_ label: String, vkey: UInt32) -> some View {
+        Text(label)
+            .font(.system(size: 14, weight: .bold, design: .monospaced))
+            .frame(width: 44, height: 44)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        CemuBridge.shared().onControllerButtonEvent(vkey, pressed: true)
+                    }
+                    .onEnded { _ in
+                        CemuBridge.shared().onControllerButtonEvent(vkey, pressed: false)
+                    }
+            )
+    }
+
+    // MARK: - Keyboard Input
+
+    /// Map keyboard presses to virtual key codes for the emulator.
+    private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        let bridge = CemuBridge.shared()
+        let pressed = keyPress.phase == .down
+
+        let vkey: UInt32? = switch keyPress.key {
+        case .init("j"): 0x1000 as UInt32 // A
+        case .init("k"): 0x1001 as UInt32 // B
+        case .init("i"): 0x1002 as UInt32 // X
+        case .init("u"): 0x1003 as UInt32 // Y
+        case .init("q"): 0x1004 as UInt32 // L
+        case .init("e"): 0x1005 as UInt32 // R
+        case .init("z"): 0x1006 as UInt32 // ZL
+        case .init("c"): 0x1007 as UInt32 // ZR
+        case .init("w"): 0x1008 as UInt32 // DPad Up
+        case .init("s"): 0x1009 as UInt32 // DPad Down
+        case .init("a"): 0x1010 as UInt32 // DPad Left
+        case .init("d"): 0x1011 as UInt32 // DPad Right
+        case .return:    0x1012 as UInt32 // Plus/Start
+        case .escape:    0x1014 as UInt32 // Home
+        default: nil
+        }
+
+        // Arrow keys
+        let arrowVkey: UInt32? = switch keyPress.key {
+        case .upArrow:    0x1008 as UInt32
+        case .downArrow:  0x1009 as UInt32
+        case .leftArrow:  0x1010 as UInt32
+        case .rightArrow: 0x1011 as UInt32
+        default: nil
+        }
+
+        if let k = vkey ?? arrowVkey {
+            bridge.onControllerButtonEvent(k, pressed: pressed)
+            return .handled
+        }
+        return .ignored
     }
 }

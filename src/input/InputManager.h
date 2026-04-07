@@ -22,6 +22,10 @@
 #include "input/api/Android/AndroidControllerProvider.h"
 #endif
 
+#ifdef VISIONOS
+#include "input/api/VisionOS/VisionOSControllerProvider.h"
+#endif
+
 #include "input/emulated/VPADController.h"
 #include "input/emulated/WPADController.h"
 #include "input/motion/MotionSample.h"

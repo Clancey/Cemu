@@ -23,6 +23,16 @@ ControllerState KeyboardController::raw_state()
 
 	boost::container::small_vector<uint32, 16> pressedKeys;
 	WindowSystem::GetWindowInfo().iter_keystates([&pressedKeys](const std::pair<const uint32, bool>& keyState) { if (keyState.second) pressedKeys.emplace_back(keyState.first); });
+
+	// Log every 1000th poll to verify polling is happening
+	static int pollCount = 0;
+	if (pollCount++ % 5000 == 0) {
+		cemuLog_log(LogType::Force, "KeyboardController::raw_state poll #{}, pressedKeys={}, windowInfo={}", pollCount, pressedKeys.size(), (void*)&WindowSystem::GetWindowInfo());
+	}
+	if (!pressedKeys.empty()) {
+		cemuLog_log(LogType::Force, "KeyboardController::raw_state: {} keys pressed, first={}", pressedKeys.size(), pressedKeys[0]);
+	}
+
 	result.buttons.SetPressedButtons(pressedKeys);
 	return result;
 }

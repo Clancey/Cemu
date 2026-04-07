@@ -376,9 +376,11 @@ bool MetalPipelineCompiler::Compile(bool forceCompile, bool isRenderThread, bool
 
     auto creationDuration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
-   	if (error)
+   	if (error || !pipeline)
    	{
-       	cemuLog_log(LogType::Force, "error creating render pipeline state: {}", error->localizedDescription()->utf8String());
+		if (error)
+       		cemuLog_log(LogType::Force, "error creating render pipeline state: {}", error->localizedDescription()->utf8String());
+		return false;
    	}
 
     if (showInOverlay)

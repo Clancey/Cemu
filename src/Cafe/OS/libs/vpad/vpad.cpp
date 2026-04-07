@@ -7,6 +7,9 @@
 #include "Cafe/OS/libs/coreinit/coreinit_Alarm.h"
 #include "input/InputManager.h"
 #include "WindowSystem.h"
+#ifdef VISIONOS
+#include "input/api/VisionOS/VisionOSControllerProvider.h"
+#endif
 
 #ifdef PUBLIC_RELASE
 #define vpadbreak() 
@@ -217,14 +220,12 @@ namespace vpad
 		*sensitivity = g_vpad.controller_data[channel].acc_param.sensitivity;
 	}
 
-	sint32 VPADRead(sint32 channel, VPADStatus* status, uint32 length, sint32be* error) 
+	sint32 VPADRead(sint32 channel, VPADStatus* status, uint32 length, sint32be* error)
 	{
-		//printf("VPADRead(%d,0x%08X,%d,0x%08x)\n", hCPU->gpr[3], hCPU->gpr[4], hCPU->gpr[5], hCPU->gpr[6]);
-		/*ppcDefineParamU32(channel, 0);
-		ppcDefineParamStructPtr(status, VPADStatus_t, 1);
-		ppcDefineParamU32(length, 2);
-		ppcDefineParamPtr(error, uint32be, 3);
-		cemuLog_log(LogType::InputAPI, "VPADRead({}, _, {})", channel, length);*/
+		static int vpadLogCount = 0;
+		if (vpadLogCount++ % 10000 == 0) {
+			cemuLog_log(LogType::Force, "VPADRead poll #{}", vpadLogCount);
+		}
 	
 		// default init which should be always set
 		memset(status, 0x00, sizeof(VPADStatus_t));
@@ -238,9 +239,44 @@ namespace vpad
 		status->tpProcessed1.validity = VPAD_TP_VALIDITY_INVALID_XY;
 		status->tpProcessed2.validity = VPAD_TP_VALIDITY_INVALID_XY;
 
+	#ifdef VISIONOS
+		// Direct input injection — bypass controller system deadlock
+		{
+			auto& btnState = VisionOSControllerProvider::get_controller_state().buttons;
+			if (btnState.GetButtonState(0x1000)) status->hold |= 0x8000; // A
+			if (btnState.GetButtonState(0x1001)) status->hold |= 0x4000; // B
+			if (btnState.GetButtonState(0x1002)) status->hold |= 0x2000; // X
+			if (btnState.GetButtonState(0x1003)) status->hold |= 0x1000; // Y
+			if (btnState.GetButtonState(0x1004)) status->hold |= 0x0020; // L
+			if (btnState.GetButtonState(0x1005)) status->hold |= 0x0010; // R
+			if (btnState.GetButtonState(0x1006)) status->hold |= 0x0080; // ZL
+			if (btnState.GetButtonState(0x1007)) status->hold |= 0x0040; // ZR
+			if (btnState.GetButtonState(0x1008)) status->hold |= 0x0200; // Up
+			if (btnState.GetButtonState(0x1009)) status->hold |= 0x0100; // Down
+			if (btnState.GetButtonState(0x1010)) status->hold |= 0x0800; // Left
+			if (btnState.GetButtonState(0x1011)) status->hold |= 0x0400; // Right
+			if (btnState.GetButtonState(0x1012)) status->hold |= 0x0008; // Plus
+			if (btnState.GetButtonState(0x1013)) status->hold |= 0x0004; // Minus
+			if (btnState.GetButtonState(0x1014)) status->hold |= 0x0002; // Home
+
+			static uint32 prevHold = 0;
+			status->trig = status->hold & ~prevHold;
+			status->release = prevHold & ~(uint32)status->hold;
+			prevHold = status->hold;
+
+			cemuLog_log(LogType::Force, "VPADRead DIRECT: hold=0x{:08x} trig=0x{:08x}", (uint32)status->hold, (uint32)status->trig);
+
+			if (error)
+				*error = VPAD_READ_ERR_NONE;
+			return 1;
+		}
+	#endif
 		const auto controller = InputManager::instance().get_vpad_controller(channel);
 		if (!controller)
 		{
+			static int nullLog = 0;
+			if (nullLog++ < 5)
+				cemuLog_log(LogType::Force, "VPADRead: controller is NULL for channel {}", channel);
 			// most games expect the Wii U GamePad to be connected, so even if the user has not set it up we should still return empty samples for channel 0
 			if(channel != 0)
 			{
@@ -286,6 +322,7 @@ namespace vpad
 				}
 			}
 			controller->VPADRead(*status, vpad::g_vpad.controller_data[channel].btn_repeat);
+		cemuLog_log(LogType::Force, "VPADRead ch={} hold=0x{:08x} trig=0x{:08x} controllers={}", channel, (uint32)status->hold, (uint32)status->trig, controller->get_controllers().size());
 			if (error)
 				*error = VPAD_READ_ERR_NONE;
 			return 1;

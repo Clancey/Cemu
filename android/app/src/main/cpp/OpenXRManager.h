@@ -66,6 +66,7 @@ public:
      * @return vector of VkImage handles from swapchain
      */
     std::vector<VkImage> GetSwapchainImages() const { return m_swapchainImages; }
+    VkImage GetSwapchainImage(uint32_t index) const { return index < m_swapchainImages.size() ? m_swapchainImages[index] : VK_NULL_HANDLE; }
 
     /**
      * Get the current swapchain dimensions.

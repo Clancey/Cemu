@@ -49,6 +49,9 @@ InputManager::InputManager()
 #ifdef ANDROID
 	create_provider<AndroidControllerProvider>();
 #endif
+#ifdef VISIONOS
+	create_provider<VisionOSControllerProvider>();
+#endif
 
 	m_update_thread_shutdown.store(false);
 	m_update_thread = std::thread(&InputManager::update_thread, this);
@@ -135,7 +138,9 @@ bool InputManager::load(size_t player_index, std::string_view filename)
 			try
 			{
 				const auto api = InputAPI::from_string(api_node.child_value());
+				cemuLog_log(LogType::Force, "InputManager: Creating controller api={} uuid={} name={}", api_node.child_value(), uuid_node.child_value(), display_name);
 				auto controller = ControllerFactory::CreateController(api, uuid_node.child_value(), display_name);
+				cemuLog_log(LogType::Force, "InputManager: Controller created, adding to emulated controller");
 				emulated_controller->add_controller(controller);
 
 				// load optional settings

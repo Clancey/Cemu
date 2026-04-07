@@ -100,6 +100,26 @@ typedef NS_ENUM(NSInteger, CemuEmulationState) {
 /// Forward a touch-up event on the GamePad display.
 - (void)handleGamePadTouchEnd;
 
+/// Set a virtual keyboard key state (used to map controller buttons).
+/// @param keyCode The key code to set.
+/// @param pressed YES if the key is pressed, NO if released.
+- (void)setKeyState:(uint32_t)keyCode pressed:(BOOL)pressed;
+
+/// Release all virtual keyboard keys.
+- (void)releaseAllKeys;
+
+// MARK: - Controller Input
+
+/// Forward a controller button event.
+/// @param buttonCode The VisionOS button code.
+/// @param pressed YES if the button is pressed, NO if released.
+- (void)onControllerButtonEvent:(uint32_t)buttonCode pressed:(BOOL)pressed;
+
+/// Forward a controller axis event.
+/// @param axisCode The VisionOS axis code.
+/// @param value The axis value (-1.0 to 1.0 for sticks, 0.0 to 1.0 for triggers).
+- (void)onControllerAxisEvent:(uint32_t)axisCode value:(float)value;
+
 @end
 
 NS_ASSUME_NONNULL_END

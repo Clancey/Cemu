@@ -16,6 +16,10 @@
 #include "config/LaunchSettings.h"
 #include "Common/ExceptionHandler/ExceptionHandler.h"
 #include "input/InputManager.h"
+#include "input/api/Keyboard/KeyboardControllerProvider.h"
+#ifdef VISIONOS
+#include "input/api/VisionOS/VisionOSControllerProvider.h"
+#endif
 #include "audio/IAudioAPI.h"
 #include "audio/IAudioInputAPI.h"
 #include "Cafe/GraphicPack/GraphicPack2.h"
@@ -24,6 +28,7 @@
 #include <fmt/format.h>
 #include <os/log.h>
 #include <thread>
+#include <fstream>
 
 // Defined in main.cpp -- performs core subsystem init.
 extern void CemuCoreInit();
@@ -127,14 +132,20 @@ namespace WindowSystem
         return g_visionos_window_info.pad_open;
     }
 
-    bool IsKeyDown(uint32 /*key*/)
+    bool IsKeyDown(uint32 key)
     {
-        return false;
+        bool state = g_visionos_window_info.get_keystate(key);
+        if (state) {
+            static int logCount = 0;
+            if (logCount++ < 20)
+                cemuLog_log(LogType::Force, "visionOS: IsKeyDown({}) = true", key);
+        }
+        return state;
     }
 
-    bool IsKeyDown(PlatformKeyCodes /*key*/)
+    bool IsKeyDown(PlatformKeyCodes key)
     {
-        return false;
+        return g_visionos_window_info.get_keystate((uint32)key);
     }
 
     std::string GetKeyCodeName(uint32 key)
@@ -212,7 +223,18 @@ namespace WindowSystem
         return YES;
 
     @try {
+        // Profile must exist BEFORE CemuCoreInit calls InputManager::load()
+        [self setupDefaultControllerProfile];
         CemuCoreInit();
+
+        // Verify controller was loaded
+        auto vpad = InputManager::instance().get_vpad_controller(0);
+        if (vpad) {
+            cemuLog_log(LogType::Force, "visionOS: VPAD controller loaded OK, has {} controllers", vpad->get_controllers().size());
+        } else {
+            cemuLog_log(LogType::Force, "visionOS: WARNING - VPAD controller is NULL!");
+        }
+
         _initialized = YES;
         os_log_info(cemuLog(), "Cemu core initialized successfully");
         return YES;
@@ -386,7 +408,18 @@ namespace WindowSystem
     if (launchTitle.IsValid())
     {
         cemuLog_log(LogType::Force, "visionOS: Loading valid title from path");
+        // Add the game itself
         CafeTitleList::AddTitleFromPath(gamePath);
+        // Also scan the parent directory to discover updates and DLC
+        fs::path parentPath = gamePath.parent_path();
+        if (!parentPath.empty())
+        {
+            cemuLog_log(LogType::Force, "visionOS: Scanning parent dir for updates/DLC: {}", parentPath.generic_string());
+            CafeTitleList::AddScanPath(parentPath);
+            CafeTitleList::Refresh();
+            // Wait for scan to find sibling titles (update, DLC)
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
         TitleId baseTitleId;
         if (CafeTitleList::FindBaseTitleId(launchTitle.GetAppTitleId(), baseTitleId))
         {
@@ -517,6 +550,94 @@ namespace WindowSystem
 - (void)handleGamePadTouchEnd
 {
     os_log_debug(cemuLog(), "GamePad touch ended");
+}
+
+- (void)setupDefaultControllerProfile
+{
+    // Write a default VisionOS Controller → VPAD mapping if none exists
+    fs::path profileDir = ActiveSettings::GetConfigPath("controllerProfiles");
+    fs::path profilePath = profileDir / "controller0.xml";
+
+    // Always recreate to pick up fixes (TODO: version check instead)
+    if (fs::exists(profilePath))
+        fs::remove(profilePath);
+
+    std::error_code ec;
+    fs::create_directories(profileDir, ec);
+
+    // mapping = VPADController::ButtonId enum, button = VisionOS button constants
+    // VPAD ButtonId: A=1, B=2, X=3, Y=4, L=5, R=6, ZL=7, ZR=8, Plus=9, Minus=10, Home=11,
+    //               Up=12, Down=13, Left=14, Right=15, StickL=16, StickR=17,
+    //               StickL_Up=18, StickL_Down=19, StickL_Left=20, StickL_Right=21,
+    //               StickR_Up=22, StickR_Down=23, StickR_Left=24, StickR_Right=25
+    // VisionOS button codes (defined in VisionOSControllerProvider.h):
+    // A=0x1000, B=0x1001, X=0x1002, Y=0x1003, L=0x1004, R=0x1005, ZL=0x1006, ZR=0x1007
+    // DpadUp=0x1008, DpadDown=0x1009, DpadLeft=0x1010, DpadRight=0x1011
+    // Plus=0x1012, Minus=0x1013, Home=0x1014, LStick=0x1015, RStick=0x1016
+    std::string xml = R"(<?xml version="1.0" encoding="UTF-8"?>
+<emulated_controller>
+  <type>Wii U GamePad</type>
+  <controller>
+    <api>VisionOS</api>
+    <uuid>0</uuid>
+    <display_name>visionOS Controller</display_name>
+    <mappings>
+      <entry><mapping>1</mapping><button>4096</button></entry>
+      <entry><mapping>2</mapping><button>4097</button></entry>
+      <entry><mapping>3</mapping><button>4098</button></entry>
+      <entry><mapping>4</mapping><button>4099</button></entry>
+      <entry><mapping>5</mapping><button>4100</button></entry>
+      <entry><mapping>6</mapping><button>4101</button></entry>
+      <entry><mapping>7</mapping><button>4102</button></entry>
+      <entry><mapping>8</mapping><button>4103</button></entry>
+      <entry><mapping>9</mapping><button>4114</button></entry>
+      <entry><mapping>10</mapping><button>4115</button></entry>
+      <entry><mapping>11</mapping><button>4116</button></entry>
+      <entry><mapping>12</mapping><button>4104</button></entry>
+      <entry><mapping>13</mapping><button>4105</button></entry>
+      <entry><mapping>14</mapping><button>4112</button></entry>
+      <entry><mapping>15</mapping><button>4113</button></entry>
+      <entry><mapping>16</mapping><button>4117</button></entry>
+      <entry><mapping>17</mapping><button>4118</button></entry>
+    </mappings>
+  </controller>
+</emulated_controller>
+)";
+
+    std::ofstream file(profilePath);
+    if (file.is_open()) {
+        file << xml;
+        cemuLog_log(LogType::Force, "visionOS: Created default VisionOS controller profile at {}", profilePath.generic_string());
+    }
+}
+
+- (void)setKeyState:(uint32_t)keyCode pressed:(BOOL)pressed
+{
+    cemuLog_log(LogType::Force, "visionOS: setKeyState {} = {}", keyCode, pressed ? "DOWN" : "UP");
+    WindowSystem::GetWindowInfo().set_keystate(keyCode, pressed);
+}
+
+- (void)releaseAllKeys
+{
+    WindowSystem::GetWindowInfo().set_keystatesup();
+}
+
+// MARK: - Controller Input
+
+- (void)onControllerButtonEvent:(uint32_t)buttonCode pressed:(BOOL)pressed
+{
+#ifdef VISIONOS
+    cemuLog_log(LogType::Force, "visionOS: Controller button {} = {}", buttonCode, pressed ? "PRESSED" : "RELEASED");
+    VisionOSControllerProvider::on_key_event(buttonCode, pressed);
+#endif
+}
+
+- (void)onControllerAxisEvent:(uint32_t)axisCode value:(float)value
+{
+#ifdef VISIONOS
+    cemuLog_log(LogType::Force, "visionOS: Controller axis {} = {}", axisCode, value);
+    VisionOSControllerProvider::on_axis_event(axisCode, value);
+#endif
 }
 
 @end

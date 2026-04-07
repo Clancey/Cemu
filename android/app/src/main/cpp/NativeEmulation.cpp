@@ -285,8 +285,66 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env
 				if (g_openxrManager->BeginFrame()) {
 					uint32_t imageIndex = g_openxrManager->AcquireSwapchainImage();
 					if (imageIndex != UINT32_MAX) {
-						// TODO: Blit Cemu's rendered frame to the swapchain image
-						// For now, just submit an empty frame (black screen in VR)
+						// Clear swapchain image to blue to prove rendering works
+						VkImage swapchainImage = g_openxrManager->GetSwapchainImage(imageIndex);
+						VkDevice device = g_openxrManager->GetVkDevice();
+						VkQueue queue = VK_NULL_HANDLE;
+						vkGetDeviceQueue(device, g_openxrManager->GetQueueFamilyIndex(), 0, &queue);
+
+						// Create command pool/buffer for clearing
+						static VkCommandPool cmdPool = VK_NULL_HANDLE;
+						static VkCommandBuffer cmdBuf = VK_NULL_HANDLE;
+						if (cmdPool == VK_NULL_HANDLE) {
+							VkCommandPoolCreateInfo poolInfo = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+							poolInfo.queueFamilyIndex = g_openxrManager->GetQueueFamilyIndex();
+							poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+							vkCreateCommandPool(device, &poolInfo, nullptr, &cmdPool);
+
+							VkCommandBufferAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+							allocInfo.commandPool = cmdPool;
+							allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+							allocInfo.commandBufferCount = 1;
+							vkAllocateCommandBuffers(device, &allocInfo, &cmdBuf);
+						}
+
+						VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+						beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+						vkBeginCommandBuffer(cmdBuf, &beginInfo);
+
+						// Transition image to TRANSFER_DST
+						VkImageMemoryBarrier barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+						barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+						barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+						barrier.image = swapchainImage;
+						barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+						vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+							0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+						// Clear to blue
+						VkClearColorValue clearColor = {{0.0f, 0.2f, 0.8f, 1.0f}};
+						VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+						vkCmdClearColorImage(cmdBuf, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &range);
+
+						// Transition image to COLOR_ATTACHMENT_OPTIMAL (for OpenXR)
+						barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+						barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+						vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+							0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+						vkEndCommandBuffer(cmdBuf);
+
+						// Submit and wait with fence
+						VkFenceCreateInfo fenceInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+						VkFence fence;
+						vkCreateFence(device, &fenceInfo, nullptr, &fence);
+
+						VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+						submitInfo.commandBufferCount = 1;
+						submitInfo.pCommandBuffers = &cmdBuf;
+						vkQueueSubmit(queue, 1, &submitInfo, fence);
+						vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+						vkDestroyFence(device, fence, nullptr);
+
 						g_openxrManager->ReleaseSwapchainImage();
 					}
 					// Submit frame as a quad panel in VR space

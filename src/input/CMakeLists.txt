@@ -114,6 +114,15 @@ if(ANDROID)
 	)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+	target_sources(CemuInput PRIVATE
+		api/VisionOS/VisionOSControllerProvider.cpp
+		api/VisionOS/VisionOSControllerProvider.h
+		api/VisionOS/VisionOSController.cpp
+		api/VisionOS/VisionOSController.h
+	)
+endif()
+
 target_include_directories(CemuInput PUBLIC "../")
 
 target_link_libraries(CemuInput PRIVATE

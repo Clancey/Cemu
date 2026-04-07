@@ -49,6 +49,22 @@ enum ControllerVPADMapping2 : uint32
 void VPADController::VPADRead(VPADStatus_t& status, const BtnRepeat& repeat)
 {
 	controllers_update_states();
+
+	// Debug: check if controller has any buttons pressed
+	static int readCount = 0;
+	readCount++;
+	bool anyDown = false;
+	for (uint32 i = kButtonId_A; i < kButtonId_Max; ++i) {
+		if (!is_axis_mapping(i) && is_mapping_down(i)) {
+			anyDown = true;
+			break;
+		}
+	}
+	if (readCount <= 20 || anyDown) {
+		cemuLog_log(LogType::Force, "VPADController::VPADRead #{} controllers={} anyDown={} mapping_A={}",
+			readCount, get_controllers().size(), anyDown, is_mapping_down(kButtonId_A));
+	}
+
 	m_mic_active = false;
 	m_screen_active = false;
 	for (uint32 i = kButtonId_A; i < kButtonId_Max; ++i)

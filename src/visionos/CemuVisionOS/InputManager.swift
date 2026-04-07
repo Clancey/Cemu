@@ -2,13 +2,12 @@ import GameController
 import Observation
 import os
 
-/// Manages Bluetooth game controller discovery and mapping to Wii U Pro
-/// Controller inputs, forwarded to the Cemu input subsystem through the
-/// bridge layer.
+/// Manages game controller discovery and forwards input to Cemu's keyboard
+/// input system via virtual key codes.
 ///
-/// On visionOS, physical input comes exclusively from GCController (Bluetooth
-/// gamepads).  Eye tracking and pinch gestures are handled by SwiftUI gesture
-/// modifiers on the emulator view and are not part of this manager.
+/// On visionOS, physical input comes from GCController (Bluetooth gamepads).
+/// Each button press is mapped to a virtual key code that Cemu's keyboard
+/// controller provider reads via WindowSystem::IsKeyDown().
 @Observable
 @MainActor
 final class InputManager {
@@ -34,6 +33,30 @@ final class InputManager {
     private var connectObserver: NSObjectProtocol?
     private var disconnectObserver: NSObjectProtocol?
 
+    // Virtual key codes for GCController → Cemu keyboard mapping.
+    // These are arbitrary unique codes; Cemu's keyboard controller maps them
+    // to Wii U buttons via its config. We write a default config on first run.
+    // Must match VisionOSControllerProvider.h button constants (hex values)
+    enum VKey: UInt32 {
+        case a         = 0x1000
+        case b         = 0x1001
+        case x         = 0x1002
+        case y         = 0x1003
+        case l         = 0x1004
+        case r         = 0x1005
+        case zl        = 0x1006
+        case zr        = 0x1007
+        case dpadUp    = 0x1008
+        case dpadDown  = 0x1009
+        case dpadLeft  = 0x1010
+        case dpadRight = 0x1011
+        case plus      = 0x1012
+        case minus     = 0x1013
+        case home      = 0x1014
+        case lStick    = 0x1015
+        case rStick    = 0x1016
+    }
+
     // MARK: - Lifecycle
 
     init() {
@@ -41,10 +64,6 @@ final class InputManager {
     }
 
     deinit {
-        // deinit is nonisolated and cannot call @MainActor-isolated methods
-        // directly.  GCController.stopWirelessControllerDiscovery() is safe
-        // to call from any context, so we invoke it without going through
-        // the actor-isolated stopDiscovery() wrapper.
         GCController.stopWirelessControllerDiscovery()
     }
 
@@ -99,7 +118,11 @@ final class InputManager {
             controllerDidConnect(existing)
         }
 
-        // Automatically start discovery at launch.
+        // Also check for keyboard (simulator)
+        if let keyboard = GCKeyboard.coalesced {
+            setupKeyboardMapping(keyboard)
+        }
+
         startDiscovery()
     }
 
@@ -114,129 +137,97 @@ final class InputManager {
         logger.info("Controller disconnected: \(controller.vendorName ?? "Unknown")")
         if connectedController === controller {
             connectedController = nil
+            bridge.releaseAllKeys()
         }
     }
 
-    // MARK: - Input Mapping
+    // MARK: - Keyboard Mapping (Simulator)
 
-    /// Map GCController inputs to the Wii U Pro Controller layout.
-    ///
-    /// The Wii U Pro Controller has:
-    ///   - Two analog sticks (L/R)
-    ///   - D-pad
-    ///   - A, B, X, Y
-    ///   - L, R, ZL, ZR
-    ///   - Plus, Minus, Home
-    ///   - Left stick button, Right stick button
-    ///
-    /// This maps naturally to any MFi / Xbox / DualSense extended gamepad.
+    private func setupKeyboardMapping(_ keyboard: GCKeyboard) {
+        guard let input = keyboard.keyboardInput else { return }
+        logger.info("Keyboard detected — mapping keys for simulator")
+
+        // Map keyboard keys using button handlers on specific keys
+        let keyMap: [(GCKeyCode, VKey)] = [
+            (.keyJ, .a),           // J = A (confirm)
+            (.keyK, .b),           // K = B (back)
+            (.keyI, .x),           // I = X
+            (.keyU, .y),           // U = Y
+            (.keyW, .dpadUp),
+            (.keyS, .dpadDown),
+            (.keyA, .dpadLeft),
+            (.keyD, .dpadRight),
+            (.upArrow, .dpadUp),
+            (.downArrow, .dpadDown),
+            (.leftArrow, .dpadLeft),
+            (.rightArrow, .dpadRight),
+            (.keyQ, .l),
+            (.keyE, .r),
+            (.keyZ, .zl),
+            (.keyC, .zr),
+            (.returnOrEnter, .plus),
+            (.deleteOrBackspace, .minus),
+            (.escape, .home),
+        ]
+        for (keyCode, vkey) in keyMap {
+            if let button = input.button(forKeyCode: keyCode) {
+                let capturedVKey = vkey
+                button.pressedChangedHandler = { [weak self] _, _, pressed in
+                    self?.bridge.onControllerButtonEvent(capturedVKey.rawValue, pressed: pressed)
+                }
+            }
+        }
+    }
+
+    // MARK: - Gamepad Mapping
+
     private func configureMapping(for controller: GCController) {
         guard let gamepad = controller.extendedGamepad else {
             logger.warning("Controller does not support extended gamepad profile")
             return
         }
 
-        gamepad.valueChangedHandler = { [weak self] pad, element in
-            self?.handleInputChange(pad: pad, element: element)
+        // Poll-based: set up a value changed handler that updates all keys
+        gamepad.valueChangedHandler = { [weak self] pad, _ in
+            self?.syncGamepadState(pad)
         }
     }
 
-    /// Process a single input element change and forward it to Cemu.
-    private nonisolated func handleInputChange(
-        pad: GCExtendedGamepad,
-        element: GCControllerElement
-    ) {
-        // Build a complete controller state snapshot and forward it to the
-        // bridge.  Cemu's InputManager expects per-frame state rather than
-        // individual button events, so we sample everything.
-
-        var state = WiiUProControllerState()
+    private nonisolated func syncGamepadState(_ pad: GCExtendedGamepad) {
+        let bridge = CemuBridge.shared()
 
         // Face buttons
-        state.buttonA = pad.buttonA.isPressed
-        state.buttonB = pad.buttonB.isPressed
-        state.buttonX = pad.buttonX.isPressed
-        state.buttonY = pad.buttonY.isPressed
+        bridge.onControllerButtonEvent(VKey.a.rawValue, pressed: pad.buttonA.isPressed)
+        bridge.onControllerButtonEvent(VKey.b.rawValue, pressed: pad.buttonB.isPressed)
+        bridge.onControllerButtonEvent(VKey.x.rawValue, pressed: pad.buttonX.isPressed)
+        bridge.onControllerButtonEvent(VKey.y.rawValue, pressed: pad.buttonY.isPressed)
 
-        // Shoulder / trigger buttons
-        state.buttonL  = pad.leftShoulder.isPressed
-        state.buttonR  = pad.rightShoulder.isPressed
-        state.buttonZL = pad.leftTrigger.isPressed
-        state.buttonZR = pad.rightTrigger.isPressed
+        // Shoulders/triggers
+        bridge.onControllerButtonEvent(VKey.l.rawValue, pressed: pad.leftShoulder.isPressed)
+        bridge.onControllerButtonEvent(VKey.r.rawValue, pressed: pad.rightShoulder.isPressed)
+        bridge.onControllerButtonEvent(VKey.zl.rawValue, pressed: pad.leftTrigger.isPressed)
+        bridge.onControllerButtonEvent(VKey.zr.rawValue, pressed: pad.rightTrigger.isPressed)
 
         // D-pad
-        state.dpadUp    = pad.dpad.up.isPressed
-        state.dpadDown  = pad.dpad.down.isPressed
-        state.dpadLeft  = pad.dpad.left.isPressed
-        state.dpadRight = pad.dpad.right.isPressed
+        bridge.onControllerButtonEvent(VKey.dpadUp.rawValue, pressed: pad.dpad.up.isPressed)
+        bridge.onControllerButtonEvent(VKey.dpadDown.rawValue, pressed: pad.dpad.down.isPressed)
+        bridge.onControllerButtonEvent(VKey.dpadLeft.rawValue, pressed: pad.dpad.left.isPressed)
+        bridge.onControllerButtonEvent(VKey.dpadRight.rawValue, pressed: pad.dpad.right.isPressed)
 
-        // Analog sticks (range: -1.0 ... 1.0)
-        state.leftStickX  = pad.leftThumbstick.xAxis.value
-        state.leftStickY  = pad.leftThumbstick.yAxis.value
-        state.rightStickX = pad.rightThumbstick.xAxis.value
-        state.rightStickY = pad.rightThumbstick.yAxis.value
+        // Menu
+        bridge.onControllerButtonEvent(VKey.plus.rawValue, pressed: pad.buttonMenu.isPressed)
+        bridge.onControllerButtonEvent(VKey.minus.rawValue, pressed: pad.buttonOptions?.isPressed ?? false)
 
         // Stick buttons
-        state.buttonLeftStick  = pad.leftThumbstickButton?.isPressed ?? false
-        state.buttonRightStick = pad.rightThumbstickButton?.isPressed ?? false
+        bridge.onControllerButtonEvent(VKey.lStick.rawValue, pressed: pad.leftThumbstickButton?.isPressed ?? false)
+        bridge.onControllerButtonEvent(VKey.rStick.rawValue, pressed: pad.rightThumbstickButton?.isPressed ?? false)
 
-        // Menu buttons
-        state.buttonPlus  = pad.buttonMenu.isPressed
-        state.buttonMinus = pad.buttonOptions?.isPressed ?? false
-        state.buttonHome  = pad.buttonHome?.isPressed ?? false
-
-        // Forward the complete state to the C++ input system.
-        // This call is thread-safe; the bridge serialises writes to the
-        // shared controller state buffer.
-        forwardStateToBridge(state)
+        // Analog sticks — send as proper axes
+        bridge.onControllerAxisEvent(0, value: pad.leftThumbstick.xAxis.value)   // kAxisLStickX
+        bridge.onControllerAxisEvent(1, value: pad.leftThumbstick.yAxis.value)   // kAxisLStickY
+        bridge.onControllerAxisEvent(2, value: pad.rightThumbstick.xAxis.value)  // kAxisRStickX
+        bridge.onControllerAxisEvent(3, value: pad.rightThumbstick.yAxis.value)  // kAxisRStickY
+        bridge.onControllerAxisEvent(4, value: pad.leftTrigger.value)            // kAxisLTrigger
+        bridge.onControllerAxisEvent(5, value: pad.rightTrigger.value)           // kAxisRTrigger
     }
-
-    /// Encode the controller state and push it to the Cemu input subsystem.
-    private nonisolated func forwardStateToBridge(_ state: WiiUProControllerState) {
-        // For the initial port, individual button states are written into
-        // the shared WindowInfo keystate map.  A future iteration should
-        // add a dedicated VisionOSControllerProvider to Cemu's InputManager
-        // that is fed from this state struct.
-        let info = CemuBridge.shared()
-        _ = info // Placeholder -- wiring to InputManager will be done once
-                  // the C++ ControllerProvider interface is extended.
-    }
-}
-
-// MARK: - WiiUProControllerState
-
-/// Value-type snapshot of a Wii U Pro Controller's input state.
-struct WiiUProControllerState {
-    // Face buttons
-    var buttonA = false
-    var buttonB = false
-    var buttonX = false
-    var buttonY = false
-
-    // Shoulder / triggers
-    var buttonL  = false
-    var buttonR  = false
-    var buttonZL = false
-    var buttonZR = false
-
-    // D-pad
-    var dpadUp    = false
-    var dpadDown  = false
-    var dpadLeft  = false
-    var dpadRight = false
-
-    // Analog sticks (-1.0 ... 1.0)
-    var leftStickX:  Float = 0
-    var leftStickY:  Float = 0
-    var rightStickX: Float = 0
-    var rightStickY: Float = 0
-
-    // Stick buttons
-    var buttonLeftStick  = false
-    var buttonRightStick = false
-
-    // Menu
-    var buttonPlus  = false
-    var buttonMinus = false
-    var buttonHome  = false
 }

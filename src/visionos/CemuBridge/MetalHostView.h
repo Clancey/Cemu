@@ -24,4 +24,7 @@
 /// Configure the layer's Metal device and pixel format.
 - (void)configureWithDevice:(nonnull id<MTLDevice>)device;
 
+/// Make this view the first responder to receive keyboard events.
+@property (nonatomic, readonly) BOOL canBecomeFirstResponder;
+
 @end

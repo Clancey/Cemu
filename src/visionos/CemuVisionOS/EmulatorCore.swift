@@ -33,11 +33,18 @@ final class EmulatorCore {
     private let bridge = CemuBridge.shared()
     private let logger = Logger(subsystem: "org.cemu.CemuVision", category: "EmulatorCore")
 
+    /// Input manager for game controllers and keyboard.
+    let inputManager = InputManager()
+
     // MARK: - Lifecycle
 
     /// Perform one-time initialisation of Cemu subsystems and storage paths.
     func initialize() {
         guard !isInitialized else { return }
+
+        // Disable Metal validation to avoid abort() on unsupported features (simulator)
+        setenv("MTL_DEBUG_LAYER", "0", 1)
+        setenv("METAL_ERROR_MODE", "0", 1)
 
         // Configure sandbox-aware paths before core init.
         configurePaths()
@@ -99,6 +106,19 @@ final class EmulatorCore {
         // Delay to let the renderer fully initialize after layer attachment
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             self?.loadGame(at: path)
+            // Simulator runs at <1 FPS — toggle A press/release every 0.5s
+            // so VPADRead always catches at least one press/release cycle
+            let bridge = CemuBridge.shared()
+            var count = 0
+            Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
+                count += 1
+                let down = (count % 2 == 1) // odd = press, even = release
+                bridge.onControllerButtonEvent(0x1000, pressed: down)
+                if count > 120 { // stop after 60 seconds
+                    bridge.onControllerButtonEvent(0x1000, pressed: false)
+                    timer.invalidate()
+                }
+            }
         }
     }
     #endif

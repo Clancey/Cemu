@@ -15,6 +15,7 @@ namespace InputAPI
 		Wiimote,
 
 		Android,
+		VisionOS,
 
 		WGIGamepad,
 		WGIRawController,
@@ -46,6 +47,8 @@ namespace InputAPI
 			return "SDLController";
 		case Android:
 			return "Android";
+		case VisionOS:
+			return "VisionOS";
 		default:
 			break;
 		}
@@ -71,6 +74,8 @@ namespace InputAPI
 			return SDLController;
 		else if (str == to_string(Android))
 			return Android;
+		else if (str == to_string(VisionOS))
+			return VisionOS;
 		else if (str == "DSU") // legacy
 			return DSUClient;
 		

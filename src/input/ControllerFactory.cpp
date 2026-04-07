@@ -30,6 +30,11 @@
 #include "input/api/Android/AndroidControllerProvider.h"
 #endif
 
+#ifdef VISIONOS
+#include "input/api/VisionOS/VisionOSController.h"
+#include "input/api/VisionOS/VisionOSControllerProvider.h"
+#endif
+
 ControllerPtr ControllerFactory::CreateController(InputAPI::Type api, std::string_view uuid,
                                                   std::string_view display_name)
 {
@@ -117,6 +122,10 @@ ControllerPtr ControllerFactory::CreateController(InputAPI::Type api, std::strin
 	case InputAPI::Android:
 		return std::make_shared<AndroidController>(uuid, display_name);
 #endif
+#ifdef VISIONOS
+	case InputAPI::VisionOS:
+		return std::make_shared<VisionOSController>();
+#endif
 	default:
 		throw std::invalid_argument(fmt::format("unhandled controller api: {}", api));
 	}
@@ -191,6 +200,10 @@ ControllerProviderPtr ControllerFactory::CreateControllerProvider(InputAPI::Type
 #if __ANDROID
 	case InputAPI::Android:
 		return std::make_shared<AndroidControllerProvider>();
+#endif
+#ifdef VISIONOS
+	case InputAPI::VisionOS:
+		return std::make_shared<VisionOSControllerProvider>();
 #endif
 	default:
 		cemu_assert_debug(false);
