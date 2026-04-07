@@ -197,10 +197,10 @@ MTL::Texture* LatteTextureViewMtl::CreateSwizzledView(uint32 gpuSamplerSwizzle)
     case MTL::PixelFormatA1BGR5Unorm:
     case MTL::PixelFormatABGR4Unorm:
     case MTL::PixelFormatBGR5A1Unorm:
-        pixelFormat = baseFormat; break;
     case MTL::PixelFormatInvalid:
         pixelFormat = baseFormat; break;
     default:
+        // BC formats are now decompressed to RGBA8/R8/RG8 — use base texture format
         if (pixelFormat >= MTL::PixelFormatBC1_RGBA && pixelFormat <= MTL::PixelFormatBC7_RGBAUnorm_sRGB)
             pixelFormat = baseFormat;
         break;

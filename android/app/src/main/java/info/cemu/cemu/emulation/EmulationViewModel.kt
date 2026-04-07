@@ -192,7 +192,8 @@ class EmulationViewModel(
         return withContext(Dispatchers.IO) {
             try {
                 // Try OpenXR first (required for Quest)
-                if (NativeEmulation.initializeOpenXR()) {
+                val activity = EmulationActivity.currentActivity
+                if (activity != null && NativeEmulation.initializeOpenXR(activity)) {
                     return@withContext Success(Unit)
                 }
                 // Fall back to SurfaceView-based rendering

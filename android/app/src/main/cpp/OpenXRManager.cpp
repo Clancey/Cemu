@@ -66,11 +66,11 @@ void OpenXRManager::LogInfo(const char* fmt, ...) const
     LOGI("%s", buf);
 }
 
-bool OpenXRManager::Initialize(ANativeActivity* activity)
+bool OpenXRManager::Initialize(jobject activityObject)
 {
     LogInfo("Initializing OpenXR with dynamic loading");
 
-    m_activity = activity;
+    m_activityObject = activityObject;
 
     if (!LoadOpenXRLibrary()) {
         LogError("Failed to load OpenXR library");
@@ -163,20 +163,8 @@ bool OpenXRManager::LoadOpenXRLibrary()
     if (xrInitializeLoaderKHR) {
         XrLoaderInitInfoAndroidKHR loaderInitInfo = {XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR};
         loaderInitInfo.applicationVM = JNIUtils::g_jvm;
-        // Get application context
-        JNIUtils::ScopedJNIENV scopedEnv;
-        JNIEnv* env = *scopedEnv;
-        if (env) {
-            jclass activityThreadClass = env->FindClass("android/app/ActivityThread");
-            if (activityThreadClass) {
-                jmethodID currentAppMethod = env->GetStaticMethodID(activityThreadClass, "currentApplication", "()Landroid/app/Application;");
-                if (currentAppMethod) {
-                    jobject appContext = env->CallStaticObjectMethod(activityThreadClass, currentAppMethod);
-                    loaderInitInfo.applicationContext = appContext;
-                }
-                env->DeleteLocalRef(activityThreadClass);
-            }
-        }
+        // Use the Activity reference directly — required for Quest VR session
+        loaderInitInfo.applicationContext = m_activityObject;
         XrResult initResult = xrInitializeLoaderKHR(reinterpret_cast<XrLoaderInitInfoBaseHeaderKHR*>(&loaderInitInfo));
         if (XR_FAILED(initResult)) {
             LogError("xrInitializeLoaderKHR failed: %d", initResult);
@@ -268,32 +256,13 @@ bool OpenXRManager::CreateInstance()
     }
 
     XrInstanceCreateInfoAndroidKHR androidCreateInfo = {XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR};
-    // Get Java VM from JNIUtils (set during JNI_OnLoad)
     androidCreateInfo.applicationVM = JNIUtils::g_jvm;
-    // Get the application context via JNI - must be called on a thread with JNI env
-    JNIUtils::ScopedJNIENV scopedEnv;
-    JNIEnv* env = *scopedEnv;
-    if (env) {
-        // Get the current application context via ActivityThread
-        jclass activityThreadClass = env->FindClass("android/app/ActivityThread");
-        if (activityThreadClass) {
-            jmethodID currentAppMethod = env->GetStaticMethodID(activityThreadClass, "currentApplication", "()Landroid/app/Application;");
-            if (currentAppMethod) {
-                jobject appContext = env->CallStaticObjectMethod(activityThreadClass, currentAppMethod);
-                if (appContext) {
-                    androidCreateInfo.applicationActivity = env->NewGlobalRef(appContext);
-                    LogInfo("Got application context for OpenXR");
-                } else {
-                    LogError("currentApplication() returned null");
-                }
-                env->DeleteLocalRef(appContext);
-            }
-            env->DeleteLocalRef(activityThreadClass);
-        } else {
-            LogError("Could not find ActivityThread class");
-        }
+    // Use the Activity reference — Quest needs this for VR session focus
+    androidCreateInfo.applicationActivity = m_activityObject;
+    if (m_activityObject) {
+        LogInfo("Using Activity reference for OpenXR instance");
     } else {
-        LogError("No JNI environment available");
+        LogError("No Activity reference available for OpenXR!");
     }
 
     XrApplicationInfo appInfo = {};

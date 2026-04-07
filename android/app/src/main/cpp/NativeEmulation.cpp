@@ -217,9 +217,15 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* e
 // Global OpenXR manager instance
 std::unique_ptr<OpenXRManager> g_openxrManager = nullptr;
 
+// Store Activity reference for OpenXR
+static jobject s_openxrActivity = nullptr;
+
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
-Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env, [[maybe_unused]] jclass clazz, jobject activity)
 {
+	// Store global ref to Activity for OpenXR
+	if (s_openxrActivity) env->DeleteGlobalRef(s_openxrActivity);
+	s_openxrActivity = env->NewGlobalRef(activity);
 	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> initializeOpenXR called");
 	cemuLog_log(LogType::Force, "OpenXR: Initializing with dynamic loading");
 
@@ -234,7 +240,7 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR([[maybe_unu
 		g_openxrManager = std::make_unique<OpenXRManager>();
 
 		// Initialize OpenXR (this creates Vulkan objects through OpenXR)
-		if (!g_openxrManager->Initialize()) {
+		if (!g_openxrManager->Initialize(s_openxrActivity)) {
 			cemuLog_log(LogType::Force, "OpenXR: Failed to initialize OpenXR manager");
 			g_openxrManager.reset();
 			return false;

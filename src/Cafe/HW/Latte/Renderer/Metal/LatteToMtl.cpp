@@ -61,16 +61,30 @@ std::map<Latte::E_GX2SURFFMT, MetalPixelFormatInfo> MTL_COLOR_FORMAT_TABLE = {
 	{Latte::E_GX2SURFFMT::R32_G32_B32_A32_UINT, {MTL::PixelFormatRGBA32Uint, MetalDataType::UINT, 16}},
 	{Latte::E_GX2SURFFMT::R32_G32_B32_A32_SINT, {MTL::PixelFormatRGBA32Sint, MetalDataType::INT, 16}},
 	{Latte::E_GX2SURFFMT::R32_G32_B32_A32_FLOAT, {MTL::PixelFormatRGBA32Float, MetalDataType::FLOAT, 16}},
-	{Latte::E_GX2SURFFMT::BC1_UNORM, {MTL::PixelFormatBC1_RGBA, MetalDataType::FLOAT, 8, {4, 4}}}, // TODO: correct?
-	{Latte::E_GX2SURFFMT::BC1_SRGB, {MTL::PixelFormatBC1_RGBA_sRGB, MetalDataType::FLOAT, 8, {4, 4}}}, // TODO: correct?
-	{Latte::E_GX2SURFFMT::BC2_UNORM, {MTL::PixelFormatBC2_RGBA, MetalDataType::FLOAT, 16, {4, 4}}}, // TODO: correct?
-	{Latte::E_GX2SURFFMT::BC2_SRGB, {MTL::PixelFormatBC2_RGBA_sRGB, MetalDataType::FLOAT, 16, {4, 4}}}, // TODO: correct?
-	{Latte::E_GX2SURFFMT::BC3_UNORM, {MTL::PixelFormatBC3_RGBA, MetalDataType::FLOAT, 16, {4, 4}}}, // TODO: correct?
-	{Latte::E_GX2SURFFMT::BC3_SRGB, {MTL::PixelFormatBC3_RGBA_sRGB, MetalDataType::FLOAT, 16, {4, 4}}}, // TODO: correct?
-	{Latte::E_GX2SURFFMT::BC4_UNORM, {MTL::PixelFormatBC4_RUnorm, MetalDataType::FLOAT, 8, {4, 4}}}, // TODO: correct?
-	{Latte::E_GX2SURFFMT::BC4_SNORM, {MTL::PixelFormatBC4_RSnorm, MetalDataType::FLOAT, 8, {4, 4}}}, // TODO: correct?
-	{Latte::E_GX2SURFFMT::BC5_UNORM, {MTL::PixelFormatBC5_RGUnorm, MetalDataType::FLOAT, 16, {4, 4}}}, // TODO: correct?
-	{Latte::E_GX2SURFFMT::BC5_SNORM, {MTL::PixelFormatBC5_RGSnorm, MetalDataType::FLOAT, 16, {4, 4}}}, // TODO: correct?
+#if TARGET_OS_VISION
+	// visionOS simulator doesn't support BC formats — decompress to uncompressed in software
+	{Latte::E_GX2SURFFMT::BC1_UNORM, {MTL::PixelFormatRGBA8Unorm, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_BC1_To_R8G8B8A8::getInstance()}},
+	{Latte::E_GX2SURFFMT::BC1_SRGB, {MTL::PixelFormatRGBA8Unorm_sRGB, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_BC1_To_R8G8B8A8::getInstance()}},
+	{Latte::E_GX2SURFFMT::BC2_UNORM, {MTL::PixelFormatRGBA8Unorm, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_BC2_To_R8G8B8A8::getInstance()}},
+	{Latte::E_GX2SURFFMT::BC2_SRGB, {MTL::PixelFormatRGBA8Unorm_sRGB, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_BC2_To_R8G8B8A8::getInstance()}},
+	{Latte::E_GX2SURFFMT::BC3_UNORM, {MTL::PixelFormatRGBA8Unorm, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_BC3_To_R8G8B8A8::getInstance()}},
+	{Latte::E_GX2SURFFMT::BC3_SRGB, {MTL::PixelFormatRGBA8Unorm_sRGB, MetalDataType::FLOAT, 4, {1, 1}, false, TextureDecoder_BC3_To_R8G8B8A8::getInstance()}},
+	{Latte::E_GX2SURFFMT::BC4_UNORM, {MTL::PixelFormatR8Unorm, MetalDataType::FLOAT, 1, {1, 1}, false, TextureDecoder_BC4_To_R8::getInstance()}},
+	{Latte::E_GX2SURFFMT::BC4_SNORM, {MTL::PixelFormatR8Snorm, MetalDataType::FLOAT, 1, {1, 1}, false, TextureDecoder_BC4_To_R8::getInstance()}},
+	{Latte::E_GX2SURFFMT::BC5_UNORM, {MTL::PixelFormatRG8Unorm, MetalDataType::FLOAT, 2, {1, 1}, false, TextureDecoder_BC5_To_R8G8<decodeBC5Block_UNORM>::getInstance()}},
+	{Latte::E_GX2SURFFMT::BC5_SNORM, {MTL::PixelFormatRG8Snorm, MetalDataType::FLOAT, 2, {1, 1}, false, TextureDecoder_BC5_To_R8G8<decodeBC5Block_SNORM>::getInstance()}},
+#else
+	{Latte::E_GX2SURFFMT::BC1_UNORM, {MTL::PixelFormatBC1_RGBA, MetalDataType::FLOAT, 8, {4, 4}}},
+	{Latte::E_GX2SURFFMT::BC1_SRGB, {MTL::PixelFormatBC1_RGBA_sRGB, MetalDataType::FLOAT, 8, {4, 4}}},
+	{Latte::E_GX2SURFFMT::BC2_UNORM, {MTL::PixelFormatBC2_RGBA, MetalDataType::FLOAT, 16, {4, 4}}},
+	{Latte::E_GX2SURFFMT::BC2_SRGB, {MTL::PixelFormatBC2_RGBA_sRGB, MetalDataType::FLOAT, 16, {4, 4}}},
+	{Latte::E_GX2SURFFMT::BC3_UNORM, {MTL::PixelFormatBC3_RGBA, MetalDataType::FLOAT, 16, {4, 4}}},
+	{Latte::E_GX2SURFFMT::BC3_SRGB, {MTL::PixelFormatBC3_RGBA_sRGB, MetalDataType::FLOAT, 16, {4, 4}}},
+	{Latte::E_GX2SURFFMT::BC4_UNORM, {MTL::PixelFormatBC4_RUnorm, MetalDataType::FLOAT, 8, {4, 4}}},
+	{Latte::E_GX2SURFFMT::BC4_SNORM, {MTL::PixelFormatBC4_RSnorm, MetalDataType::FLOAT, 8, {4, 4}}},
+	{Latte::E_GX2SURFFMT::BC5_UNORM, {MTL::PixelFormatBC5_RGUnorm, MetalDataType::FLOAT, 16, {4, 4}}},
+	{Latte::E_GX2SURFFMT::BC5_SNORM, {MTL::PixelFormatBC5_RGSnorm, MetalDataType::FLOAT, 16, {4, 4}}},
+#endif
 };
 
 std::map<Latte::E_GX2SURFFMT, MetalPixelFormatInfo> MTL_DEPTH_FORMAT_TABLE = {

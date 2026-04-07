@@ -47,7 +47,7 @@ public:
      * @param activity          Android native activity (for instance creation)
      * @return true on success, false on failure
      */
-    bool Initialize(ANativeActivity* activity = nullptr);
+    bool Initialize(jobject activityObject = nullptr);
 
     /**
      * Create OpenXR swapchain for rendering.
@@ -174,7 +174,7 @@ private:
     bool m_ownVulkanObjects = false; // true if we created Vulkan objects, false if externally provided
 
     // Android
-    ANativeActivity* m_activity = nullptr;
+    jobject m_activityObject = nullptr;
 
     // Dynamic loading state
     void* m_openxrLibrary = nullptr;

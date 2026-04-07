@@ -78,40 +78,19 @@ LatteTextureMtl::LatteTextureMtl(class MetalRenderer* mtlRenderer, Latte::E_DIM 
 
 	auto pixelFormat = GetMtlPixelFormat(format, isDepth);
 #if TARGET_OS_VISION
-	// visionOS: fix unsupported formats.
-	// Depth formats — always safe to remap
+	// visionOS: fix unsupported depth formats
 	if (pixelFormat == MTL::PixelFormatDepth24Unorm_Stencil8)
 		pixelFormat = MTL::PixelFormatDepth32Float_Stencil8;
 	else if (pixelFormat == MTL::PixelFormatDepth16Unorm)
 		pixelFormat = MTL::PixelFormatDepth32Float;
-	// Packed 16-bit and BC formats: not supported on simulator.
-	// On real device (Apple Silicon), BC formats are supported.
-	// For unsupported formats, create a 1x1 RGBA8 dummy texture.
-	bool unsupportedFormat = false;
-	switch (pixelFormat) {
-	case MTL::PixelFormatB5G6R5Unorm:
-	case MTL::PixelFormatA1BGR5Unorm:
-	case MTL::PixelFormatABGR4Unorm:
-	case MTL::PixelFormatBGR5A1Unorm:
-		unsupportedFormat = true; break;
-	default:
-		if (pixelFormat >= MTL::PixelFormatBC1_RGBA && pixelFormat <= MTL::PixelFormatBC7_RGBAUnorm_sRGB)
-			unsupportedFormat = true;
-		break;
-	}
-	if (unsupportedFormat) {
-		// Create a minimal dummy texture — textures will be wrong but the emulator won't crash
+	// Packed 16-bit formats not supported on simulator — use RGBA8
+	else if (pixelFormat == MTL::PixelFormatB5G6R5Unorm ||
+	         pixelFormat == MTL::PixelFormatA1BGR5Unorm ||
+	         pixelFormat == MTL::PixelFormatABGR4Unorm ||
+	         pixelFormat == MTL::PixelFormatBGR5A1Unorm)
 		pixelFormat = MTL::PixelFormatRGBA8Unorm;
-		desc->setWidth(1);
-		desc->setHeight(1);
-		desc->setMipmapLevelCount(1);
-		if (textureType == MTL::TextureType3D)
-			desc->setDepth(1);
-		else if (textureType == MTL::TextureTypeCubeArray)
-			desc->setArrayLength(1);
-		else if (textureType == MTL::TextureType2DArray)
-			desc->setArrayLength(1);
-	}
+	// BC formats are now handled via software decompression in the format table
+	// (LatteToMtl.cpp maps them to RGBA8/R8/RG8 with TextureDecoder_BC*_uncompress)
 #endif
 	desc->setPixelFormat(pixelFormat);
 

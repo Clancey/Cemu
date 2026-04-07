@@ -17,6 +17,12 @@ import kotlin.system.exitProcess
 class EmulationActivity : AppCompatActivity() {
     private lateinit var sensorManager: SensorManager
 
+    companion object {
+        @JvmStatic
+        var currentActivity: EmulationActivity? = null
+            private set
+    }
+
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
         if (InputHandler.onMotionEvent(event)) {
             return true
@@ -55,6 +61,7 @@ class EmulationActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        currentActivity = this
         sensorManager = SensorManager(this)
         sensorManager.setDeviceRotationProvider { display.rotation }
 
