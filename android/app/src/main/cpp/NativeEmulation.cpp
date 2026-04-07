@@ -4,6 +4,7 @@
 #include "AndroidAudio.h"
 #include "AndroidEmulatedController.h"
 #include "AndroidFilesystemCallbacks.h"
+#include "OpenXRManager.h"
 #include "Cafe/HW/Latte/Core/LatteOverlay.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
@@ -213,28 +214,91 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* e
 	s_rendererInitialized = false;
 }
 
-// OpenXR JNI stubs — OpenXR disabled until dynamic loading is implemented
-// The OpenXR loader crashes when linked as a dependency of libcemu.so
-// because it initializes before the Quest runtime is ready in EmulationProcess
+// Global OpenXR manager instance
+std::unique_ptr<OpenXRManager> g_openxrManager = nullptr;
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
 	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> initializeOpenXR called");
-	cemuLog_log(LogType::Force, "OpenXR: not yet implemented (dynamic loading needed)");
-	return false;  // Fall back to SurfaceView rendering
+	cemuLog_log(LogType::Force, "OpenXR: Initializing with dynamic loading");
+
+	try {
+		// Initialize global Vulkan first (this creates the VulkanRenderer)
+		if (!InitializeGlobalVulkan()) {
+			cemuLog_log(LogType::Force, "OpenXR: Failed to initialize global Vulkan");
+			return false;
+		}
+
+		// Create VulkanRenderer normally
+		g_renderer = std::make_unique<VulkanRenderer>();
+
+		// Get Vulkan objects from the renderer
+		VkInstance vkInstance = VulkanRenderer::GetInstance()->GetVkInstance();
+		VkPhysicalDevice vkPhysicalDevice = VulkanRenderer::GetInstance()->GetPhysicalDevice();
+		VkDevice vkDevice = VulkanRenderer::GetInstance()->GetLogicalDevice();
+		uint32_t queueFamilyIndex = 0;  // TODO: Get actual graphics queue family index
+
+		// Create OpenXR manager
+		g_openxrManager = std::make_unique<OpenXRManager>();
+
+		// Initialize OpenXR with Vulkan objects
+		if (!g_openxrManager->Initialize(vkInstance, vkPhysicalDevice, vkDevice, queueFamilyIndex)) {
+			cemuLog_log(LogType::Force, "OpenXR: Failed to initialize OpenXR manager");
+			g_openxrManager.reset();
+			return false;
+		}
+
+		// Create OpenXR swapchain (1920x1080 for now, typical TV resolution)
+		const uint32_t swapchainWidth = 1920;
+		const uint32_t swapchainHeight = 1080;
+		const VkFormat swapchainFormat = VK_FORMAT_R8G8B8A8_SRGB;
+
+		if (!g_openxrManager->CreateSwapchain(swapchainWidth, swapchainHeight, swapchainFormat)) {
+			cemuLog_log(LogType::Force, "OpenXR: Failed to create swapchain");
+			g_openxrManager.reset();
+			return false;
+		}
+
+		cemuLog_log(LogType::Force, "OpenXR: Initialization successful - VR mode ready");
+		return true;
+
+	} catch (const std::exception& e) {
+		cemuLog_log(LogType::Force, fmt::format("OpenXR: Exception during initialization: {}", e.what()));
+		g_openxrManager.reset();
+		return false;
+	}
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
-Java_info_cemu_cemu_nativeinterface_NativeEmulation_shutdownOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz) {}
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_shutdownOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
+{
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> shutdownOpenXR called");
+	if (g_openxrManager) {
+		cemuLog_log(LogType::Force, "OpenXR: Shutting down");
+		g_openxrManager.reset();
+	}
+}
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_isOpenXRActive([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
-{ return false; }
+{
+	return g_openxrManager && g_openxrManager->IsSessionRunning();
+}
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_updateOpenXRFrame([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
-{ return false; }
+{
+	if (!g_openxrManager) {
+		return false;
+	}
+
+	// Poll OpenXR events to update session state
+	g_openxrManager->PollEvents();
+
+	// Return true if session is running and we should continue rendering
+	return g_openxrManager->IsSessionRunning();
+}
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_setDPI([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jfloat dpi)

@@ -571,7 +571,13 @@ bool MetalRenderer::ImguiBegin(bool mainWindow)
 	// Check if the font texture needs to be built
 	ImGuiIO& io = ImGui::GetIO();
     if (!io.Fonts->IsBuilt())
+    {
+        // Ensure at least one font is loaded (visionOS stub may not provide custom fonts)
+        if (io.Fonts->Fonts.Size == 0)
+            io.Fonts->AddFontDefault();
+        io.Fonts->Build(); // Force build the atlas before creating texture
         ImGui_ImplMetal_CreateFontsTexture(m_device);
+    }
 
 	auto& layer = GetLayer(mainWindow);
 

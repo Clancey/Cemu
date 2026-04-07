@@ -67,12 +67,20 @@ void ImGui_PrecacheFonts()
 		if (g_font_size == 0)
 			g_font_data = extractCafeDefaultFont(&g_font_size);
 
-		ImFontConfig cfg{};
-		cfg.FontDataOwnedByAtlas = false;
-		//cfg.FontData = g_font_data;
-		//cfg.FontDataSize = g_font_size;
-		//cfg.SizePixels = size;
-		ImFont* font = io.Fonts->AddFontFromMemoryTTF(g_font_data, g_font_size, (float)size, &cfg);
+		ImFont* font;
+		if (g_font_data && g_font_size > 0)
+		{
+			ImFontConfig cfg{};
+			cfg.FontDataOwnedByAtlas = false;
+			font = io.Fonts->AddFontFromMemoryTTF(g_font_data, g_font_size, (float)size, &cfg);
+		}
+		else
+		{
+			// No custom font available (e.g. visionOS) — use ImGui default
+			ImFontConfig cfg{};
+			cfg.SizePixels = (float)size;
+			font = io.Fonts->AddFontDefault(&cfg);
+		}
 
 		ImFontConfig cfgmerge{};
 		cfgmerge.FontDataOwnedByAtlas = false;
@@ -97,7 +105,8 @@ void ImGui_PrecacheFonts()
 			}
 		}
 #else
-		io.Fonts->AddFontFromMemoryTTF((void*)g_fontawesome_data, (int)g_fontawesome_size, (float)size, &cfgmerge, icon_ranges);
+		if (g_fontawesome_data && g_fontawesome_size > 0)
+			io.Fonts->AddFontFromMemoryTTF((void*)g_fontawesome_data, (int)g_fontawesome_size, (float)size, &cfgmerge, icon_ranges);
 #endif
 
 		g_imgui_fonts[(int)size] = font;

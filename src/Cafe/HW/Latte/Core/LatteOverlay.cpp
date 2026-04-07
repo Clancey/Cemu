@@ -73,6 +73,8 @@ void LatteOverlay_renderOverlay(ImVec2& position, ImVec2& pivot, sint32 directio
 	auto& config = GetConfig();
 
 	const auto font = ImGui_GetFont(fontSize);
+	if (!font)
+		return;
 	ImGui::PushFont(font);
 
 	const ImVec4 color = ImGui::ColorConvertU32ToFloat4(config.overlay.text_color);
@@ -130,6 +132,8 @@ void LatteOverlay_RenderNotifications(ImVec2& position, ImVec2& pivot, sint32 di
 	auto& config = GetConfig();
 
 	const auto font = ImGui_GetFont(fontSize);
+	if (!font)
+		return; // No fonts available (e.g. visionOS without bundled fonts)
 	ImGui::PushFont(font);
 
 	const ImVec4 color = ImGui::ColorConvertU32ToFloat4(config.notification.text_color);

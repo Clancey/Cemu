@@ -57,8 +57,10 @@ LatteTextureMtl::LatteTextureMtl(class MetalRenderer* mtlRenderer, Latte::E_DIM 
     mipLevels = std::min(mipLevels, (uint32)maxPossibleMipLevels);
     mipLevels = std::max(mipLevels, (uint32)1);
 
-	desc->setWidth(effectiveBaseWidth);
-	desc->setHeight(effectiveBaseHeight);
+	uint32 texWidth = effectiveBaseWidth > 0 ? effectiveBaseWidth : 1;
+	uint32 texHeight = effectiveBaseHeight > 0 ? effectiveBaseHeight : 1;
+	desc->setWidth(texWidth);
+	desc->setHeight(texHeight);
 	desc->setMipmapLevelCount(mipLevels);
 
 	if (textureType == MTL::TextureType3D)
@@ -76,16 +78,39 @@ LatteTextureMtl::LatteTextureMtl(class MetalRenderer* mtlRenderer, Latte::E_DIM 
 
 	auto pixelFormat = GetMtlPixelFormat(format, isDepth);
 #if TARGET_OS_VISION
-	// Safety: reject macOS-only depth formats that slip through
+	// visionOS: fix unsupported formats.
+	// Depth formats — always safe to remap
 	if (pixelFormat == MTL::PixelFormatDepth24Unorm_Stencil8)
-	{
-		cemuLog_log(LogType::Force, "visionOS: Replacing unsupported Depth24Unorm_Stencil8 with Depth32Float_Stencil8 (format={}, isDepth={})", (uint32)format, isDepth);
 		pixelFormat = MTL::PixelFormatDepth32Float_Stencil8;
-	}
-	if (pixelFormat == MTL::PixelFormatDepth16Unorm)
-	{
-		cemuLog_log(LogType::Force, "visionOS: Replacing unsupported Depth16Unorm with Depth32Float");
+	else if (pixelFormat == MTL::PixelFormatDepth16Unorm)
 		pixelFormat = MTL::PixelFormatDepth32Float;
+	// Packed 16-bit and BC formats: not supported on simulator.
+	// On real device (Apple Silicon), BC formats are supported.
+	// For unsupported formats, create a 1x1 RGBA8 dummy texture.
+	bool unsupportedFormat = false;
+	switch (pixelFormat) {
+	case MTL::PixelFormatB5G6R5Unorm:
+	case MTL::PixelFormatA1BGR5Unorm:
+	case MTL::PixelFormatABGR4Unorm:
+	case MTL::PixelFormatBGR5A1Unorm:
+		unsupportedFormat = true; break;
+	default:
+		if (pixelFormat >= MTL::PixelFormatBC1_RGBA && pixelFormat <= MTL::PixelFormatBC7_RGBAUnorm_sRGB)
+			unsupportedFormat = true;
+		break;
+	}
+	if (unsupportedFormat) {
+		// Create a minimal dummy texture — textures will be wrong but the emulator won't crash
+		pixelFormat = MTL::PixelFormatRGBA8Unorm;
+		desc->setWidth(1);
+		desc->setHeight(1);
+		desc->setMipmapLevelCount(1);
+		if (textureType == MTL::TextureType3D)
+			desc->setDepth(1);
+		else if (textureType == MTL::TextureTypeCubeArray)
+			desc->setArrayLength(1);
+		else if (textureType == MTL::TextureType2DArray)
+			desc->setArrayLength(1);
 	}
 #endif
 	desc->setPixelFormat(pixelFormat);

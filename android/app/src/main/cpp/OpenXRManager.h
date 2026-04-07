@@ -6,8 +6,10 @@
 #include <vector>
 #include <functional>
 #include <atomic>
+#include <dlfcn.h>
 
-// OpenXR includes - define platform and graphics API before including
+// Dynamic OpenXR loading - declare functions as pointers instead of extern
+#define XR_NO_PROTOTYPES
 #define XR_USE_PLATFORM_ANDROID 1
 #define XR_USE_GRAPHICS_API_VULKAN 1
 #include <openxr/openxr.h>
@@ -171,10 +173,42 @@ private:
     // Android
     ANativeActivity* m_activity = nullptr;
 
+    // Dynamic loading state
+    void* m_openxrLibrary = nullptr;
+    bool m_openxrLoaded = false;
+
+    // Core OpenXR function pointers (loaded via dlsym)
+    PFN_xrGetInstanceProcAddr p_xrGetInstanceProcAddr = nullptr;
+
+    // Instance-level function pointers (loaded via xrGetInstanceProcAddr)
+    PFN_xrCreateInstance p_xrCreateInstance = nullptr;
+    PFN_xrDestroyInstance p_xrDestroyInstance = nullptr;
+    PFN_xrGetSystem p_xrGetSystem = nullptr;
+    PFN_xrEnumerateInstanceExtensionProperties p_xrEnumerateInstanceExtensionProperties = nullptr;
+    PFN_xrCreateSession p_xrCreateSession = nullptr;
+    PFN_xrDestroySession p_xrDestroySession = nullptr;
+    PFN_xrBeginSession p_xrBeginSession = nullptr;
+    PFN_xrEndSession p_xrEndSession = nullptr;
+    PFN_xrCreateReferenceSpace p_xrCreateReferenceSpace = nullptr;
+    PFN_xrDestroySpace p_xrDestroySpace = nullptr;
+    PFN_xrCreateSwapchain p_xrCreateSwapchain = nullptr;
+    PFN_xrDestroySwapchain p_xrDestroySwapchain = nullptr;
+    PFN_xrEnumerateSwapchainImages p_xrEnumerateSwapchainImages = nullptr;
+    PFN_xrAcquireSwapchainImage p_xrAcquireSwapchainImage = nullptr;
+    PFN_xrWaitSwapchainImage p_xrWaitSwapchainImage = nullptr;
+    PFN_xrReleaseSwapchainImage p_xrReleaseSwapchainImage = nullptr;
+    PFN_xrWaitFrame p_xrWaitFrame = nullptr;
+    PFN_xrBeginFrame p_xrBeginFrame = nullptr;
+    PFN_xrEndFrame p_xrEndFrame = nullptr;
+    PFN_xrPollEvent p_xrPollEvent = nullptr;
+    PFN_xrResultToString p_xrResultToString = nullptr;
+
     // Extension function pointers
     PFN_xrGetVulkanGraphicsRequirements2KHR m_xrGetVulkanGraphicsRequirements2KHR = nullptr;
 
     // Helper methods
+    bool LoadOpenXRLibrary();
+    bool LoadInstanceFunctions();
     bool CreateInstance();
     bool GetSystem();
     bool CreateSession();

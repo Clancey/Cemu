@@ -320,7 +320,17 @@ bool ImGui_ImplMetal_CreateFontsTexture(id<MTLDevice> device)
     // You can make that change in your implementation.
     unsigned char* pixels;
     int width, height;
+    // Ensure at least one font is loaded
+    if (io.Fonts->Fonts.Size == 0)
+        io.Fonts->AddFontDefault();
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+    if (width <= 0 || height <= 0) {
+        // Force build and retry
+        io.Fonts->Build();
+        io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+    }
+    if (width <= 0 || height <= 0)
+        return false; // Cannot create font texture
     MTLTextureDescriptor* textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                                                                  width:(NSUInteger)width
                                                                                                 height:(NSUInteger)height

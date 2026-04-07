@@ -185,7 +185,41 @@ MTL::Texture* LatteTextureViewMtl::CreateSwizzledView(uint32 gpuSamplerSwizzle)
     levelCount = std::max(levelCount, (uint32)1);
 
     auto pixelFormat = GetMtlPixelFormat(format, m_baseTexture->isDepth);
-    MTL::Texture* texture = m_baseTexture->GetTexture()->newTextureView(pixelFormat, textureType, NS::Range::Make(baseLevel, levelCount), NS::Range::Make(baseLayer, layerCount), swizzle);
+#if TARGET_OS_VISION
+    // Fallback for unsupported formats on visionOS simulator
+    auto baseFormat = m_baseTexture->GetTexture()->pixelFormat();
+    switch (pixelFormat) {
+    case MTL::PixelFormatDepth24Unorm_Stencil8:
+        pixelFormat = MTL::PixelFormatDepth32Float_Stencil8; break;
+    case MTL::PixelFormatDepth16Unorm:
+        pixelFormat = MTL::PixelFormatDepth32Float; break;
+    case MTL::PixelFormatB5G6R5Unorm:
+    case MTL::PixelFormatA1BGR5Unorm:
+    case MTL::PixelFormatABGR4Unorm:
+    case MTL::PixelFormatBGR5A1Unorm:
+        pixelFormat = baseFormat; break;
+    case MTL::PixelFormatInvalid:
+        pixelFormat = baseFormat; break;
+    default:
+        if (pixelFormat >= MTL::PixelFormatBC1_RGBA && pixelFormat <= MTL::PixelFormatBC7_RGBAUnorm_sRGB)
+            pixelFormat = baseFormat;
+        break;
+    }
+#endif
+    // Clamp ranges to actual texture dimensions (needed for dummy textures on visionOS)
+    auto* baseTex = m_baseTexture->GetTexture();
+    uint32 maxLevels = baseTex->mipmapLevelCount();
+    uint32 maxSlices = baseTex->arrayLength();
+    if (baseTex->textureType() == MTL::TextureType3D)
+        maxSlices = baseTex->depth();
+    if (baseLevel >= maxLevels) baseLevel = 0;
+    if (baseLevel + levelCount > maxLevels) levelCount = maxLevels - baseLevel;
+    if (levelCount == 0) levelCount = 1;
+    if (baseLayer >= maxSlices) baseLayer = 0;
+    if (baseLayer + layerCount > maxSlices) layerCount = maxSlices - baseLayer;
+    if (layerCount == 0) layerCount = 1;
+
+    MTL::Texture* texture = baseTex->newTextureView(pixelFormat, textureType, NS::Range::Make(baseLevel, levelCount), NS::Range::Make(baseLayer, layerCount), swizzle);
 
     return texture;
 }

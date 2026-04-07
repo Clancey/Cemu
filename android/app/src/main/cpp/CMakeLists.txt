@@ -20,9 +20,9 @@ add_library(cemu SHARED
         ${JNI_DIR}/NativeSettings.cpp
         ${JNI_DIR}/NativeSwkbd.cpp
         ${JNI_DIR}/WuaConverter.cpp
-        # OpenXR files temporarily disabled — need dynamic loading
-        # ${JNI_DIR}/OpenXRManager.cpp
-        # ${JNI_DIR}/SwapchainInfoXR.cpp
+        # OpenXR files with dynamic loading
+        ${JNI_DIR}/OpenXRManager.cpp
+        ${JNI_DIR}/SwapchainInfoXR.cpp
         ${SRC_DIR}/Common/android/FilesystemAndroid.cpp
 )
 
