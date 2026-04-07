@@ -20,8 +20,9 @@ add_library(cemu SHARED
         ${JNI_DIR}/NativeSettings.cpp
         ${JNI_DIR}/NativeSwkbd.cpp
         ${JNI_DIR}/WuaConverter.cpp
-        ${JNI_DIR}/OpenXRManager.cpp
-        ${JNI_DIR}/SwapchainInfoXR.cpp
+        # OpenXR files temporarily disabled — need dynamic loading
+        # ${JNI_DIR}/OpenXRManager.cpp
+        # ${JNI_DIR}/SwapchainInfoXR.cpp
         ${SRC_DIR}/Common/android/FilesystemAndroid.cpp
 )
 
@@ -33,12 +34,8 @@ target_include_directories(cemu PRIVATE
 
 cemu_use_precompiled_header(cemu)
 
-# Set up OpenXR loader as imported shared library
-set(OPENXR_LIB_DIR "/Users/clancey/Projects/godot_openxr_vendors/plugin/build/temp/khronos_openxr_loader_aar/jni/${ANDROID_ABI}")
-add_library(openxr_loader SHARED IMPORTED)
-set_target_properties(openxr_loader PROPERTIES
-    IMPORTED_LOCATION "${OPENXR_LIB_DIR}/libopenxr_loader.so"
-)
+# OpenXR: headers only at compile time, loaded dynamically at runtime via dlopen
+# This allows libcemu.so to load without OpenXR in the main (2D) process
 
 target_link_libraries(cemu PRIVATE
         -landroid
@@ -54,5 +51,4 @@ target_link_libraries(cemu PRIVATE
         ZArchive::zarchive
         stb
         Threads::Threads
-        openxr_loader
 )

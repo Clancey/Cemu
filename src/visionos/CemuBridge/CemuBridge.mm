@@ -298,14 +298,18 @@ namespace WindowSystem
 
     // Create the Metal renderer if not already created.
     if (!g_renderer) {
-        os_log_info(cemuLog(), "Creating Metal renderer for visionOS");
+        cemuLog_log(LogType::Force, "visionOS: Creating Metal renderer");
         g_renderer = std::make_unique<MetalRenderer>();
+        cemuLog_log(LogType::Force, "visionOS: Metal renderer created, g_renderer={}", (void*)g_renderer.get());
     }
 
     // Initialize/resize the layer in the renderer.
     auto* metalRenderer = MetalRenderer::GetInstance();
     if (metalRenderer) {
+        cemuLog_log(LogType::Force, "visionOS: InitializeLayer {}x{}", width, height);
         metalRenderer->InitializeLayer({width, height}, true);
+    } else {
+        cemuLog_log(LogType::Force, "visionOS: WARNING - MetalRenderer::GetInstance() returned null");
     }
 
     os_log_info(cemuLog(), "Main display layer set: %dx%d", width, height);

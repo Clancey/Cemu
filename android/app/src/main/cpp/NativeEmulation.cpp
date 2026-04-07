@@ -14,7 +14,7 @@
 #include "input/api/Android/AndroidControllerProvider.h"
 #include "config/ActiveSettings.h"
 #include "Cemu/ncrypto/ncrypto.h"
-#include "OpenXRManager.h"
+// #include "OpenXRManager.h" // TODO: re-enable with dynamic loading
 
 // forward declaration from main.cpp
 void CemuCommonInit();
@@ -170,7 +170,7 @@ namespace NativeEmulation
 	};
 
 	std::unique_ptr<TestSurface> g_testSurface;
-	std::unique_ptr<OpenXRManager> g_openxrManager;
+	// std::unique_ptr<OpenXRManager> g_openxrManager; // TODO: re-enable
 	std::atomic<bool> g_useOpenXR{false};
 } // namespace NativeEmulation
 
@@ -211,182 +211,27 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* e
 	s_rendererInitialized = false;
 }
 
+// OpenXR JNI stubs — OpenXR disabled until dynamic loading is implemented
+// The OpenXR loader crashes when linked as a dependency of libcemu.so
+// because it initializes before the Quest runtime is ready in EmulationProcess
+
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
-Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env, [[maybe_unused]] jclass clazz)
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
-	using namespace NativeEmulation;
-
-	cemuLog_log(LogType::Force, "Initializing OpenXR for VR rendering");
-
-	// Enable OpenXR mode
-	g_useOpenXR = true;
-
-	// Create OpenXR manager
-	g_openxrManager = std::make_unique<OpenXRManager>();
-
-	// Initialize Vulkan loader (loads function pointers)
-	InitializeGlobalVulkan();
-
-	// For OpenXR, we create our own minimal Vulkan instance/device
-	// because VulkanRenderer's constructor requires a valid surface
-	// which Quest doesn't provide outside of OpenXR
-	try {
-		// Create minimal Vulkan instance for OpenXR
-		VkApplicationInfo appInfo = {};
-		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-		appInfo.pApplicationName = "Cemu";
-		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.pEngineName = "Cemu";
-		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.apiVersion = VK_API_VERSION_1_1;
-
-		std::vector<const char*> instanceExts = {
-			VK_KHR_SURFACE_EXTENSION_NAME,
-			VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
-		};
-
-		VkInstanceCreateInfo instanceCI = {};
-		instanceCI.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		instanceCI.pApplicationInfo = &appInfo;
-		instanceCI.enabledExtensionCount = instanceExts.size();
-		instanceCI.ppEnabledExtensionNames = instanceExts.data();
-
-		VkInstance vkInstance;
-		if (vkCreateInstance(&instanceCI, nullptr, &vkInstance) != VK_SUCCESS) {
-			cemuLog_log(LogType::Force, "Failed to create Vulkan instance for OpenXR");
-			g_useOpenXR = false;
-			return false;
-		}
-
-		// Pick physical device
-		uint32_t deviceCount = 0;
-		vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);
-		std::vector<VkPhysicalDevice> physDevices(deviceCount);
-		vkEnumeratePhysicalDevices(vkInstance, &deviceCount, physDevices.data());
-		VkPhysicalDevice vkPhysicalDevice = physDevices[0];
-
-		// Create device with graphics queue
-		float queuePriority = 1.0f;
-		VkDeviceQueueCreateInfo queueCI = {};
-		queueCI.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCI.queueFamilyIndex = 0;
-		queueCI.queueCount = 1;
-		queueCI.pQueuePriorities = &queuePriority;
-
-		std::vector<const char*> deviceExts = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-
-		VkDeviceCreateInfo deviceCI = {};
-		deviceCI.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceCI.queueCreateInfoCount = 1;
-		deviceCI.pQueueCreateInfos = &queueCI;
-		deviceCI.enabledExtensionCount = deviceExts.size();
-		deviceCI.ppEnabledExtensionNames = deviceExts.data();
-
-		VkDevice vkDevice;
-		if (vkCreateDevice(vkPhysicalDevice, &deviceCI, nullptr, &vkDevice) != VK_SUCCESS) {
-			cemuLog_log(LogType::Force, "Failed to create Vulkan device for OpenXR");
-			vkDestroyInstance(vkInstance, nullptr);
-			g_useOpenXR = false;
-			return false;
-		}
-
-		cemuLog_log(LogType::Force, "Vulkan instance/device created for OpenXR");
-
-		// Initialize OpenXR with our Vulkan objects
-		if (!g_openxrManager->Initialize(vkInstance, vkPhysicalDevice, vkDevice, 0)) {
-			cemuLog_log(LogType::Force, "Failed to initialize OpenXR");
-			vkDestroyDevice(vkDevice, nullptr);
-			vkDestroyInstance(vkInstance, nullptr);
-			g_openxrManager.reset();
-			g_useOpenXR = false;
-			return false;
-		}
-
-		// Create OpenXR swapchain
-		if (!g_openxrManager->CreateSwapchain(1920, 1080, VK_FORMAT_R8G8B8A8_SRGB)) {
-			cemuLog_log(LogType::Force, "Failed to create OpenXR swapchain");
-			g_openxrManager.reset();
-			g_useOpenXR = false;
-			return false;
-		}
-
-		cemuLog_log(LogType::Force, "OpenXR initialized successfully");
-		s_rendererInitialized = true;
-		return true;
-
-	} catch (const std::exception& e) {
-		cemuLog_log(LogType::Force, "Failed to initialize OpenXR: {}", e.what());
-		g_openxrManager.reset();
-		g_useOpenXR = false;
-		return false;
-	}
+	cemuLog_log(LogType::Force, "OpenXR: not yet implemented (dynamic loading needed)");
+	return false;  // Fall back to SurfaceView rendering
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
-Java_info_cemu_cemu_nativeinterface_NativeEmulation_shutdownOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
-{
-	using namespace NativeEmulation;
-
-	if (g_openxrManager) {
-		g_openxrManager->Shutdown();
-		g_openxrManager.reset();
-	}
-	g_useOpenXR = false;
-	cemuLog_log(LogType::Force, "OpenXR shutdown complete");
-}
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_shutdownOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz) {}
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_isOpenXRActive([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
-{
-	return NativeEmulation::g_useOpenXR && NativeEmulation::g_openxrManager != nullptr;
-}
+{ return false; }
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_updateOpenXRFrame([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
-{
-	using namespace NativeEmulation;
-
-	if (!g_useOpenXR || !g_openxrManager) {
-		return false;
-	}
-
-	// Poll OpenXR events
-	g_openxrManager->PollEvents();
-
-	// Check if session is running and ready to render
-	if (!g_openxrManager->IsSessionRunning()) {
-		return false;
-	}
-
-	// Begin OpenXR frame
-	if (!g_openxrManager->BeginFrame()) {
-		return false;
-	}
-
-	// Acquire swapchain image
-	uint32_t imageIndex = g_openxrManager->AcquireSwapchainImage();
-	if (imageIndex == UINT32_MAX) {
-		return false;
-	}
-
-	// TODO: Render Cemu's frame to the OpenXR swapchain image
-	// This would involve:
-	// 1. Getting the current rendered TV texture from VulkanRenderer
-	// 2. Blitting it to the OpenXR swapchain image at imageIndex
-	// 3. Handling the image layout transitions properly
-
-	// Release swapchain image
-	g_openxrManager->ReleaseSwapchainImage();
-
-	// End frame with default quad pose and size
-	XrPosef quadPose = {
-		.orientation = {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f},
-		.position = {.x = 0.0f, .y = 0.0f, .z = -2.0f}
-	};
-	XrExtent2Df quadSize = {.width = 2.0f, .height = 1.125f};
-
-	return g_openxrManager->EndFrame(quadPose, quadSize);
-}
+{ return false; }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_setDPI([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jfloat dpi)
