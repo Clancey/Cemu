@@ -3,6 +3,8 @@ package info.cemu.cemu.emulation
 import android.annotation.SuppressLint
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.TextureView
+import android.graphics.SurfaceTexture
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -409,27 +411,37 @@ private fun EmulationSurface(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            SurfaceView(context).apply {
+            // Use TextureView instead of SurfaceView on Quest
+            // Quest's 2D panel mode abandons SurfaceView BufferQueues
+            TextureView(context).apply {
                 var firstChange = true
-
                 setOnTouchListener(CanvasOnTouchListener(isTV))
-
-                holder.addCallback(holderCallback)
-
-                holder.addCallback(object : SurfaceHolder.Callback {
-                    override fun surfaceChanged(
-                        holder: SurfaceHolder, format: Int, width: Int, height: Int
+                surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                    override fun onSurfaceTextureAvailable(
+                        surfaceTexture: SurfaceTexture, width: Int, height: Int
                     ) {
+                        // Create a Surface from TextureView's SurfaceTexture
+                        // and pass it through the SurfaceHolder callback
+                        val surface = android.view.Surface(surfaceTexture)
+                        // Directly call the ViewModel's surface handling
+                        NativeEmulation.setSurfaceSize(width, height, isTV)
+                        NativeEmulation.setSurface(surface, isTV)
                         if (firstChange) {
                             afterInit()
                             firstChange = false
                         }
                     }
-
-                    override fun surfaceCreated(holder: SurfaceHolder) {}
-
-                    override fun surfaceDestroyed(holder: SurfaceHolder) {}
-                })
+                    override fun onSurfaceTextureSizeChanged(
+                        surfaceTexture: SurfaceTexture, width: Int, height: Int
+                    ) {
+                        NativeEmulation.setSurfaceSize(width, height, isTV)
+                    }
+                    override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
+                        holderCallback.surfaceDestroyed(null)
+                        return true
+                    }
+                    override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) {}
+                }
             }
         })
 }

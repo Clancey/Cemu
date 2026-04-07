@@ -20,10 +20,13 @@ struct EmulatorView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if core.isRunning {
-                MetalEmulatorView(core: core)
-                    .aspectRatio(854.0 / 480.0, contentMode: .fit)
-            } else {
+            // Always keep the Metal view attached so the renderer is
+            // initialized before a game launches.
+            MetalEmulatorView(core: core)
+                .aspectRatio(854.0 / 480.0, contentMode: .fit)
+                .opacity(core.isRunning ? 1.0 : 0.0)
+
+            if !core.isRunning {
                 placeholderView
             }
         }

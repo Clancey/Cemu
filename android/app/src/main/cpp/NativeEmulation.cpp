@@ -278,32 +278,32 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeSurface(JNIEnv* en
 		// use the real SurfaceView surface. Wait for it to be set by setSurface().
 		if (!s_rendererInitialized && is_main_canvas) {
 			auto& surfaceAtomic = WindowSystem::GetWindowInfo().canvas_main.surface;
-			// Wait for surface, then wait for it to stabilize (Quest destroys+recreates during layout)
-			for (int attempt = 0; attempt < 30; attempt++) {
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "initializeSurface: waiting for surface from TextureView...");
+			cemuLog_log(LogType::Force, "initializeSurface: waiting for surface from TextureView...");
+			// Wait for setSurface to provide a valid surface (called from UI thread)
+			// Use atomic wait with timeout
+			for (int i = 0; i < 100; i++) { // 10 seconds max
 				auto surface = surfaceAtomic.load();
 				if (surface) {
-					// Wait a moment for the surface to stabilize
-					std::this_thread::sleep_for(std::chrono::milliseconds(500));
-					// Re-read in case surface was destroyed and recreated
-					surface = surfaceAtomic.load();
-					if (!surface) continue;
+					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "initializeSurface: got surface %p, creating VulkanRenderer", surface);
+				cemuLog_log(LogType::Force, "initializeSurface: got surface, creating VulkanRenderer");
 					WindowSystem::GetWindowInfo().window_main.surface = surface;
 					try {
 						g_renderer = std::make_unique<VulkanRenderer>();
 						s_rendererInitialized = true;
-						cemuLog_log(LogType::Force, "VulkanRenderer created successfully");
+						__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VulkanRenderer created successfully!");
+				cemuLog_log(LogType::Force, "VulkanRenderer created successfully!");
 						break;
 					} catch (const std::exception& e) {
-						cemuLog_log(LogType::Force, "VulkanRenderer creation attempt {} failed: {}", attempt, e.what());
-						// Surface may have been destroyed, wait and retry
-						std::this_thread::sleep_for(std::chrono::milliseconds(500));
+						cemuLog_log(LogType::Force, "VulkanRenderer creation failed: {}", e.what());
+						break;
 					}
-				} else {
-					std::this_thread::sleep_for(std::chrono::milliseconds(200));
 				}
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			}
 			if (!s_rendererInitialized) {
-				cemuLog_log(LogType::Force, "initializeSurface: Failed to create VulkanRenderer after retries");
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "initializeSurface: timed out waiting for surface");
+			cemuLog_log(LogType::Force, "initializeSurface: timed out waiting for surface");
 				return;
 			}
 		}

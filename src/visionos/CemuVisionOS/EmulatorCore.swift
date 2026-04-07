@@ -87,8 +87,8 @@ final class EmulatorCore {
         guard let path = pendingDebugGamePath else { return }
         pendingDebugGamePath = nil
         logger.info("Auto-launching debug game now (Metal layer ready): \(path)")
-        // Short delay to let the renderer fully initialize
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        // Delay to let the renderer fully initialize after layer attachment
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             self?.loadGame(at: path)
         }
     }
