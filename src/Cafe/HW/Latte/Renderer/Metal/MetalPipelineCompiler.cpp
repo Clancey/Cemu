@@ -372,6 +372,9 @@ bool MetalPipelineCompiler::Compile(bool forceCompile, bool isRenderThread, bool
 #endif
        	pipeline = m_mtlr->GetDevice()->newRenderPipelineState(desc, MTL::PipelineOptionNone, nullptr, &error);
     }
+    // On visionOS simulator, Metal validation aborts on unsupported render target configs.
+    // The error parameter captures the failure but the debug layer still asserts.
+    // We handle this by returning false below if pipeline is null.
     auto end = std::chrono::high_resolution_clock::now();
 
     auto creationDuration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();

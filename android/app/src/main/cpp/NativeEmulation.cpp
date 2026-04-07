@@ -272,17 +272,44 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env
 
 		cemuLog_log(LogType::Force, "OpenXR: Initialization successful - starting frame loop");
 
+		// Test xrPollEvent directly
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Testing xrPollEvent directly...");
+		// Wait a moment for the session to finish creating
+		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+		g_openxrManager->PollEvents();
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "PollEvents works!");
+
 		// Start OpenXR frame loop on a background thread
-		// This keeps the VR session alive by submitting frames
 		std::thread([]() {
-			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR frame loop started");
-			while (g_openxrManager) {
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR frame loop started, manager=%p", g_openxrManager.get());
+			int frameCount = 0;
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Entering while loop, manager valid: %d", g_openxrManager.get() != nullptr ? 1 : 0);
+			try {
+			while (true) {
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Loop top");
+				if (!g_openxrManager) {
+					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Manager became null, exiting loop");
+					break;
+				}
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Before PollEvents");
 				g_openxrManager->PollEvents();
-				if (!g_openxrManager->IsSessionRunning()) {
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "After PollEvents");
+				bool running = g_openxrManager->IsSessionRunning();
+				if (frameCount < 3) {
+					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Loop iter %d: running=%d", frameCount, running ? 1 : 0);
+				}
+				if (!running) {
 					std::this_thread::sleep_for(std::chrono::milliseconds(100));
+					frameCount++;
 					continue;
 				}
-				if (g_openxrManager->BeginFrame()) {
+				bool beginResult = g_openxrManager->BeginFrame();
+				if (frameCount < 5) {
+					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Frame %d: BeginFrame=%d sessionRunning=%d",
+						frameCount, beginResult ? 1 : 0, g_openxrManager->IsSessionRunning() ? 1 : 0);
+				}
+				frameCount++;
+				if (beginResult) {
 					uint32_t imageIndex = g_openxrManager->AcquireSwapchainImage();
 					if (imageIndex != UINT32_MAX) {
 						// Clear swapchain image to blue to prove rendering works
@@ -353,8 +380,16 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env
 						.position = {.x = 0.0f, .y = 0.0f, .z = -2.0f}
 					};
 					XrExtent2Df quadSize = {.width = 2.0f, .height = 1.125f};
-					g_openxrManager->EndFrame(quadPose, quadSize);
+					bool endResult = g_openxrManager->EndFrame(quadPose, quadSize);
+					if (frameCount <= 5) {
+						__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Frame %d: EndFrame=%d", frameCount, endResult ? 1 : 0);
+					}
 				}
+			}
+			} catch (const std::exception& e) {
+				__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR frame loop exception: %s", e.what());
+			} catch (...) {
+				__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR frame loop unknown exception");
 			}
 			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR frame loop ended");
 		}).detach();

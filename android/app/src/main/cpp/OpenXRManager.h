@@ -81,9 +81,7 @@ public:
      * Check if OpenXR session is in running state.
      * Only render when this returns true.
      */
-    bool IsSessionRunning() const { return m_sessionState == XR_SESSION_STATE_SYNCHRONIZED ||
-                                           m_sessionState == XR_SESSION_STATE_VISIBLE ||
-                                           m_sessionState == XR_SESSION_STATE_FOCUSED; }
+    bool IsSessionRunning() const { return m_sessionRunning; }
 
     /**
      * Begin an OpenXR frame. Call before rendering.

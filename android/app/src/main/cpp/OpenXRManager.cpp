@@ -549,11 +549,21 @@ bool OpenXRManager::CreateSwapchain(uint32_t width, uint32_t height, VkFormat fo
 
 void OpenXRManager::PollEvents()
 {
+    LOGI("PollEvents enter: xrPollEvent=%p instance=%llu", (void*)p_xrPollEvent, (unsigned long long)m_instance);
+    if (!p_xrPollEvent || m_instance == XR_NULL_HANDLE) {
+        LOGE("PollEvents: INVALID xrPollEvent=%p instance=%llu", (void*)p_xrPollEvent, (unsigned long long)m_instance);
+        return;
+    }
     XrEventDataBuffer eventBuffer = {XR_TYPE_EVENT_DATA_BUFFER};
 
-    while (XR_SUCCEEDED(p_xrPollEvent(m_instance, &eventBuffer))) {
-        ProcessEvent(eventBuffer);
-        eventBuffer = {XR_TYPE_EVENT_DATA_BUFFER}; // Reset for next event
+    int maxEvents = 20; // Prevent infinite loop from event flooding
+    while (maxEvents-- > 0) {
+        XrResult pollResult = p_xrPollEvent(m_instance, &eventBuffer);
+        if (XR_FAILED(pollResult)) break;
+        if (eventBuffer.type == XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
+            ProcessEvent(eventBuffer);
+        }
+        eventBuffer = {XR_TYPE_EVENT_DATA_BUFFER};
     }
 }
 

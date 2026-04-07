@@ -106,15 +106,14 @@ final class EmulatorCore {
         // Delay to let the renderer fully initialize after layer attachment
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             self?.loadGame(at: path)
-            // Simulator runs at <1 FPS — toggle A press/release every 0.5s
-            // so VPADRead always catches at least one press/release cycle
+            // Auto-press A to get past title screen on simulator
+            // (GCController not available on visionOS simulator)
             let bridge = CemuBridge.shared()
-            var count = 0
+            var pressCount = 0
             Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
-                count += 1
-                let down = (count % 2 == 1) // odd = press, even = release
-                bridge.onControllerButtonEvent(0x1000, pressed: down)
-                if count > 120 { // stop after 60 seconds
+                pressCount += 1
+                bridge.onControllerButtonEvent(0x1000, pressed: pressCount % 2 == 1)
+                if pressCount > 120 {
                     bridge.onControllerButtonEvent(0x1000, pressed: false)
                     timer.invalidate()
                 }

@@ -17,7 +17,7 @@ struct EmulatorView: View {
     @State private var showGameLibrary = false
 
     /// Toggle on-screen controls visibility.
-    @State private var showControls = false
+    @State private var showControls = true
 
     var body: some View {
         ZStack {
