@@ -264,7 +264,37 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR([[maybe_unu
 			return false;
 		}
 
-		cemuLog_log(LogType::Force, "OpenXR: Initialization successful - VR mode ready");
+		cemuLog_log(LogType::Force, "OpenXR: Initialization successful - starting frame loop");
+
+		// Start OpenXR frame loop on a background thread
+		// This keeps the VR session alive by submitting frames
+		std::thread([]() {
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR frame loop started");
+			while (g_openxrManager) {
+				g_openxrManager->PollEvents();
+				if (!g_openxrManager->IsSessionRunning()) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(100));
+					continue;
+				}
+				if (g_openxrManager->BeginFrame()) {
+					uint32_t imageIndex = g_openxrManager->AcquireSwapchainImage();
+					if (imageIndex != UINT32_MAX) {
+						// TODO: Blit Cemu's rendered frame to the swapchain image
+						// For now, just submit an empty frame (black screen in VR)
+						g_openxrManager->ReleaseSwapchainImage();
+					}
+					// Submit frame as a quad panel in VR space
+					XrPosef quadPose = {
+						.orientation = {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f},
+						.position = {.x = 0.0f, .y = 0.0f, .z = -2.0f}
+					};
+					XrExtent2Df quadSize = {.width = 2.0f, .height = 1.125f};
+					g_openxrManager->EndFrame(quadPose, quadSize);
+				}
+			}
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR frame loop ended");
+		}).detach();
+
 		return true;
 
 	} catch (const std::exception& e) {

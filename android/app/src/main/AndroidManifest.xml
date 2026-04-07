@@ -6,11 +6,15 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="org.khronos.openxr.permission.OPENXR" />
     <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
+    <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
 
     <uses-feature
         android:name="android.hardware.vulkan.version"
         android:required="true"
         android:version="0x401000" />
+    <uses-feature
+        android:name="oculus.software.handtracking"
+        android:required="false" />
 
     <!-- OpenXR runtime discovery for Khronos loader -->
     <queries>
@@ -50,7 +54,7 @@
             tools:ignore="DiscouragedApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.VR" />
+                <category android:name="com.oculus.intent.category.VR" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
