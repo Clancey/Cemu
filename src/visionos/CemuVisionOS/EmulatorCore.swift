@@ -19,8 +19,8 @@ final class EmulatorCore {
     /// Descriptive error surfaced to the UI, or nil.
     private(set) var lastError: String?
 
-    /// Whether a game is actively running.
-    var isRunning: Bool { bridge.isRunning }
+    /// Whether a game is actively running (polled from C++ state).
+    private(set) var isRunning: Bool = false
 
     /// Human-readable title of the running game.
     var currentTitleName: String? { bridge.currentTitleName }
@@ -125,10 +125,28 @@ final class EmulatorCore {
         lastError = nil
         do {
             try bridge.loadGame(atPath: path)
+            // Update running state and start polling for changes
+            isRunning = bridge.isRunning
+            startStatePolling()
         } catch {
             let message = error.localizedDescription
             lastError = message
             logger.error("Load game failed: \(message)")
+        }
+    }
+
+    private var stateTimer: Timer?
+
+    private func startStatePolling() {
+        stateTimer?.invalidate()
+        stateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let running = self.bridge.isRunning
+                if self.isRunning != running {
+                    self.isRunning = running
+                }
+            }
         }
     }
 

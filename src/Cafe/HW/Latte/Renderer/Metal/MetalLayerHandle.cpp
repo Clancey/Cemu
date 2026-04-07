@@ -43,6 +43,11 @@ bool MetalLayerHandle::AcquireDrawable()
     if (m_drawable)
         return true;
 
+    if (!m_layer) {
+        cemuLog_log(LogType::Force, "MetalLayerHandle: layer is null!");
+        return false;
+    }
+
     m_drawable = m_layer->nextDrawable();
     if (!m_drawable)
     {

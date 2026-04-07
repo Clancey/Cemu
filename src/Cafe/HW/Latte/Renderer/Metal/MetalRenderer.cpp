@@ -1940,7 +1940,12 @@ bool MetalRenderer::AcquireDrawable(bool mainWindow)
 {
     auto& layer = GetLayer(mainWindow);
     if (!layer.GetLayer())
+    {
+        static int logCount = 0;
+        if (logCount++ < 5)
+            cemuLog_log(LogType::Force, "AcquireDrawable: layer is null (mainWindow={})", mainWindow);
         return false;
+    }
 
     const bool latteBufferUsesSRGB = mainWindow ? LatteGPUState.tvBufferUsesSRGB : LatteGPUState.drcBufferUsesSRGB;
     if (latteBufferUsesSRGB != m_state.m_usesSRGB)
