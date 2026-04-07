@@ -8,6 +8,9 @@ MetalVoidVertexPipeline::MetalVoidVertexPipeline(class MetalRenderer* mtlRendere
     NS_STACK_SCOPED MTL::RenderPipelineDescriptor* renderPipelineDescriptor = MTL::RenderPipelineDescriptor::alloc()->init();
     renderPipelineDescriptor->setVertexFunction(vertexFunction);
     renderPipelineDescriptor->setRasterizationEnabled(false);
+    // Some Metal implementations require at least one color attachment even when
+    // rasterization is disabled (notably the visionOS simulator).
+    renderPipelineDescriptor->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
 
     NS::Error* error = nullptr;
     m_renderPipelineState = mtlRenderer->GetDevice()->newRenderPipelineState(renderPipelineDescriptor, &error);

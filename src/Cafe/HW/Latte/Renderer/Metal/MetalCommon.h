@@ -11,6 +11,8 @@ struct MetalPixelFormatSupport
 	bool m_supportsRG8Unorm_sRGB;
 	bool m_supportsPacked16BitFormats;
 	bool m_supportsDepth24Unorm_Stencil8;
+	bool m_supportsDepth16Unorm;
+	bool m_supportsBCTextures;
 
 	MetalPixelFormatSupport() = default;
 	MetalPixelFormatSupport(MTL::Device* device)
@@ -18,7 +20,19 @@ struct MetalPixelFormatSupport
         m_supportsR8Unorm_sRGB = device->supportsFamily(MTL::GPUFamilyApple1);
         m_supportsRG8Unorm_sRGB = device->supportsFamily(MTL::GPUFamilyApple1);
         m_supportsPacked16BitFormats = device->supportsFamily(MTL::GPUFamilyApple1);
+#if TARGET_OS_VISION
+        // visionOS doesn't support Depth24Unorm_Stencil8 or Depth16Unorm
+        // The simulator may falsely report support from the host Mac
+        m_supportsDepth24Unorm_Stencil8 = false;
+        m_supportsDepth16Unorm = false;
+#else
         m_supportsDepth24Unorm_Stencil8 = device->depth24Stencil8PixelFormatSupported();
+        m_supportsDepth16Unorm = true;
+#endif
+
+        // BC texture compression is supported on Apple Silicon GPUs (Apple GPU Family 7+)
+        // This covers visionOS, iOS on Apple Silicon, and Apple Silicon Macs
+        m_supportsBCTextures = device->supportsFamily(MTL::GPUFamilyApple7);
 	}
 };
 

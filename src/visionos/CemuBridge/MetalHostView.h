@@ -4,18 +4,24 @@
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
 
+@class MetalHostView;
+
+/// Delegate protocol for MetalHostView layout notifications.
+@protocol MetalHostViewDelegate <NSObject>
+@optional
+- (void)metalHostViewDidLayout:(nonnull MetalHostView *)view;
+@end
+
 /// UIView subclass whose backing layer is a CAMetalLayer.
-///
-/// This is the visionOS equivalent of the macOS `MetalView` (NSView subclass)
-/// used by the existing desktop Metal backend.  The CAMetalLayer is configured
-/// for BGRA8Unorm output with framebufferOnly optimisation.
 @interface MetalHostView : UIView
 
 /// The underlying CAMetalLayer (convenience accessor).
 @property (nonatomic, readonly, nonnull) CAMetalLayer *metalLayer;
 
+/// Delegate for layout notifications.
+@property (nonatomic, weak, nullable) id<MetalHostViewDelegate> delegate;
+
 /// Configure the layer's Metal device and pixel format.
-/// Call once after the view is inserted into the view hierarchy.
 - (void)configureWithDevice:(nonnull id<MTLDevice>)device;
 
 @end

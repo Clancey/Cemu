@@ -23,12 +23,21 @@ struct MetalEmulatorView: UIViewRepresentable {
             view.configure(with: device)
         }
 
+        // Attach the core and set the delegate for layout notifications.
+        view.emulatorCore = core
+        view.delegate = context.coordinator
+
         return view
     }
 
     func updateUIView(_ uiView: MetalHostView, context: Context) {
-        // updateUIView is called whenever SwiftUI state changes.
-        // We use it to ensure the bridge has the current layer and size.
+        if uiView.emulatorCore == nil {
+            uiView.emulatorCore = core
+        }
+        if uiView.delegate == nil {
+            uiView.delegate = context.coordinator
+        }
+        uiView.provideLayerToBridgeIfNeeded()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -48,12 +57,28 @@ struct MetalEmulatorView: UIViewRepresentable {
 
     /// Coordinator that observes layout changes and forwards the CAMetalLayer
     /// to the emulator bridge once the view has a non-zero size.
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, MetalHostViewDelegate {
         let core: EmulatorCore
         private var layerProvided = false
 
         init(core: EmulatorCore) {
             self.core = core
+        }
+
+        func metalHostViewDidLayout(_ view: MetalHostView) {
+            guard !layerProvided else { return }
+            let size = view.bounds.size
+            guard size.width > 0, size.height > 0 else { return }
+
+            let scale = view.traitCollection.displayScale > 0 ? view.traitCollection.displayScale : 1.0
+            let pw = Int(size.width * scale)
+            let ph = Int(size.height * scale)
+
+            let layer = view.metalLayer
+            layerProvided = true
+            Task { @MainActor in
+                core.setMainDisplayLayer(layer, width: pw, height: ph)
+            }
         }
     }
 

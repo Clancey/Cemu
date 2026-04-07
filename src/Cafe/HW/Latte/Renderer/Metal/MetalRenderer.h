@@ -396,7 +396,12 @@ public:
 
     MTL::ResourceOptions GetOptimalBufferStorageMode() const
     {
+#if TARGET_OS_VISION
+        // visionOS only supports Shared and Private storage modes
+        return MTL::ResourceStorageModeShared;
+#else
         return (m_hasUnifiedMemory ? MTL::ResourceStorageModeShared : MTL::ResourceStorageModeManaged);
+#endif
     }
 
     MTL::Texture* GetNullTexture2D() const

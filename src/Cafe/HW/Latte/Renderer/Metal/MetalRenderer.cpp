@@ -628,7 +628,11 @@ ImTextureID MetalRenderer::GenerateTexture(const std::vector<uint8>& data, const
 		desc->setPixelFormat(MTL::PixelFormatRGBA8Unorm);
 		desc->setWidth(size.x);
 		desc->setHeight(size.y);
-		desc->setStorageMode(m_isAppleGPU ? MTL::StorageModeShared : MTL::StorageModeManaged);
+	#if TARGET_OS_VISION
+	desc->setStorageMode(MTL::StorageModeShared);
+#else
+	desc->setStorageMode(m_isAppleGPU ? MTL::StorageModeShared : MTL::StorageModeManaged);
+#endif
 		desc->setUsage(MTL::TextureUsageShaderRead);
 
 		MTL::Texture* texture = m_device->newTexture(desc);

@@ -12,7 +12,14 @@ endif()
 if(MSVC)
 	add_compile_definitions(WIN32_LEAN_AND_MEAN CURL_STATICLIB)
 elseif(UNIX)
-	if(APPLE)
+	if(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+		add_compile_definitions(
+			TARGET_OS_VISION=1
+			VK_USE_PLATFORM_MACOS_MVK
+			VK_USE_PLATFORM_METAL_EXT
+			_XOPEN_SOURCE
+		)
+	elseif(APPLE)
 		add_compile_definitions(
 			_XOPEN_SOURCE
 			VK_USE_PLATFORM_MACOS_MVK
@@ -25,13 +32,6 @@ elseif(UNIX)
 			VK_USE_PLATFORM_ANDROID_KHR
 			_POSIX_C_SOURCE=200809L
 			_GNU_SOURCE
-		)
-	elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
-		add_compile_definitions(
-			TARGET_OS_VISION=1
-			VK_USE_PLATFORM_MACOS_MVK
-			VK_USE_PLATFORM_METAL_EXT
-			_XOPEN_SOURCE
 		)
 	else()
 		add_compile_definitions(

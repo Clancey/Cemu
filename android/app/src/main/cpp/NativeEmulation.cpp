@@ -1,4 +1,5 @@
 #include "WindowSystem.h"
+#include <android/log.h>
 #include "JNIUtils.h"
 #include "AndroidAudio.h"
 #include "AndroidEmulatedController.h"
@@ -204,6 +205,7 @@ static std::atomic<bool> s_rendererInitialized{false};
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> initializeRenderer called");
 	InitializeGlobalVulkan();
 	// On Quest, TestSurface AHardwareBuffer allocation fails.
 	// Defer VulkanRenderer creation until setSurface provides a real surface.
@@ -218,6 +220,7 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* e
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> initializeOpenXR called");
 	cemuLog_log(LogType::Force, "OpenXR: not yet implemented (dynamic loading needed)");
 	return false;  // Fall back to SurfaceView rendering
 }
@@ -257,6 +260,7 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_supportsLoadingCustomDriver(
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_setSurface(JNIEnv* env, [[maybe_unused]] jclass clazz, jobject surface, jboolean is_main_canvas)
 {
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> setSurface called, isMain=%d surface=%p", (int)is_main_canvas, surface);
 	JNIUtils::handleNativeException(env, [&]() {
 		auto& windowHandleInfo = is_main_canvas ? WindowSystem::GetWindowInfo().canvas_main : WindowSystem::GetWindowInfo().canvas_pad;
 		auto oldWindow = windowHandleInfo.surface.load();
@@ -272,6 +276,7 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_setSurface(JNIEnv* env, [[ma
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeSurface(JNIEnv* env, [[maybe_unused]] jclass clazz, jboolean is_main_canvas)
 {
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> initializeSurface called, isMain=%d rendererInit=%d", (int)is_main_canvas, s_rendererInitialized ? 1 : 0);
 	JNIUtils::handleNativeException(env, [&]() {
 		// Create VulkanRenderer lazily using the real surface (Quest compatible)
 		// Quest's Gralloc HAL rejects synthetic TestSurface buffers, so we must

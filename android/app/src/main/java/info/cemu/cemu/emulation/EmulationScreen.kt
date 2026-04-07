@@ -437,7 +437,8 @@ private fun EmulationSurface(
                         NativeEmulation.setSurfaceSize(width, height, isTV)
                     }
                     override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
-                        holderCallback.surfaceDestroyed(null)
+                        // Don't call holderCallback.surfaceDestroyed — it expects non-null SurfaceHolder
+                        // The EmulationViewModel handles cleanup via its own lifecycle
                         return true
                     }
                     override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) {}

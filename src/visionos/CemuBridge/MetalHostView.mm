@@ -68,6 +68,11 @@ static os_log_t metalViewLog() {
     drawableSize.width  *= scale;
     drawableSize.height *= scale;
     layer.drawableSize = drawableSize;
+
+    // Notify the delegate (Swift side) that layout happened so it can provide the layer.
+    if ([self.delegate respondsToSelector:@selector(metalHostViewDidLayout:)]) {
+        [self.delegate metalHostViewDidLayout:self];
+    }
 }
 
 @end

@@ -157,10 +157,22 @@ std::vector<VulkanRenderer::DeviceInfo> VulkanRenderer::GetDevices()
 		if (device_count == 0)
 			throw std::runtime_error("Failed to find a GPU with Vulkan support.");
 
-		// create tmp surface to create a logical device
-		auto surface = CreateFramebufferSurface(instance, WindowSystem::GetWindowInfo().window_main);
 		std::vector<VkPhysicalDevice> devices(device_count);
 		vkEnumeratePhysicalDevices(instance, &device_count, devices.data());
+#if defined(__ANDROID__)
+		// On Android (Quest), skip surface-based device suitability check
+		// AHardwareBuffer allocation fails for test surfaces
+		for (const auto& device : devices)
+		{
+			VkPhysicalDeviceIDProperties physDeviceIDProps = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES };
+			VkPhysicalDeviceProperties2 physDeviceProps = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+			physDeviceProps.pNext = &physDeviceIDProps;
+			vkGetPhysicalDeviceProperties2(device, &physDeviceProps);
+			result.emplace_back(physDeviceProps.properties.deviceName, physDeviceIDProps.deviceUUID);
+		}
+#else
+		// create tmp surface to check device suitability
+		auto surface = CreateFramebufferSurface(instance, WindowSystem::GetWindowInfo().window_main);
 		for (const auto& device : devices)
 		{
 			if (IsDeviceSuitable(surface, device))
@@ -169,11 +181,11 @@ std::vector<VulkanRenderer::DeviceInfo> VulkanRenderer::GetDevices()
 				VkPhysicalDeviceProperties2 physDeviceProps = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
 				physDeviceProps.pNext = &physDeviceIDProps;
 				vkGetPhysicalDeviceProperties2(device, &physDeviceProps);
-
 				result.emplace_back(physDeviceProps.properties.deviceName, physDeviceIDProps.deviceUUID);
 			}
 		}
 		vkDestroySurfaceKHR(instance, surface, nullptr);
+#endif
 	}
 	catch (...)
 	{
@@ -408,9 +420,6 @@ VulkanRenderer::VulkanRenderer()
 	if (device_count == 0)
 		throw std::runtime_error("Failed to find a GPU with Vulkan support.");
 
-	// create tmp surface to create a logical device
-	auto surface = CreateFramebufferSurface(m_instance, WindowSystem::GetWindowInfo().window_main);
-
 	auto& config = GetConfig();
 	decltype(config.vk_graphic_device_uuid) zero{};
 	const bool has_device_set = config.vk_graphic_device_uuid != zero;
@@ -419,6 +428,15 @@ VulkanRenderer::VulkanRenderer()
 
 	std::vector<VkPhysicalDevice> devices(device_count);
 	vkEnumeratePhysicalDevices(m_instance, &device_count, devices.data());
+
+#if defined(__ANDROID__)
+	// On Android (Quest), skip surface-based suitability check
+	// Use first available device (Quest has one GPU)
+	if (!devices.empty())
+		m_physicalDevice = devices[0];
+#else
+	// create tmp surface to create a logical device
+	auto surface = CreateFramebufferSurface(m_instance, WindowSystem::GetWindowInfo().window_main);
 	for (const auto& device : devices)
 	{
 		if (IsDeviceSuitable(surface, device))
@@ -441,14 +459,17 @@ VulkanRenderer::VulkanRenderer()
 			break;
 		}
 	}
+	vkDestroySurfaceKHR(m_instance, surface, nullptr);
 
 	if (m_physicalDevice == VK_NULL_HANDLE && fallbackDevice != VK_NULL_HANDLE)
 	{
 		cemuLog_log(LogType::Force, "The selected GPU could not be found or is not suitable. Falling back to first available device instead");
 		m_physicalDevice = fallbackDevice;
-		config.vk_graphic_device_uuid = {}; // resetting device selection
+		config.vk_graphic_device_uuid = {};
 	}
-	else if (m_physicalDevice == VK_NULL_HANDLE)
+#endif
+
+	if (m_physicalDevice == VK_NULL_HANDLE)
 	{
 		cemuLog_log(LogType::Force, "No physical GPU could be found with the required extensions and swap chain support.");
 		throw std::runtime_error("No physical GPU could be found with the required extensions and swap chain support.");
@@ -479,7 +500,13 @@ VulkanRenderer::VulkanRenderer()
 	}
 
 	// create logical device
+#if defined(__ANDROID__)
+	// On Android, use queue family 0 for both graphics and present
+	m_indices.graphicsFamily = 0;
+	m_indices.presentFamily = 0;
+#else
 	m_indices = FindQueueFamilies(surface, m_physicalDevice);
+#endif
 	std::set<int> uniqueQueueFamilies = { m_indices.graphicsFamily, m_indices.presentFamily };
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos = CreateQueueCreateInfos(uniqueQueueFamilies);
 	VkPhysicalDeviceFeatures deviceFeatures = {};
@@ -572,7 +599,9 @@ VulkanRenderer::VulkanRenderer()
 	vkGetDeviceQueue(m_logicalDevice, m_indices.graphicsFamily, 0, &m_graphicsQueue);
 	vkGetDeviceQueue(m_logicalDevice, m_indices.graphicsFamily, 0, &m_presentQueue);
 
+#if !defined(__ANDROID__)
 	vkDestroySurfaceKHR(m_instance, surface, nullptr);
+#endif
 
 	if (useValidationLayer && m_featureControl.instanceExtensions.debug_utils)
 	{

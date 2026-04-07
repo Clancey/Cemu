@@ -76,10 +76,16 @@ std::map<Latte::E_GX2SURFFMT, MetalPixelFormatInfo> MTL_COLOR_FORMAT_TABLE = {
 std::map<Latte::E_GX2SURFFMT, MetalPixelFormatInfo> MTL_DEPTH_FORMAT_TABLE = {
     {Latte::E_GX2SURFFMT::INVALID_FORMAT, {MTL::PixelFormatInvalid, MetalDataType::NONE, 0}},
 
+	// Use fallback formats for better compatibility - will be overridden in CheckForPixelFormatSupport if supported
+#if TARGET_OS_VISION
+	{Latte::E_GX2SURFFMT::D24_S8_UNORM, {MTL::PixelFormatDepth32Float_Stencil8, MetalDataType::NONE, 4, {1, 1}, true}},
+	{Latte::E_GX2SURFFMT::D16_UNORM, {MTL::PixelFormatDepth32Float, MetalDataType::NONE, 4, {1, 1}}},
+#else
 	{Latte::E_GX2SURFFMT::D24_S8_UNORM, {MTL::PixelFormatDepth24Unorm_Stencil8, MetalDataType::NONE, 4, {1, 1}, true}},
+	{Latte::E_GX2SURFFMT::D16_UNORM, {MTL::PixelFormatDepth16Unorm, MetalDataType::NONE, 2, {1, 1}}},
+#endif
 	{Latte::E_GX2SURFFMT::D24_S8_FLOAT, {MTL::PixelFormatDepth32Float_Stencil8, MetalDataType::NONE, 4, {1, 1}, true}},
 	{Latte::E_GX2SURFFMT::D32_S8_FLOAT, {MTL::PixelFormatDepth32Float_Stencil8, MetalDataType::NONE, 5, {1, 1}, true}},
-	{Latte::E_GX2SURFFMT::D16_UNORM, {MTL::PixelFormatDepth16Unorm, MetalDataType::NONE, 2, {1, 1}}},
 	{Latte::E_GX2SURFFMT::D32_FLOAT, {MTL::PixelFormatDepth32Float, MetalDataType::NONE, 4, {1, 1}}},
 };
 
@@ -170,12 +176,38 @@ void CheckForPixelFormatSupport(const MetalPixelFormatSupport& support)
    	MTL_DEPTH_FORMAT_TABLE[Latte::E_GX2SURFFMT::D16_UNORM].textureDecoder = TextureDecoder_R16_UNORM::getInstance();
    	MTL_DEPTH_FORMAT_TABLE[Latte::E_GX2SURFFMT::D32_S8_FLOAT].textureDecoder = TextureDecoder_D32_S8_UINT_X24::getInstance();
 
-    if (!support.m_supportsDepth24Unorm_Stencil8)
+    // Set optimal depth formats based on device support
+    if (support.m_supportsDepth24Unorm_Stencil8)
     {
-        // Depth24Unorm_Stencil8
+        // Use the optimal format if supported
+        MTL_DEPTH_FORMAT_TABLE[Latte::E_GX2SURFFMT::D24_S8_UNORM].pixelFormat = MTL::PixelFormatDepth24Unorm_Stencil8;
+    }
+    else
+    {
+        // Fallback to 32-bit depth with stencil
         MTL_DEPTH_FORMAT_TABLE[Latte::E_GX2SURFFMT::D24_S8_UNORM].pixelFormat = MTL::PixelFormatDepth32Float_Stencil8;
         // TODO: implement the decoder
         //MTL_DEPTH_FORMAT_TABLE[Latte::E_GX2SURFFMT::D24_S8_UNORM].textureDecoder = TextureDecoder_D24_S8_To_D32_S8::getInstance();
+    }
+
+    if (support.m_supportsDepth16Unorm)
+    {
+        // Use 16-bit depth if supported (macOS only)
+        MTL_DEPTH_FORMAT_TABLE[Latte::E_GX2SURFFMT::D16_UNORM].pixelFormat = MTL::PixelFormatDepth16Unorm;
+        MTL_DEPTH_FORMAT_TABLE[Latte::E_GX2SURFFMT::D16_UNORM].bytesPerBlock = 2;
+    }
+    else
+    {
+        // Fallback to 32-bit depth (visionOS/iOS don't support 16-bit depth)
+        MTL_DEPTH_FORMAT_TABLE[Latte::E_GX2SURFFMT::D16_UNORM].pixelFormat = MTL::PixelFormatDepth32Float;
+        MTL_DEPTH_FORMAT_TABLE[Latte::E_GX2SURFFMT::D16_UNORM].bytesPerBlock = 4;
+    }
+
+    if (!support.m_supportsBCTextures)
+    {
+        // BC texture compression not supported - would need fallback to uncompressed formats
+        // For now, these will fall back to software decompression via the texture decoders
+        cemuLog_log(LogType::Force, "BC texture compression not supported on this device - using software decompression");
     }
 }
 
@@ -185,7 +217,7 @@ const MetalPixelFormatInfo GetMtlPixelFormatInfo(Latte::E_GX2SURFFMT format, boo
     {
         auto it = MTL_DEPTH_FORMAT_TABLE.find(format);
         if (it == MTL_DEPTH_FORMAT_TABLE.end())
-            return {MTL::PixelFormatDepth16Unorm, MetalDataType::NONE, 2}; // Fallback
+            return {MTL::PixelFormatDepth32Float, MetalDataType::NONE, 4}; // Fallback - use 32-bit float depth for compatibility
         else
             return it->second;
     }

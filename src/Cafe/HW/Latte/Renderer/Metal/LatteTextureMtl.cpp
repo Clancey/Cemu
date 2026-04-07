@@ -75,6 +75,19 @@ LatteTextureMtl::LatteTextureMtl(class MetalRenderer* mtlRenderer, Latte::E_DIM 
 	}
 
 	auto pixelFormat = GetMtlPixelFormat(format, isDepth);
+#if TARGET_OS_VISION
+	// Safety: reject macOS-only depth formats that slip through
+	if (pixelFormat == MTL::PixelFormatDepth24Unorm_Stencil8)
+	{
+		cemuLog_log(LogType::Force, "visionOS: Replacing unsupported Depth24Unorm_Stencil8 with Depth32Float_Stencil8 (format={}, isDepth={})", (uint32)format, isDepth);
+		pixelFormat = MTL::PixelFormatDepth32Float_Stencil8;
+	}
+	if (pixelFormat == MTL::PixelFormatDepth16Unorm)
+	{
+		cemuLog_log(LogType::Force, "visionOS: Replacing unsupported Depth16Unorm with Depth32Float");
+		pixelFormat = MTL::PixelFormatDepth32Float;
+	}
+#endif
 	desc->setPixelFormat(pixelFormat);
 
 	MTL::TextureUsage usage = MTL::TextureUsageShaderRead | MTL::TextureUsagePixelFormatView;
