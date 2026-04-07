@@ -26,6 +26,7 @@ import info.cemu.cemu.common.input.NullGamepadInputHandler
 import info.cemu.cemu.common.ui.components.ActivityContent
 import info.cemu.cemu.common.ui.localization.TranslatableContent
 import info.cemu.cemu.emulation.EmulationActivity
+import info.cemu.cemu.emulation.EmulationConstants
 import info.cemu.cemu.games.GameListRoute
 import info.cemu.cemu.games.gamesNavigation
 import info.cemu.cemu.graphicpacks.GraphicPacksRoute
@@ -117,7 +118,7 @@ private fun createIntentForGame(context: Context, game: Game): Intent {
         context, EmulationActivity::class.java
     )
     intent.action = Intent.ACTION_VIEW
-    intent.putExtra(EmulationActivity.EXTRA_LAUNCH_PATH, game.path)
+    intent.putExtra(EmulationConstants.EXTRA_LAUNCH_PATH, game.path)
 
     return intent
 }

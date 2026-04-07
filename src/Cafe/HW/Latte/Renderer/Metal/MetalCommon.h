@@ -19,7 +19,11 @@ struct MetalPixelFormatSupport
 	{
         m_supportsR8Unorm_sRGB = device->supportsFamily(MTL::GPUFamilyApple1);
         m_supportsRG8Unorm_sRGB = device->supportsFamily(MTL::GPUFamilyApple1);
+#if TARGET_OS_VISION
+        m_supportsPacked16BitFormats = false; // Simulator doesn't support packed formats
+#else
         m_supportsPacked16BitFormats = device->supportsFamily(MTL::GPUFamilyApple1);
+#endif
 #if TARGET_OS_VISION
         // visionOS doesn't support Depth24Unorm_Stencil8 or Depth16Unorm
         // The simulator may falsely report support from the host Mac

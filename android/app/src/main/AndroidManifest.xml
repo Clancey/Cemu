@@ -55,8 +55,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="com.oculus.intent.category.VR" />
-                <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
+                <!-- Regular 2D emulation - removed VR categories -->
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -77,6 +76,36 @@
                 TODO?
                 <data android:pathPattern=".*/title.tmd" />
                 -->
+            </intent-filter>
+        </activity>
+
+        <!-- VR-specific activity for Meta Quest OpenXR rendering -->
+        <activity
+            android:name=".emulation.VREmulationActivity"
+            android:configChanges="orientation|screenSize"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="com.oculus.intent.category.VR" />
+                <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="*/*" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.wud" />
+                <data android:pathPattern=".*\\.wux" />
+                <data android:pathPattern=".*\\.wua" />
+                <data android:pathPattern=".*\\.wuhb" />
+                <data android:pathPattern=".*\\.iso" />
+                <data android:pathPattern=".*\\.elf" />
+                <data android:pathPattern=".*\\.rpx" />
             </intent-filter>
         </activity>
 

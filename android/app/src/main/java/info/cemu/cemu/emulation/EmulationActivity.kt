@@ -45,7 +45,7 @@ class EmulationActivity : AppCompatActivity() {
         var launchPath: String? = null
 
         if (extras != null) {
-            launchPath = extras.getString(EXTRA_LAUNCH_PATH)
+            launchPath = extras.getString(EmulationConstants.EXTRA_LAUNCH_PATH)
         }
 
         if (launchPath == null && data != null) {
@@ -143,9 +143,5 @@ class EmulationActivity : AppCompatActivity() {
     private fun onQuit() {
         finish()
         exitProcess(0)
-    }
-
-    companion object {
-        const val EXTRA_LAUNCH_PATH: String = BuildConfig.APPLICATION_ID + ".LaunchPath"
     }
 }

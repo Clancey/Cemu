@@ -136,7 +136,9 @@ void CheckForPixelFormatSupport(const MetalPixelFormatSupport& support)
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R16_G16_FLOAT].textureDecoder = TextureDecoder_R16_G16_FLOAT::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R8_G8_UNORM].textureDecoder = TextureDecoder_R8_G8::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R8_G8_SNORM].textureDecoder = TextureDecoder_R8_G8::getInstance();
+#if !TARGET_OS_VISION
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R4_G4_UNORM].textureDecoder = TextureDecoder_R4_G4_UNORM_To_ABGR4::getInstance();
+#endif
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R32_FLOAT].textureDecoder = TextureDecoder_R32_FLOAT::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R32_UINT].textureDecoder = TextureDecoder_R32_UINT::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R16_FLOAT].textureDecoder = TextureDecoder_R16_FLOAT::getInstance();
@@ -146,14 +148,20 @@ void CheckForPixelFormatSupport(const MetalPixelFormatSupport& support)
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R8_UNORM].textureDecoder = TextureDecoder_R8::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R8_SNORM].textureDecoder = TextureDecoder_R8::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R8_UINT].textureDecoder = TextureDecoder_R8_UINT::getInstance();
+#if !TARGET_OS_VISION
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R5_G6_B5_UNORM].textureDecoder = TextureDecoder_R5_G6_B5_swappedRB::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R5_G5_B5_A1_UNORM].textureDecoder = TextureDecoder_R5_G5_B5_A1_UNORM_swappedRB::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::A1_B5_G5_R5_UNORM].textureDecoder = TextureDecoder_A1_B5_G5_R5_UNORM::getInstance();
+#endif
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R11_G11_B10_FLOAT].textureDecoder = TextureDecoder_R11_G11_B10_FLOAT::getInstance();
+#if !TARGET_OS_VISION
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R4_G4_B4_A4_UNORM].textureDecoder = TextureDecoder_R4_G4_B4_A4_UNORM::getInstance();
+#endif
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R10_G10_B10_A2_UNORM].textureDecoder = TextureDecoder_R10_G10_B10_A2_UNORM::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R10_G10_B10_A2_SNORM].textureDecoder = TextureDecoder_R10_G10_B10_A2_SNORM_To_RGBA16::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R10_G10_B10_A2_SRGB].textureDecoder = TextureDecoder_R10_G10_B10_A2_UNORM::getInstance();
+#if !TARGET_OS_VISION
+	// On visionOS, BC decoders are set in the format table to decompress to RGBA8
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::BC1_SRGB].textureDecoder = TextureDecoder_BC1::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::BC1_UNORM].textureDecoder = TextureDecoder_BC1::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::BC2_UNORM].textureDecoder = TextureDecoder_BC2::getInstance();
@@ -163,7 +171,10 @@ void CheckForPixelFormatSupport(const MetalPixelFormatSupport& support)
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::BC4_UNORM].textureDecoder = TextureDecoder_BC4::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::BC4_SNORM].textureDecoder = TextureDecoder_BC4::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::BC5_UNORM].textureDecoder = TextureDecoder_BC5::getInstance();
+#endif
+#if !TARGET_OS_VISION
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::BC5_SNORM].textureDecoder = TextureDecoder_BC5::getInstance();
+#endif
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::R24_X8_UNORM].textureDecoder = TextureDecoder_R24_X8::getInstance();
    	MTL_COLOR_FORMAT_TABLE[Latte::E_GX2SURFFMT::X24_G8_UINT].textureDecoder = TextureDecoder_X24_G8_UINT::getInstance();
 
