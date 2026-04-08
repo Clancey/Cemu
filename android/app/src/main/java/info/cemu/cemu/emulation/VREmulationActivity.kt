@@ -115,24 +115,21 @@ class VREmulationActivity : Activity() {
 
                     if (result) {
                         val gamePath = getGamePath()
-                        android.util.Log.d("Cemu", "VR: Starting emulation with: $gamePath")
 
-                        // 1. Prepare game title (waits for CemuCommonInit)
+                        // 1. Prepare title and systems (waits for CemuCommonInit)
                         val prepareResult = info.cemu.cemu.nativeinterface.NativeEmulation.prepareTitle(gamePath)
                         if (prepareResult != 0) {
                             android.util.Log.e("Cemu", "VR: Failed to prepare title: $prepareResult")
                             return@Thread
                         }
-
-                        // 2. Initialize audio and input systems
                         info.cemu.cemu.nativeinterface.NativeEmulation.initializeSystems()
 
-                        // 3. Create VulkanRenderer using OpenXR's Vulkan objects
+                        // 2. Create renderer + start session + launch game (handles keepalive internally)
                         info.cemu.cemu.nativeinterface.NativeEmulation.initializeRendererForVR()
 
-                        // 4. Launch the game — keepalive renders blue panel while game initializes
+                        // 3. Launch game
                         info.cemu.cemu.nativeinterface.NativeEmulation.launchTitle()
-                        android.util.Log.d("Cemu", "VR: Game launched! Blue panel should be visible in VR")
+                        android.util.Log.d("Cemu", "VR: Game launched!")
 
                         // Input polling disabled for now — conflicts with keepalive thread
                         // TODO: integrate input polling into the keepalive frame loop

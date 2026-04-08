@@ -340,6 +340,8 @@ void MetalRenderer::ResizeLayer(const Vector2i& size, bool mainWindow)
 
 void MetalRenderer::Initialize()
 {
+    // Create autorelease pool for the GPU thread
+    m_autoreleasePool = NS::AutoreleasePool::alloc()->init();
     Renderer::Initialize();
     RendererShaderMtl::Initialize();
 }
@@ -404,6 +406,13 @@ void MetalRenderer::SwapBuffers(bool swapTV, bool swapDRC)
     {
         StartCapture();
         m_captureFrame = false;
+    }
+
+    // Drain and recreate autorelease pool to prevent Metal object leaks
+    if (m_autoreleasePool)
+    {
+        m_autoreleasePool->drain();
+        m_autoreleasePool = NS::AutoreleasePool::alloc()->init();
     }
 }
 

@@ -234,6 +234,8 @@ void SwapchainInfoVk::Cleanup()
 
 bool SwapchainInfoVk::IsValid() const
 {
+	if (m_isOpenXR)
+		return !m_swapchainImages.empty(); // OpenXR mode: valid if we have swapchain images
 	return m_swapchain && !m_acquireSemaphores.empty();
 }
 

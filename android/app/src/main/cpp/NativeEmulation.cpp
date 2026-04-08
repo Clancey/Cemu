@@ -219,6 +219,9 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* e
 // Helper: submit empty OpenXR frame to prevent Quest from killing us during long init
 void SubmitOpenXRKeepaliveFrame();
 
+// Global: set when game starts rendering to VR (stops keepalive2)
+std::atomic<bool> g_vrGameRendering{false};
+
 // Global OpenXR manager instance
 std::unique_ptr<OpenXRManager> g_openxrManager = nullptr;
 
@@ -319,74 +322,82 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRendererForVR(JNIE
 
 	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VulkanRenderer created!");
 
-	// Set up window info
 	auto& windowInfo = WindowSystem::GetWindowInfo();
 	windowInfo.width = windowInfo.phys_width = 1920;
 	windowInfo.height = windowInfo.phys_height = 1080;
 
-	// Create a temporary render pass for Initialize() — needed for ImGui/pipeline cache
-	// Use format that matches what we'll use for OpenXR swapchain
-	{
-		std::vector<VkImage> dummyImages;
-		VulkanRenderer::GetInstance()->InitializeSurfaceFromOpenXR(dummyImages, 1920, 1080, VK_FORMAT_R8G8B8A8_SRGB);
-	}
-
-	// Skip Initialize() entirely — will be called after session begins
-	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Init deferred until session begins");
-
-	// Start OpenXR session (creates swapchain)
+	// 1. Start OpenXR session FIRST (creates swapchain)
 	if (!g_openxrManager->StartSession()) {
 		__android_log_print(ANDROID_LOG_ERROR, "Cemu", "Failed to start OpenXR session");
 		return;
 	}
 
-	// Wire OpenXR swapchain to VulkanRenderer
-	auto swapImages = g_openxrManager->GetSwapchainImages();
-	uint32_t swapW, swapH;
-	g_openxrManager->GetSwapchainSize(swapW, swapH);
-	VulkanRenderer::GetInstance()->InitializeSurfaceFromOpenXR(swapImages, swapW, swapH, VK_FORMAT_R8G8B8A8_SRGB);
-
-	// Set up OpenXR callbacks on the swapchain info
-	auto& chainInfo = VulkanRenderer::GetInstance()->GetChainInfo(true);
-	chainInfo.SetOpenXRCallbacks(
-		g_openxrManager.get(),
-		[](void* m) { static_cast<OpenXRManager*>(m)->PollEvents(); },
-		[](void* m) -> bool { return static_cast<OpenXRManager*>(m)->IsSessionRunning(); },
-		[](void* m) -> bool { return static_cast<OpenXRManager*>(m)->BeginFrame(); },
-		[](void* m) -> uint32_t { return static_cast<OpenXRManager*>(m)->AcquireSwapchainImage(); },
-		[](void* m) { static_cast<OpenXRManager*>(m)->ReleaseSwapchainImage(); },
-		[](void* m) {
-			XrPosef pose = {{0,0,0,1},{0,0,-2}};
-			XrExtent2Df size = {2.0f, 1.125f};
-			static_cast<OpenXRManager*>(m)->EndFrame(pose, size);
-		}
-	);
-	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: OpenXR callbacks wired to swapchain");
-
-	// Poll events to begin session
+	// 2. Begin session and start keepalive IMMEDIATELY
 	for (int i = 0; i < 20; i++) {
 		g_openxrManager->PollEvents();
 		if (g_openxrManager->IsSessionRunning()) break;
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
 	}
-	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Session running=%d", g_openxrManager->IsSessionRunning() ? 1 : 0);
 
-	// Keepalive: submit empty frames until game starts rendering
-	std::thread([]() {
-		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive started (until game renders)");
-		while (g_openxrManager && g_openxrManager->IsSessionRunning()) {
-			auto* renderer = VulkanRenderer::GetInstance();
-			if (renderer && renderer->GetChainInfoPtr(true) != nullptr) {
-				auto& chain = renderer->GetChainInfo(true);
-				if (chain.swapchainImageIndex != (uint32)-1) {
-					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive: game took over");
-					break;
-				}
-			}
-			{ g_openxrManager->PollEvents(); if (g_openxrManager->BeginFrame()) { auto idx = g_openxrManager->AcquireSwapchainImage(); if (idx != UINT32_MAX) g_openxrManager->ReleaseSwapchainImage(); XrPosef p={{0,0,0,1},{0,0,-2}}; XrExtent2Df s={2.0f,1.125f}; g_openxrManager->EndFrame(p,s); } }
+	// Keepalive: submit EMPTY frames (zero layers, no Vulkan usage)
+	// This avoids Vulkan thread conflicts with Initialize() on the main thread
+	// Quest tolerates empty frames for ~2-3 seconds which is enough for init
+	std::atomic<bool> keepaliveRunning{true};
+	std::thread keepaliveThread([&keepaliveRunning]() {
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive started (empty frames)");
+		while (keepaliveRunning.load() && g_openxrManager) {
+			g_openxrManager->PollEvents();
+			if (g_openxrManager->IsSessionRunning())
+				g_openxrManager->SubmitEmptyFrame();
+			else
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		}
 		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive ended");
-	}).detach();
+	});
+
+	// 3. Now do heavy init while keepalive keeps Quest happy
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Initialize() while keepalive runs");
+	{
+		std::vector<VkImage> dummyImages;
+		VulkanRenderer::GetInstance()->InitializeSurfaceFromOpenXR(dummyImages, 1920, 1080, VK_FORMAT_R8G8B8A8_SRGB);
+	}
+	VulkanRenderer::GetInstance()->Initialize();
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Initialize() complete!");
+
+	// 4. Stop keepalive - we'll wire up real swapchain now
+	keepaliveRunning.store(false);
+	keepaliveThread.join();
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Keepalive stopped, wiring swapchain");
+
+	// 5. Wire real swapchain + callbacks + restart keepalive for game loading
+	{
+		auto swapImages = g_openxrManager->GetSwapchainImages();
+		uint32_t swapW, swapH;
+		g_openxrManager->GetSwapchainSize(swapW, swapH);
+		VulkanRenderer::GetInstance()->InitializeSurfaceFromOpenXR(swapImages, swapW, swapH, VK_FORMAT_R8G8B8A8_SRGB);
+	}
+	{
+		auto& ci = VulkanRenderer::GetInstance()->GetChainInfo(true);
+		ci.SetOpenXRCallbacks(
+			g_openxrManager.get(),
+			[](void* m) { static_cast<OpenXRManager*>(m)->PollEvents(); },
+			[](void* m) -> bool { return static_cast<OpenXRManager*>(m)->IsSessionRunning(); },
+			[](void* m) -> bool { return static_cast<OpenXRManager*>(m)->BeginFrame(); },
+			[](void* m) -> uint32_t { return static_cast<OpenXRManager*>(m)->AcquireSwapchainImage(); },
+			[](void* m) { static_cast<OpenXRManager*>(m)->ReleaseSwapchainImage(); },
+			[](void* m) {
+				XrPosef pose = {{0,0,0,1},{0,0,-2}};
+				XrExtent2Df size = {2.0f, 1.125f};
+				static_cast<OpenXRManager*>(m)->EndFrame(pose, size);
+			}
+		);
+	}
+
+	// No keepalive — game's SwapBuffer will submit frames directly
+	// The game needs to render its first frame before Quest's timeout (~2.5s from session start)
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: No keepalive — game must render within 2.5s");
+
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Fully ready! session=%d", g_openxrManager->IsSessionRunning() ? 1 : 0);
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL

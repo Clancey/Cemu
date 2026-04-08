@@ -1,9 +1,7 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
 #if BOOST_PLAT_ANDROID
 #include <android/log.h>
-// Forward declare for keepalive frame submission during VR constructor
-class OpenXRManager;
-extern std::unique_ptr<OpenXRManager> g_openxrManager;
+#include <atomic>
 #endif
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/LatteTextureVk.h"
@@ -832,8 +830,9 @@ VulkanRenderer::VulkanRenderer(VkInstance instance, VkPhysicalDevice physDevice,
 		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: ALL BUFFERS OK, calling RendererShaderVk::Init");
 		RendererShaderVk::Init();
 	} else {
-		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: ALL BUFFERS OK (skipped RendererShaderVk::Init for VR)");
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: ALL BUFFERS OK, calling RendererShaderVk::Init");
 	}
+	RendererShaderVk::Init();
 #else
 	RendererShaderVk::Init();
 #endif
@@ -1053,6 +1052,11 @@ void VulkanRenderer::InitializeSurfaceFromOpenXR(const std::vector<VkImage>& swa
 	for (auto& sem : chain.m_presentSemaphores) {
 		VkSemaphoreCreateInfo semInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
 		vkCreateSemaphore(m_logicalDevice, &semInfo, nullptr, &sem);
+	}
+
+	// Initialize first command buffer (needed for CreateNullObjects and rendering)
+	if (!swapchainImages.empty() || true) {
+		InitFirstCommandBuffer();
 	}
 
 	// OpenXR callbacks are set by the caller (NativeEmulation.cpp) after this returns
@@ -2023,6 +2027,17 @@ void VulkanRenderer::ImguiInit()
 
 void VulkanRenderer::Initialize()
 {
+#if BOOST_PLAT_ANDROID
+	if (m_externalVulkanObjects) {
+		// VR mode: skip ImGui (needs swapchain render pass) but do everything else
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR Initialize: pipeline cache + null objects (no ImGui)");
+		Renderer::Initialize(); // ImGui contexts
+		CreatePipelineCache();
+		// Skip ImguiInit() — needs proper swapchain render pass
+		CreateNullObjects();
+		return;
+	}
+#endif
 	Renderer::Initialize();
 	CreatePipelineCache();
 	ImguiInit();
@@ -3258,6 +3273,14 @@ void VulkanRenderer::SwapBuffer(bool mainWindow)
 		return;
 
 	auto& chainInfo = GetChainInfo(mainWindow);
+
+#if BOOST_PLAT_ANDROID
+	// Signal keepalive2 to stop — game is rendering
+	extern std::atomic<bool> g_vrGameRendering;
+	if (!g_vrGameRendering.exchange(true)) {
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Game SwapBuffer first call! Stopping keepalive2");
+	}
+#endif
 
 	if (chainInfo.IsOpenXR()) {
 		// OpenXR present path

@@ -140,8 +140,11 @@ PipelineObject* MetalPipelineCache::GetRenderPipelineState(const LatteFetchShade
 	}
 	else
 	{
-	    // Also force compile to ensure that the pipeline is ready
-        cemu_assert_debug(compiler->Compile(true, true, true));
+	    // Compile — may fail on visionOS for unsupported render target configs
+        if (!compiler->Compile(true, true, true))
+        {
+            cemuLog_log(LogType::Force, "Pipeline compile failed — draw calls using this pipeline will be skipped");
+        }
         delete compiler;
 	}
 
