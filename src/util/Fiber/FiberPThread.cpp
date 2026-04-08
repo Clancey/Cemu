@@ -17,8 +17,12 @@ static void FiberEntry(void* arg)
 		fprintf(stderr, "FATAL: FiberEntry - tl_currentFiber is null!\n");
 		abort();
 	}
-	fprintf(stderr, "FiberEntry: fiber=%p entry=%p param=%p private=%p\n",
-		fiber, (void*)fiber->m_entryPoint, fiber->m_userParam, fiber->m_privateData);
+	fprintf(stderr, "FiberEntry: fiber=%p sizeof(Fiber)=%zu\n", fiber, sizeof(Fiber));
+	fprintf(stderr, "FiberEntry: offsets: privateData=%zu context=%zu entryPoint=%zu userParam=%zu\n",
+		offsetof(Fiber, m_privateData), offsetof(Fiber, m_context),
+		offsetof(Fiber, m_entryPoint), offsetof(Fiber, m_userParam));
+	fprintf(stderr, "FiberEntry: entry=%p param=%p private=%p\n",
+		(void*)fiber->m_entryPoint, fiber->m_userParam, fiber->m_privateData);
 
 	// Verify stack is in a valid range
 	volatile char stackVar = 0;
@@ -54,7 +58,7 @@ Fiber::Fiber(void (*fiberEntryPoint)(void* userParam), void* userParam, void* pr
 
 	// Stack grows down — leave 256 bytes headroom from top, 16-byte aligned
 	void* stackTop = (void*)(((uintptr_t)m_stackPtr + m_stackSize - 256) & ~(uintptr_t)0xF);
-	m_context = (volatile void*)fiber_make_context(stackTop, FiberEntry);
+	m_context = fiber_make_context(stackTop, FiberEntry);
 }
 
 Fiber::Fiber(void* privateData)
@@ -87,9 +91,7 @@ void Fiber::Switch(Fiber& targetFiber)
 	if (switchLog++ < 20)
 		fprintf(stderr, "Fiber::Switch from=%p(ctx=%p) to=%p(ctx=%p)\n", prevFiber, prevFiber->m_context, &targetFiber, targetFiber.m_context);
 
-	void* targetCtx = (void*)targetFiber.m_context;
-	void** fromCtx = (void**)&prevFiber->m_context;
-	fiber_switch_context(fromCtx, targetCtx);
+	fiber_switch_context(&prevFiber->m_context, targetFiber.m_context);
 
 	if (switchLog < 25)
 		fprintf(stderr, "Fiber::Switch RESUMED at %p\n", tl_currentFiber);

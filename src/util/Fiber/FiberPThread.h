@@ -17,7 +17,7 @@ public:
 	static void* GetFiberPrivateData();
 
 	void* m_privateData{};
-	volatile void* m_context{};  // saved SP (context pointer for asm switch) — volatile to prevent caching
+	void* m_context{};  // saved SP (context pointer for asm switch)
 	void (*m_entryPoint)(void* userParam){};
 	void* m_userParam{};
 	void* m_stackPtr{};

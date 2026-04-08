@@ -56,7 +56,7 @@ void nnNfp_update();
 
 namespace coreinit
 {
-#ifdef __arm64__
+#if defined(__arm64__) && !TARGET_OS_VISION
 	void __OSFiberThreadEntry(uint32, uint32);
 #else
 	void __OSFiberThreadEntry(void* thread);
@@ -1342,7 +1342,7 @@ namespace coreinit
 		__OSThreadStartTimeslice(hostThread->m_thread, &hostThread->ppcInstance);
 	}
 
-#ifdef __arm64__
+#if defined(__arm64__) && !TARGET_OS_VISION
 	void __OSFiberThreadEntry(uint32 _high, uint32 _low)
 	{
 		uint64 _thread = (uint64) _high << 32 | _low;
@@ -1350,14 +1350,20 @@ namespace coreinit
 	void __OSFiberThreadEntry(void* _thread)
 	{
 #endif
+		fprintf(stderr, "__OSFiberThreadEntry: _thread=%p\n", _thread);
 		OSHostThread* hostThread = (OSHostThread*)_thread;
+		fprintf(stderr, "__OSFiberThreadEntry: hostThread=%p m_thread=%p\n", hostThread, hostThread->m_thread);
 
 		enableFlushDenormalsToZero();
 
 		PPCInterpreter_t* hCPU = &hostThread->ppcInstance;
+		fprintf(stderr, "__OSFiberThreadEntry: hCPU=%p instructionPointer=0x%08x\n", hCPU, hCPU->instructionPointer);
 		__OSLoadThread(hostThread->m_thread, hCPU, hostThread->selectedCore);
+		fprintf(stderr, "__OSFiberThreadEntry: __OSLoadThread done\n");
 		__OSThreadStartTimeslice(hostThread->m_thread, &hostThread->ppcInstance);
-		__OSUnlockScheduler(); // lock is always held when switching to a fiber, so we need to unlock it here
+		fprintf(stderr, "__OSFiberThreadEntry: __OSThreadStartTimeslice done\n");
+		__OSUnlockScheduler();
+		fprintf(stderr, "__OSFiberThreadEntry: entering interpreter loop\n"); // lock is always held when switching to a fiber, so we need to unlock it here
 		while (true)
 		{
 			if (hCPU->remainingCycles > 0)
