@@ -18,7 +18,7 @@
 #endif
 #include "../BackendX64/BackendX64.h"
 
-extern bool PPCRecompiler_ApplyIMLPasses(ppcImlGenContext_t& ppcImlGenContext);
+extern bool PPCRecompiler_ApplyIMLPasses(ppcImlGenContext_t& ppcImlGenContext, bool aotEnhanced);
 
 namespace PPCAOTCompiler
 {
@@ -112,7 +112,7 @@ static AOTFunctionRecord CompileFunction(uint32_t address, PPCFunctionBoundaryTr
 		return record;
 	}
 
-	if (!PPCRecompiler_ApplyIMLPasses(ppcImlGenContext))
+	if (!PPCRecompiler_ApplyIMLPasses(ppcImlGenContext, true /* AOT enhanced optimization */))
 	{
 		delete ppcRecFunc;
 		return record;

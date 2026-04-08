@@ -169,7 +169,7 @@ void PPCRecompiler_attemptEnter(PPCInterpreter_t* hCPU, uint32 enterAddress)
 		PPCRecompiler_enter(hCPU, funcPtr);
 	}
 }
-bool PPCRecompiler_ApplyIMLPasses(ppcImlGenContext_t& ppcImlGenContext);
+bool PPCRecompiler_ApplyIMLPasses(ppcImlGenContext_t& ppcImlGenContext, bool aotEnhanced = false);
 
 PPCRecFunction_t* PPCRecompiler_recompileFunction(PPCFunctionBoundaryTracker::PPCRange_t range, std::set<uint32>& entryAddresses, std::vector<std::pair<MPTR, uint32>>& entryPointsOut, PPCFunctionBoundaryTracker& boundaryTracker)
 {
@@ -362,7 +362,7 @@ void PPCRecompiler_NativeRegisterAllocatorPass(ppcImlGenContext_t& ppcImlGenCont
 	IMLRegisterAllocator_AllocateRegisters(&ppcImlGenContext, raParam);
 }
 
-bool PPCRecompiler_ApplyIMLPasses(ppcImlGenContext_t& ppcImlGenContext)
+bool PPCRecompiler_ApplyIMLPasses(ppcImlGenContext_t& ppcImlGenContext, bool aotEnhanced)
 {
 	// isolate entry points from function flow (enterable segments must not be the target of any other segment)
 	// this simplifies logic during register allocation
@@ -373,7 +373,15 @@ bool PPCRecompiler_ApplyIMLPasses(ppcImlGenContext_t& ppcImlGenContext)
 	// delay byte swapping for certain load+store patterns
 	IMLOptimizer_OptimizeDirectIntegerCopies(&ppcImlGenContext);
 
-	IMLOptimizer_StandardOptimizationPass(ppcImlGenContext);
+	if (aotEnhanced)
+	{
+		// AOT mode: run iterative optimization passes since compile time is unconstrained
+		IMLOptimizer_AOTEnhancedPass(ppcImlGenContext);
+	}
+	else
+	{
+		IMLOptimizer_StandardOptimizationPass(ppcImlGenContext);
+	}
 
 	PPCRecompiler_NativeRegisterAllocatorPass(ppcImlGenContext);
 

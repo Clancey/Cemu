@@ -718,3 +718,35 @@ void IMLOptimizer_StandardOptimizationPass(ppcImlGenContext_t& ppcImlGenContext)
 		IMLOptimizer_StandardOptimizationPassForSegment(regIoAnalysis, *segIt);
 	}
 }
+
+// Count non-NOP instructions across all segments (used to detect optimization progress)
+static size_t IMLOptimizer_CountActiveInstructions(ppcImlGenContext_t& ppcImlGenContext)
+{
+	size_t count = 0;
+	for (IMLSegment* seg : ppcImlGenContext.segmentList2)
+	{
+		for (const auto& inst : seg->imlList)
+		{
+			if (inst.type != PPCREC_IML_TYPE_NO_OP)
+				count++;
+		}
+	}
+	return count;
+}
+
+// AOT enhanced optimization: runs the standard optimization pass iteratively
+// until no further dead code can be eliminated.
+// This is too expensive for JIT but acceptable for AOT where compile time is unconstrained.
+void IMLOptimizer_AOTEnhancedPass(ppcImlGenContext_t& ppcImlGenContext)
+{
+	constexpr int MAX_ITERATIONS = 5;
+	for (int iteration = 0; iteration < MAX_ITERATIONS; iteration++)
+	{
+		size_t instrCountBefore = IMLOptimizer_CountActiveInstructions(ppcImlGenContext);
+		IMLOptimizer_StandardOptimizationPass(ppcImlGenContext);
+		size_t instrCountAfter = IMLOptimizer_CountActiveInstructions(ppcImlGenContext);
+
+		if (instrCountAfter >= instrCountBefore)
+			break; // no progress, stop iterating
+	}
+}
