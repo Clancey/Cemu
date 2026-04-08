@@ -1273,13 +1273,6 @@ void PPCInterpreterFull_executeInstruction(PPCInterpreter_t* hCPU)
 // All handlers from the .hpp includes are accessible here.
 void PPCDecodedCache_executeInstruction(PPCInterpreter_t* hCPU)
 {
-	// Heartbeat
-	static std::atomic<uint64> s_instrCount{0};
-	uint64 count = s_instrCount.fetch_add(1, std::memory_order_relaxed);
-	if ((count & 0xFFFFF) == 0) { // every ~1M instructions
-		fprintf(stderr, "visionOS interpreter: %lluM instructions\n", count / 1000000);
-	}
-
 	uint32 ip = hCPU->instructionPointer;
 	uint32 cacheIdx = (ip >> 2) & (DECODED_CACHE_SIZE - 1);
 	DecodedInstr& d = g_decodedCache[cacheIdx];

@@ -68,10 +68,7 @@ CachedFBOMtl::CachedFBOMtl(class MetalRenderer* metalRenderer, uint64 key) : Lat
 #if TARGET_OS_SIMULATOR
 		uint32 fmtBytes = GetPixelFormatBytes(textureView->GetRGBAView()->pixelFormat());
 		if (colorBytesUsed + fmtBytes > rtBudget)
-		{
-			cemuLog_log(LogType::Force, "Simulator: skipping color attachment {} ({} bytes) — would exceed 32-byte RT limit", i, fmtBytes);
 			continue;
-		}
 		colorBytesUsed += fmtBytes;
 #endif
 

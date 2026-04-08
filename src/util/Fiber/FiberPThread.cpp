@@ -13,32 +13,12 @@ __attribute__((noinline))
 static void FiberEntry(void* arg)
 {
 	Fiber* fiber = tl_currentFiber;
-	if (!fiber) {
-		fprintf(stderr, "FATAL: FiberEntry - tl_currentFiber is null!\n");
+	if (!fiber)
 		abort();
-	}
-	fprintf(stderr, "FiberEntry: fiber=%p sizeof(Fiber)=%zu\n", fiber, sizeof(Fiber));
-	fprintf(stderr, "FiberEntry: offsets: privateData=%zu context=%zu entryPoint=%zu userParam=%zu\n",
-		offsetof(Fiber, m_privateData), offsetof(Fiber, m_context),
-		offsetof(Fiber, m_entryPoint), offsetof(Fiber, m_userParam));
-	fprintf(stderr, "FiberEntry: entry=%p param=%p private=%p\n",
-		(void*)fiber->m_entryPoint, fiber->m_userParam, fiber->m_privateData);
-
-	// Verify stack is in a valid range
-	volatile char stackVar = 0;
-	uintptr_t sp = (uintptr_t)&stackVar;
-	if (fiber->m_stackPtr) {
-		uintptr_t stackBase = (uintptr_t)fiber->m_stackPtr;
-		uintptr_t stackEnd = stackBase + fiber->m_stackSize;
-		fprintf(stderr, "FiberEntry: SP=%p stack=[%p-%p] %s\n", (void*)sp,
-			(void*)stackBase, (void*)stackEnd,
-			(sp >= stackBase && sp < stackEnd) ? "OK" : "OUT OF RANGE!");
-	}
 
 	if (fiber->m_entryPoint)
 		fiber->m_entryPoint(fiber->m_userParam);
 
-	fprintf(stderr, "FATAL: Fiber entry point returned!\n");
 	abort();
 }
 
@@ -87,14 +67,7 @@ void Fiber::Switch(Fiber& targetFiber)
 	Fiber* prevFiber = tl_currentFiber;
 	tl_currentFiber = &targetFiber;
 
-	static int switchLog = 0;
-	if (switchLog++ < 20)
-		fprintf(stderr, "Fiber::Switch from=%p(ctx=%p) to=%p(ctx=%p)\n", prevFiber, prevFiber->m_context, &targetFiber, targetFiber.m_context);
-
 	fiber_switch_context(&prevFiber->m_context, targetFiber.m_context);
-
-	if (switchLog < 25)
-		fprintf(stderr, "Fiber::Switch RESUMED at %p\n", tl_currentFiber);
 }
 
 void* Fiber::GetFiberPrivateData()

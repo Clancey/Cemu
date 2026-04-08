@@ -264,8 +264,6 @@ namespace vpad
 			status->release = prevHold & ~(uint32)status->hold;
 			prevHold = status->hold;
 
-			cemuLog_log(LogType::Force, "VPADRead DIRECT: hold=0x{:08x} trig=0x{:08x}", (uint32)status->hold, (uint32)status->trig);
-
 			if (error)
 				*error = VPAD_READ_ERR_NONE;
 			return 1;

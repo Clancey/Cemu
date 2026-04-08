@@ -6,6 +6,10 @@
 #include "Cafe/OS/libs/coreinit/coreinit_SystemInfo.h"
 #include "WindowSystem.h"
 #include "input/InputManager.h"
+#ifdef VISIONOS
+#include "input/api/VisionOS/VisionOSControllerProvider.h"
+#include "input/emulated/WPADController.h"
+#endif
 
 // KPAD
 
@@ -97,6 +101,16 @@ void padscoreExport_WPADProbe(PPCInterpreter_t* hCPU)
 	ppcDefineParamPtr(type, uint32be, 1);
 
 	cemuLog_log(LogType::InputAPI, "WPADProbe({})", channel);
+
+#ifdef VISIONOS
+	if (channel == 0)
+	{
+		if (type)
+			*type = kWAPDevURCC;
+		osLib_returnFromFunction(hCPU, WPAD_ERR_NONE);
+		return;
+	}
+#endif
 
 	if(const auto controller = InputManager::instance().get_wpad_controller(channel))
 	{
@@ -191,6 +205,15 @@ void padscoreExport_WPADSetDataFormat(PPCInterpreter_t* hCPU)
 	ppcDefineParamU32(channel, 0);
 	ppcDefineParamU32(fmt, 1);
 	cemuLog_log(LogType::InputAPI, "WPADSetDataFormat({}, {})", channel, fmt);
+
+#ifdef VISIONOS
+	if (channel == 0)
+	{
+		// visionOS always uses Pro Controller format
+		osLib_returnFromFunction(hCPU, 0);
+		return;
+	}
+#endif
 
 	if (channel < InputManager::kMaxWPADControllers)
 	{
@@ -429,13 +452,79 @@ bool g_kpadIsInited = true;
 
 sint32 _KPADRead(uint32 channel, KPADStatus_t* samplingBufs, uint32 length, betype<KPAD_ERROR>* errResult)
 {
+#ifdef VISIONOS
+	// Direct input injection — emulate Pro Controller from visionOS gamepad
+	if (channel == 0)
+	{
+		if (g_kpadIsInited == false)
+		{
+			if (errResult)
+				*errResult = KPAD_ERROR::NOT_INITIALIZED;
+			return 0;
+		}
+
+		uint64 currentTime = coreinit::OSGetTime();
+		uint64 timeDif = currentTime - g_kpadLastRead[channel];
+		if (length == 0 || timeDif < coreinit::EspressoTime::ConvertNsToTimerTicks(1000000))
+		{
+			if (errResult)
+				*errResult = KPAD_ERROR::NO_SAMPLE_DATA;
+			return 0;
+		}
+		g_kpadLastRead[channel] = currentTime;
+
+		memset(samplingBufs, 0x00, sizeof(KPADStatus_t));
+		samplingBufs->wpadErr = WPAD_ERR_NONE;
+		samplingBufs->data_format = kDataFormat_URCC;
+		samplingBufs->devType = kWAPDevURCC;
+
+		auto& state = VisionOSControllerProvider::get_controller_state();
+		auto& btn = state.buttons;
+		uint32 hold = 0;
+
+		// Map gamepad buttons to Pro Controller buttons
+		if (btn.GetButtonState(0x1000)) hold |= kProButton_A;
+		if (btn.GetButtonState(0x1001)) hold |= kProButton_B;
+		if (btn.GetButtonState(0x1002)) hold |= kProButton_X;
+		if (btn.GetButtonState(0x1003)) hold |= kProButton_Y;
+		if (btn.GetButtonState(0x1004)) hold |= kProButton_L;
+		if (btn.GetButtonState(0x1005)) hold |= kProButton_R;
+		if (btn.GetButtonState(0x1006)) hold |= kProButton_ZL;
+		if (btn.GetButtonState(0x1007)) hold |= kProButton_ZR;
+		if (btn.GetButtonState(0x1008)) hold |= kProButton_Up;
+		if (btn.GetButtonState(0x1009)) hold |= kProButton_Down;
+		if (btn.GetButtonState(0x1010)) hold |= kProButton_Left;
+		if (btn.GetButtonState(0x1011)) hold |= kProButton_Right;
+		if (btn.GetButtonState(0x1012)) hold |= kProButton_Plus;
+		if (btn.GetButtonState(0x1013)) hold |= kProButton_Minus;
+		if (btn.GetButtonState(0x1014)) hold |= kProButton_Home;
+		if (btn.GetButtonState(0x1015)) hold |= kProButton_StickL;
+		if (btn.GetButtonState(0x1016)) hold |= kProButton_StickR;
+
+		static uint32 prevHold = 0;
+		samplingBufs->ex_status.uc.hold = hold;
+		samplingBufs->ex_status.uc.trig = hold & ~prevHold;
+		samplingBufs->ex_status.uc.release = prevHold & ~hold;
+		prevHold = hold;
+
+		// Analog sticks
+		samplingBufs->ex_status.uc.lstick.x = state.axis.x;
+		samplingBufs->ex_status.uc.lstick.y = state.axis.y;
+		samplingBufs->ex_status.uc.rstick.x = state.rotation.x;
+		samplingBufs->ex_status.uc.rstick.y = state.rotation.y;
+
+		if (errResult)
+			*errResult = KPAD_ERROR::NONE;
+		return 1;
+	}
+#endif
 
 	if (channel >= InputManager::kMaxWPADControllers)
 	{
 		debugBreakpoint();
 		return 0;
 	}
-	
+
 	if (g_kpadIsInited == false)
 	{
 		if (errResult)
