@@ -94,6 +94,12 @@ add_library(CemuCafe
   HW/Espresso/Recompiler/BackendX64/BackendX64.h
   HW/Espresso/Recompiler/BackendX64/X64Emit.hpp
   HW/Espresso/Recompiler/BackendX64/x86Emitter.h
+  HW/Espresso/Recompiler/AOT/PPCAOTCache.h
+  HW/Espresso/Recompiler/AOT/PPCAOTCache.cpp
+  HW/Espresso/Recompiler/AOT/PPCAOTLoader.h
+  HW/Espresso/Recompiler/AOT/PPCAOTLoader.cpp
+  HW/Espresso/Recompiler/AOT/PPCAOTAssemblyGen.h
+  HW/Espresso/Recompiler/AOT/PPCAOTAssemblyGen.cpp
   HW/Latte/Common/RegisterSerializer.cpp
   HW/Latte/Common/RegisterSerializer.h
   HW/Latte/Common/ShaderSerializer.cpp
@@ -628,6 +634,12 @@ if(CEMU_ARCHITECTURE MATCHES "(aarch64)|(AARCH64)|(arm64)|(ARM64)")
     )
     target_link_libraries(CemuCafe PRIVATE xbyak_aarch64)
   endif()
+
+  # AOT static interface functions (for AOT mode on any AArch64 platform)
+  enable_language(ASM)
+  target_sources(CemuCafe PRIVATE
+    HW/Espresso/Recompiler/AOT/PPCAOTInterface_aarch64.s
+  )
 endif()
 
 set_property(TARGET CemuCafe PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

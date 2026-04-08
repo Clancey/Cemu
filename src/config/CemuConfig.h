@@ -143,8 +143,9 @@ enum class CPUMode
 	DualcoreRecompiler = 2, // deprecated and not used anymore
 	MulticoreRecompiler = 3,
 	Auto = 4,
+	MulticoreAOT = 5, // AOT pre-compiled functions with interpreter fallback
 };
-ENABLE_ENUM_ITERATORS(CPUMode, CPUMode::SinglecoreInterpreter, CPUMode::Auto);
+ENABLE_ENUM_ITERATORS(CPUMode, CPUMode::SinglecoreInterpreter, CPUMode::MulticoreAOT);
 
 
 enum class CPUModeLegacy
@@ -286,6 +287,7 @@ struct fmt::formatter<CPUMode> : formatter<string_view> {
 		case CPUMode::DualcoreRecompiler: name = "Dual-core recompiler"; break;
 		case CPUMode::MulticoreRecompiler: name = "Multi-core recompiler"; break;
 		case CPUMode::Auto: name = "Auto"; break;
+		case CPUMode::MulticoreAOT: name = "Multi-core AOT"; break;
 		default: name = "unknown"; break;
 		}
 		return formatter<string_view>::format(name, ctx);

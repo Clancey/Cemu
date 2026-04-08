@@ -918,7 +918,7 @@ namespace CafeSystem
 			if(module) module->TitleStart();
 		cemu_initForGame();
 		// enter scheduler
-		if ((ActiveSettings::GetCPUMode() == CPUMode::MulticoreRecompiler || LaunchSettings::ForceMultiCoreInterpreter()) && !LaunchSettings::ForceInterpreter())
+		if ((ActiveSettings::GetCPUMode() == CPUMode::MulticoreRecompiler || ActiveSettings::GetCPUMode() == CPUMode::MulticoreAOT || LaunchSettings::ForceMultiCoreInterpreter()) && !LaunchSettings::ForceInterpreter())
 			coreinit::OSSchedulerBegin(3);
 		else
 			coreinit::OSSchedulerBegin(1);

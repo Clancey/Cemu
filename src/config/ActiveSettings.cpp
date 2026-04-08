@@ -67,9 +67,9 @@ bool ActiveSettings::DisplayDRCEnabled()
 CPUMode ActiveSettings::GetCPUMode()
 {
 #if TARGET_OS_VISION
-	// visionOS doesn't allow JIT (MAP_JIT not permitted) — use multicore interpreter
-	// This runs the PPC interpreter across 3 threads (matching the Wii U's 3 cores)
-	return CPUMode::MulticoreRecompiler; // scheduler uses 3 cores; recompiler is disabled separately
+	// visionOS doesn't allow JIT (MAP_JIT not permitted)
+	// Use AOT if pre-compiled functions are available, otherwise multicore interpreter
+	return CPUMode::MulticoreAOT;
 #endif
 	auto mode = g_current_game_profile->GetCPUMode().value_or(CPUMode::Auto);
 

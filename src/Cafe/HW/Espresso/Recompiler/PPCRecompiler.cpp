@@ -19,10 +19,17 @@
 #ifdef __aarch64__
 #include "BackendAArch64/BackendAArch64.h"
 #endif
+#include "AOT/PPCAOTLoader.h"
+#include "AOT/PPCAOTCache.h"
 #include "util/highresolutiontimer/HighResolutionTimer.h"
 
 #define PPCREC_FORCE_SYNCHRONOUS_COMPILATION	0 // if 1, then function recompilation will block and execute on the thread that called PPCRecompiler_visitAddressNoBlock
 #define PPCREC_LOG_RECOMPILATION_RESULTS		0
+
+// AOT recording state
+static bool s_aotRecordingEnabled = false;
+static std::mutex s_aotCacheMutex;
+static AOTCache s_aotRecordingCache;
 
 struct PPCInvalidationRange
 {
@@ -245,6 +252,31 @@ PPCRecFunction_t* PPCRecompiler_recompileFunction(PPCFunctionBoundaryTracker::PP
 			fs->writeData(ppcRecFunc->x86Code, ppcRecFunc->x86Size);
 			delete fs;
 		}
+	}
+
+	// AOT recording: capture compiled function data for offline use
+	if (s_aotRecordingEnabled && ppcRecFunc->x86Code && ppcRecFunc->x86Size > 0)
+	{
+		AOTFunctionRecord aotFunc;
+		aotFunc.ppcAddress = ppcRecFunc->ppcAddress;
+		aotFunc.ppcSize = ppcRecFunc->ppcSize;
+		aotFunc.machineCode.assign(
+			static_cast<const uint8_t*>(ppcRecFunc->x86Code),
+			static_cast<const uint8_t*>(ppcRecFunc->x86Code) + ppcRecFunc->x86Size);
+
+		// Collect entry points from IML segments
+		for (IMLSegment* imlSegment : ppcImlGenContext.segmentList2)
+		{
+			if (!imlSegment->isEnterable)
+				continue;
+			AOTEntryPoint ep;
+			ep.ppcAddress = imlSegment->enterPPCAddress;
+			ep.nativeOffset = imlSegment->x64Offset;
+			aotFunc.entryPoints.push_back(ep);
+		}
+
+		std::lock_guard<std::mutex> lock(s_aotCacheMutex);
+		s_aotRecordingCache.AddFunction(std::move(aotFunc));
 	}
 
 	// collect list of PPC-->x64 entry points
@@ -686,8 +718,45 @@ void PPCRecompiler_initPlatform()
 
 void PPCRecompiler_init()
 {
+	if (ActiveSettings::GetCPUMode() == CPUMode::MulticoreAOT)
+	{
+		// AOT mode: load pre-compiled functions, no JIT thread needed
+		if (PPCAOTLoader::HasPrecompiledFunctions())
+		{
+			if (ppcRecompilerInstanceData)
+			{
+				MemMapper::FreeReservation(ppcRecompilerInstanceData, sizeof(PPCRecompilerInstanceData_t));
+				ppcRecompilerInstanceData = nullptr;
+			}
+			debug_printf("Allocating %dMB for recompiler instance data (AOT)...\n", (sint32)(sizeof(PPCRecompilerInstanceData_t) / 1024 / 1024));
+			ppcRecompilerInstanceData = (PPCRecompilerInstanceData_t*)MemMapper::ReserveMemory(nullptr, sizeof(PPCRecompilerInstanceData_t), MemMapper::PAGE_PERMISSION::P_RW);
+			MemMapper::AllocateMemory(&(ppcRecompilerInstanceData->_x64XMM_xorNegateMaskBottom), sizeof(PPCRecompilerInstanceData_t) - offsetof(PPCRecompilerInstanceData_t, _x64XMM_xorNegateMaskBottom), MemMapper::PAGE_PERMISSION::P_RW, true);
+
+			PPCRecompiler_allocateRange(0, 0x1000);
+			PPCRecompiler_allocateRange(mmuRange_TRAMPOLINE_AREA.getBase(), mmuRange_TRAMPOLINE_AREA.getSize());
+			PPCRecompiler_allocateRange(mmuRange_CODECAVE.getBase(), mmuRange_CODECAVE.getSize());
+
+			// Initialize AOT interface functions (static enter/leave handlers)
+			PPCAOTLoader::InitializeInterfaceFunctions();
+
+			// Populate jump table with pre-compiled function entry points
+			size_t aotCount = PPCAOTLoader::PopulateJumpTable(ppcRecompilerInstanceData);
+
+			PPCRecompiler_initPlatform();
+
+			cemuLog_log(LogType::Force, "AOT: Loaded {} pre-compiled function entry points", aotCount);
+			ppcRecompilerEnabled = true;
+			return;
+		}
+		else
+		{
+			cemuLog_log(LogType::Force, "AOT: No pre-compiled functions available, falling back to interpreter");
+			ppcRecompilerEnabled = false;
+			return;
+		}
+	}
 #if TARGET_OS_VISION
-	// visionOS: JIT not allowed, always use interpreter (but multicore scheduler is active)
+	// visionOS without AOT: JIT not allowed, use interpreter
 	ppcRecompilerEnabled = false;
 	return;
 #endif
@@ -735,6 +804,13 @@ void PPCRecompiler_Shutdown()
     s_recompilerThreadStopSignal = true;
     if(s_threadRecompiler.joinable())
         s_threadRecompiler.join();
+
+    // If AOT recording is active, save the cache
+    if (s_aotRecordingEnabled)
+    {
+        PPCRecompiler_stopAOTRecording();
+    }
+
     // clean up queues
     while(!PPCRecompilerState.targetQueue.empty())
         PPCRecompilerState.targetQueue.pop();
@@ -754,4 +830,37 @@ void PPCRecompiler_Shutdown()
         // mark as unmapped
         ppcRecompiler_reservedBlockMask[i] = false;
     }
+}
+
+// AOT recording API
+
+void PPCRecompiler_startAOTRecording(uint64 titleId)
+{
+	std::lock_guard<std::mutex> lock(s_aotCacheMutex);
+	s_aotRecordingCache.Clear();
+	s_aotRecordingCache.SetTitleId(titleId);
+	s_aotRecordingEnabled = true;
+	cemuLog_log(LogType::Force, "AOT recording started for title 0x{:016x}", titleId);
+}
+
+bool PPCRecompiler_stopAOTRecording()
+{
+	std::lock_guard<std::mutex> lock(s_aotCacheMutex);
+	if (!s_aotRecordingEnabled)
+		return false;
+	s_aotRecordingEnabled = false;
+
+	auto outputPath = ActiveSettings::GetUserDataPath("aot_cache.bin");
+	bool success = s_aotRecordingCache.SaveToFile(outputPath);
+	if (success)
+		cemuLog_log(LogType::Force, "AOT recording saved: {} functions to {}", s_aotRecordingCache.GetFunctionCount(), outputPath.string());
+	else
+		cemuLog_log(LogType::Force, "AOT recording failed to save to {}", outputPath.string());
+
+	return success;
+}
+
+bool PPCRecompiler_isAOTRecording()
+{
+	return s_aotRecordingEnabled;
 }
