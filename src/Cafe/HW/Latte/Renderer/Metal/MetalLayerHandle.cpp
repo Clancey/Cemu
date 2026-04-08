@@ -29,6 +29,8 @@ MetalLayerHandle::MetalLayerHandle(MTL::Device* device, const Vector2i& size, bo
 
 MetalLayerHandle::~MetalLayerHandle()
 {
+    if (m_drawable)
+        m_drawable->release();
     if (m_layer)
         m_layer->release();
 }
@@ -54,6 +56,7 @@ bool MetalLayerHandle::AcquireDrawable()
         cemuLog_log(LogType::Force, "layer {} failed to acquire next drawable", (void*)this);
         return false;
     }
+    m_drawable->retain(); // prevent autorelease deallocation
 
     return true;
 }
@@ -61,5 +64,6 @@ bool MetalLayerHandle::AcquireDrawable()
 void MetalLayerHandle::PresentDrawable(MTL::CommandBuffer* commandBuffer)
 {
     commandBuffer->presentDrawable(m_drawable);
+    m_drawable->release();
     m_drawable = nullptr;
 }

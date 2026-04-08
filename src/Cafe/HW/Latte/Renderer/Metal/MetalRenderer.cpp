@@ -346,7 +346,7 @@ void MetalRenderer::ResizeLayer(const Vector2i& size, bool mainWindow)
 
 void MetalRenderer::Initialize()
 {
-    m_autoreleasePool = nullptr; // not using metal-cpp pool — ObjC pool handled separately
+    m_autoreleasePool = NS::AutoreleasePool::alloc()->init();
     Renderer::Initialize();
     RendererShaderMtl::Initialize();
 }
@@ -413,6 +413,14 @@ void MetalRenderer::SwapBuffers(bool swapTV, bool swapDRC)
         m_captureFrame = false;
     }
 
+    // Drain and recreate autorelease pool to prevent Metal object leaks.
+    // All long-lived Metal objects (command buffers, drawables, encoders) are
+    // explicitly retained, so draining is safe.
+    if (m_autoreleasePool)
+    {
+        m_autoreleasePool->drain();
+        m_autoreleasePool = NS::AutoreleasePool::alloc()->init();
+    }
 }
 
 void MetalRenderer::HandleScreenshotRequest(LatteTextureView* texView, bool padView) {
@@ -1724,6 +1732,7 @@ MTL::CommandBuffer* MetalRenderer::GetCommandBuffer()
         //m_commandQueue->insertDebugCaptureBoundary();
 
 	    MTL::CommandBuffer* mtlCommandBuffer = m_commandQueue->commandBuffer();
+	    mtlCommandBuffer->retain(); // prevent autorelease pool from deallocating; released in ProcessFinishedCommandBuffers
 		m_currentCommandBuffer = {mtlCommandBuffer};
 
 		// Wait for the previous command buffer
@@ -1751,6 +1760,7 @@ MTL::RenderCommandEncoder* MetalRenderer::GetTemporaryRenderCommandEncoder(MTL::
     auto commandBuffer = GetCommandBuffer();
 
     auto renderCommandEncoder = commandBuffer->renderCommandEncoder(renderPassDescriptor);
+    renderCommandEncoder->retain();
 #ifdef CEMU_DEBUG_ASSERT
     renderCommandEncoder->setLabel(GetLabel("Temporary render command encoder", renderCommandEncoder));
 #endif
@@ -1814,6 +1824,7 @@ MTL::RenderCommandEncoder* MetalRenderer::GetRenderCommandEncoder(bool forceRecr
     auto commandBuffer = GetCommandBuffer();
 
     auto renderCommandEncoder = commandBuffer->renderCommandEncoder(m_state.m_activeFBO.m_fbo->GetRenderPassDescriptor());
+    renderCommandEncoder->retain();
 #ifdef CEMU_DEBUG_ASSERT
     renderCommandEncoder->setLabel(GetLabel("Render command encoder", renderCommandEncoder));
 #endif
@@ -1847,6 +1858,7 @@ MTL::ComputeCommandEncoder* MetalRenderer::GetComputeCommandEncoder()
     auto commandBuffer = GetCommandBuffer();
 
     auto computeCommandEncoder = commandBuffer->computeCommandEncoder();
+    computeCommandEncoder->retain();
     m_commandEncoder = computeCommandEncoder;
     m_encoderType = MetalEncoderType::Compute;
 
@@ -1870,6 +1882,7 @@ MTL::BlitCommandEncoder* MetalRenderer::GetBlitCommandEncoder()
     auto commandBuffer = GetCommandBuffer();
 
     auto blitCommandEncoder = commandBuffer->blitCommandEncoder();
+    blitCommandEncoder->retain();
     m_commandEncoder = blitCommandEncoder;
     m_encoderType = MetalEncoderType::Blit;
 

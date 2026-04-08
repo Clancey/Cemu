@@ -219,6 +219,22 @@ MTL::Texture* LatteTextureViewMtl::CreateSwizzledView(uint32 gpuSamplerSwizzle)
     if (baseLayer + layerCount > maxSlices) layerCount = maxSlices - baseLayer;
     if (layerCount == 0) layerCount = 1;
 
+    // CubeArray views require slice count to be a multiple of 6
+    if (textureType == MTL::TextureTypeCubeArray)
+    {
+        if (layerCount % 6 != 0)
+        {
+            // Try to extend to a valid multiple of 6
+            uint32 rounded = ((layerCount + 5) / 6) * 6;
+            if (baseLayer + rounded <= maxSlices)
+                layerCount = rounded;
+            else if (layerCount >= 6)
+                layerCount = (layerCount / 6) * 6; // round down
+            else
+                textureType = (layerCount == 1) ? MTL::TextureType2D : MTL::TextureType2DArray; // fallback
+        }
+    }
+
     MTL::Texture* texture = baseTex->newTextureView(pixelFormat, textureType, NS::Range::Make(baseLevel, levelCount), NS::Range::Make(baseLayer, layerCount), swizzle);
 
     return texture;

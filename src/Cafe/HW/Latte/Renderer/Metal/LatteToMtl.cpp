@@ -60,7 +60,13 @@ std::map<Latte::E_GX2SURFFMT, MetalPixelFormatInfo> MTL_COLOR_FORMAT_TABLE = {
 	{Latte::E_GX2SURFFMT::X24_G8_UINT, {MTL::PixelFormatRGBA8Uint, MetalDataType::UINT, 4}}, // TODO: correct?
 	{Latte::E_GX2SURFFMT::R32_X8_FLOAT, {MTL::PixelFormatR32Float, MetalDataType::FLOAT, 4}}, // TODO: correct?
 	{Latte::E_GX2SURFFMT::X32_G8_UINT_X24, {MTL::PixelFormatRGBA16Uint, MetalDataType::UINT, 8}}, // TODO: correct?
+#if TARGET_OS_SIMULATOR
+	// RG11B10Float uses 8 bytes of tile memory on Apple GPUs — exceeds simulator's 32-byte RT limit.
+	// Substitute with RGBA8Unorm (4 bytes) to keep all render targets within budget.
+	{Latte::E_GX2SURFFMT::R11_G11_B10_FLOAT, {MTL::PixelFormatRGBA8Unorm, MetalDataType::FLOAT, 4}},
+#else
 	{Latte::E_GX2SURFFMT::R11_G11_B10_FLOAT, {MTL::PixelFormatRG11B10Float, MetalDataType::FLOAT, 4}},
+#endif
 	{Latte::E_GX2SURFFMT::R32_UINT, {MTL::PixelFormatR32Uint, MetalDataType::UINT, 4}},
 	{Latte::E_GX2SURFFMT::R32_SINT, {MTL::PixelFormatR32Sint, MetalDataType::INT, 4}},
 	{Latte::E_GX2SURFFMT::R32_FLOAT, {MTL::PixelFormatR32Float, MetalDataType::FLOAT, 4}},
