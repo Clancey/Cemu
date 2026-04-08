@@ -9,7 +9,6 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.DisplayMetrics
 import android.view.MotionEvent
-import android.view.SurfaceView
 import android.view.View
 import android.view.View.OnTouchListener
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,7 +36,7 @@ import info.cemu.cemu.nativeinterface.NativeInput.onOverlayAxis
 import info.cemu.cemu.nativeinterface.NativeInput.onOverlayButton
 import kotlin.math.roundToInt
 
-class InputOverlaySurfaceView(context: Context) : SurfaceView(context), OnTouchListener {
+class InputOverlaySurfaceView(context: Context) : View(context), OnTouchListener {
     enum class InputMode {
         DEFAULT, EDIT_POSITION, EDIT_SIZE,
     }
@@ -68,6 +67,9 @@ class InputOverlaySurfaceView(context: Context) : SurfaceView(context), OnTouchL
 
     init {
         visibility = GONE
+
+        // Transparent background so game renders behind overlay
+        setBackgroundColor(android.graphics.Color.TRANSPARENT)
 
         pixelDensity = context.resources.displayMetrics.densityDpi
 
@@ -453,8 +455,8 @@ class InputOverlaySurfaceView(context: Context) : SurfaceView(context), OnTouchL
         requestFocus()
     }
 
-    override fun draw(canvas: Canvas) {
-        super.draw(canvas)
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
 
         for ((_, input) in inputs) {
             input.draw(canvas)

@@ -82,8 +82,10 @@ PPCInterpreter_t* PPCCore_executeCallbackInternal(uint32 functionMPTR)
 		hCPU->skippedCycles = 0;
 		if (hCPU->remainingCycles > 0)
 		{
-			// try to enter recompiler immediately
+#if !TARGET_OS_VISION
+			// try to enter recompiler immediately (not available on visionOS)
 			PPCRecompiler_attemptEnter(hCPU, hCPU->instructionPointer);
+#endif
 			// execute any remaining instructions in interpreter
 			while ((--hCPU->remainingCycles) >= 0)
 			{

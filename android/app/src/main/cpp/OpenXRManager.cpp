@@ -112,7 +112,52 @@ bool OpenXRManager::Initialize(jobject activityObject)
         return false;
     }
 
+    if (!InitializeInputActions()) {
+        LogError("Failed to initialize OpenXR input actions");
+        return false;
+    }
+
     LogInfo("OpenXR initialized successfully");
+    return true;
+}
+
+bool OpenXRManager::InitializeVulkanOnly(jobject activityObject)
+{
+    LogInfo("Initializing OpenXR (Vulkan objects only, no session)");
+    m_activityObject = activityObject;
+
+    if (!LoadOpenXRLibrary()) { LogError("Failed to load OpenXR library"); return false; }
+    if (!CreateInstance()) { LogError("Failed to create OpenXR instance"); return false; }
+    if (!LoadInstanceFunctions()) { LogError("Failed to load OpenXR instance functions"); return false; }
+    if (!LoadExtensions()) { LogError("Failed to load required OpenXR extensions"); return false; }
+    if (!GetSystem()) { LogError("Failed to get OpenXR system"); return false; }
+    if (!CreateVulkanObjects()) { LogError("Failed to create Vulkan objects through OpenXR"); return false; }
+
+    LogInfo("OpenXR Vulkan objects created (session NOT started)");
+    return true;
+}
+
+bool OpenXRManager::StartSession()
+{
+    LogInfo("Starting OpenXR session (phase 2)");
+
+    if (!CreateSession()) { LogError("Failed to create OpenXR session"); return false; }
+    if (!CreateReferenceSpace()) { LogError("Failed to create reference space"); return false; }
+    if (!InitializeInputActions()) { LogError("Failed to initialize input actions"); return false; }
+
+    // Create swapchain for frame submission
+    if (!CreateSwapchain(1920, 1080, VK_FORMAT_R8G8B8A8_SRGB)) {
+        LogError("Warning: swapchain creation failed");
+    }
+
+    // Poll events to advance session to READY state and begin it
+    for (int i = 0; i < 20; i++) {
+        PollEvents();
+        if (m_sessionRunning) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    LogInfo("OpenXR session started, running=%d", m_sessionRunning ? 1 : 0);
     return true;
 }
 
@@ -218,6 +263,16 @@ bool OpenXRManager::LoadInstanceFunctions()
     LOAD_XR_FUNCTION(xrEndFrame);
     LOAD_XR_FUNCTION(xrPollEvent);
     LOAD_XR_FUNCTION(xrResultToString);
+    LOAD_XR_FUNCTION(xrCreateActionSet);
+    LOAD_XR_FUNCTION(xrCreateAction);
+    LOAD_XR_FUNCTION(xrSuggestInteractionProfileBindings);
+    LOAD_XR_FUNCTION(xrAttachSessionActionSets);
+    LOAD_XR_FUNCTION(xrSyncActions);
+    LOAD_XR_FUNCTION(xrGetActionStateBoolean);
+    LOAD_XR_FUNCTION(xrGetActionStateFloat);
+    LOAD_XR_FUNCTION(xrGetActionStateVector2f);
+    LOAD_XR_FUNCTION(xrStringToPath);
+    LOAD_XR_FUNCTION(xrCreateActionSpace);
 
 #undef LOAD_XR_FUNCTION
 
@@ -422,6 +477,19 @@ bool OpenXRManager::CreateVulkanObjects()
     queueCI.queueCount = 1;
     queueCI.pQueuePriorities = &queuePriority;
 
+    // Enumerate available device extensions and enable all that VulkanRenderer might need
+    uint32_t extCount = 0;
+    vkEnumerateDeviceExtensionProperties(m_vkPhysicalDevice, nullptr, &extCount, nullptr);
+    std::vector<VkExtensionProperties> availExts(extCount);
+    vkEnumerateDeviceExtensionProperties(m_vkPhysicalDevice, nullptr, &extCount, availExts.data());
+
+    auto hasExt = [&](const char* name) {
+        for (auto& e : availExts)
+            if (strcmp(e.extensionName, name) == 0) return true;
+        return false;
+    };
+
+    // Start with required extensions for OpenXR + VulkanRenderer
     std::vector<const char*> devExts = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
@@ -431,11 +499,55 @@ bool OpenXRManager::CreateVulkanObjects()
         VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
     };
 
+    // Add all optional extensions that VulkanRenderer may use (if available)
+    const char* optionalExts[] = {
+        VK_EXT_TRANSFORM_FEEDBACK_EXTENSION_NAME,
+        VK_EXT_DEPTH_RANGE_UNRESTRICTED_EXTENSION_NAME,
+        VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME,
+        VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME,
+        VK_EXT_PIPELINE_CREATION_FEEDBACK_EXTENSION_NAME,
+        VK_EXT_PIPELINE_CREATION_CACHE_CONTROL_EXTENSION_NAME,
+        VK_EXT_PIPELINE_ROBUSTNESS_EXTENSION_NAME,
+        VK_EXT_FILTER_CUBIC_EXTENSION_NAME,
+        VK_EXT_EXTERNAL_MEMORY_HOST_EXTENSION_NAME,
+        VK_KHR_DRIVER_PROPERTIES_EXTENSION_NAME,
+        VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
+        VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
+        VK_EXT_TOOLING_INFO_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE2_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE3_EXTENSION_NAME,
+    };
+    for (auto ext : optionalExts) {
+        if (hasExt(ext))
+            devExts.push_back(ext);
+    }
+
+    LogInfo("OpenXR: Enabling %d device extensions", (int)devExts.size());
+
+    // Enable device features that VulkanRenderer requires
+    VkPhysicalDeviceFeatures2 supportedFeatures2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    vkGetPhysicalDeviceFeatures2(m_vkPhysicalDevice, &supportedFeatures2);
+    VkPhysicalDeviceFeatures& supportedFeatures = supportedFeatures2.features;
+
+    VkPhysicalDeviceFeatures enabledFeatures = {};
+    enabledFeatures.independentBlend = VK_TRUE;
+    enabledFeatures.samplerAnisotropy = supportedFeatures.samplerAnisotropy;
+    enabledFeatures.imageCubeArray = VK_TRUE;
+    enabledFeatures.geometryShader = supportedFeatures.geometryShader;
+    enabledFeatures.logicOp = supportedFeatures.logicOp;
+    enabledFeatures.occlusionQueryPrecise = supportedFeatures.occlusionQueryPrecise;
+    enabledFeatures.depthClamp = supportedFeatures.depthClamp;
+    enabledFeatures.depthBiasClamp = VK_TRUE;
+    enabledFeatures.robustBufferAccess = VK_TRUE;
+    enabledFeatures.vertexPipelineStoresAndAtomics = supportedFeatures.vertexPipelineStoresAndAtomics;
+
     VkDeviceCreateInfo vkDeviceCI = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     vkDeviceCI.queueCreateInfoCount = 1;
     vkDeviceCI.pQueueCreateInfos = &queueCI;
     vkDeviceCI.enabledExtensionCount = static_cast<uint32_t>(devExts.size());
     vkDeviceCI.ppEnabledExtensionNames = devExts.data();
+    vkDeviceCI.pEnabledFeatures = &enabledFeatures;
 
     XrVulkanDeviceCreateInfoKHR xrVulkanDeviceCI = {XR_TYPE_VULKAN_DEVICE_CREATE_INFO_KHR};
     xrVulkanDeviceCI.systemId = m_systemId;
@@ -638,6 +750,21 @@ bool OpenXRManager::BeginFrame()
     return m_frameState.shouldRender;
 }
 
+bool OpenXRManager::SubmitEmptyFrame()
+{
+    if (!BeginFrame()) return false;
+
+    XrFrameEndInfo endInfo = {XR_TYPE_FRAME_END_INFO};
+    endInfo.displayTime = m_frameState.predictedDisplayTime;
+    endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+    endInfo.layerCount = 0;
+    endInfo.layers = nullptr;
+
+    XrResult result = p_xrEndFrame(m_session, &endInfo);
+    m_frameActive = false;
+    return CheckXrResult(result, "xrEndFrame(empty)");
+}
+
 uint32_t OpenXRManager::AcquireSwapchainImage()
 {
     if (!m_swapchain || !m_frameActive) {
@@ -757,6 +884,32 @@ void OpenXRManager::Shutdown()
         m_openxrLibrary = nullptr;
     }
 
+    // Clean up input actions
+    if (m_handSpaceL != XR_NULL_HANDLE) {
+        p_xrDestroySpace(m_handSpaceL);
+        m_handSpaceL = XR_NULL_HANDLE;
+    }
+    if (m_handSpaceR != XR_NULL_HANDLE) {
+        p_xrDestroySpace(m_handSpaceR);
+        m_handSpaceR = XR_NULL_HANDLE;
+    }
+
+    // Reset input action handles (no explicit destroy needed for actions, they're owned by action set)
+    m_actionButtonA = XR_NULL_HANDLE;
+    m_actionButtonB = XR_NULL_HANDLE;
+    m_actionButtonX = XR_NULL_HANDLE;
+    m_actionButtonY = XR_NULL_HANDLE;
+    m_actionButtonMenu = XR_NULL_HANDLE;
+    m_actionThumbstickClickL = XR_NULL_HANDLE;
+    m_actionThumbstickClickR = XR_NULL_HANDLE;
+    m_actionTriggerL = XR_NULL_HANDLE;
+    m_actionTriggerR = XR_NULL_HANDLE;
+    m_actionGripL = XR_NULL_HANDLE;
+    m_actionGripR = XR_NULL_HANDLE;
+    m_actionThumbstickL = XR_NULL_HANDLE;
+    m_actionThumbstickR = XR_NULL_HANDLE;
+    m_actionSet = XR_NULL_HANDLE;
+
     // Clear function pointers
     p_xrGetInstanceProcAddr = nullptr;
     p_xrCreateInstance = nullptr;
@@ -784,6 +937,16 @@ void OpenXRManager::Shutdown()
     m_xrCreateVulkanInstanceKHR = nullptr;
     m_xrCreateVulkanDeviceKHR = nullptr;
     m_xrGetVulkanGraphicsDevice2KHR = nullptr;
+    p_xrCreateActionSet = nullptr;
+    p_xrCreateAction = nullptr;
+    p_xrSuggestInteractionProfileBindings = nullptr;
+    p_xrAttachSessionActionSets = nullptr;
+    p_xrSyncActions = nullptr;
+    p_xrGetActionStateBoolean = nullptr;
+    p_xrGetActionStateFloat = nullptr;
+    p_xrGetActionStateVector2f = nullptr;
+    p_xrStringToPath = nullptr;
+    p_xrCreateActionSpace = nullptr;
 
     // Clear state
     m_openxrLoaded = false;
@@ -795,4 +958,325 @@ void OpenXRManager::Shutdown()
     m_acquiredImageIndex = UINT32_MAX;
 
     LogInfo("OpenXR shutdown complete");
+}
+
+bool OpenXRManager::InitializeInputActions()
+{
+    LogInfo("Initializing OpenXR input actions");
+
+    // Create action set
+    XrActionSetCreateInfo actionSetCreateInfo = {XR_TYPE_ACTION_SET_CREATE_INFO};
+    strcpy(actionSetCreateInfo.actionSetName, "gameplay");
+    strcpy(actionSetCreateInfo.localizedActionSetName, "Gameplay");
+    actionSetCreateInfo.priority = 0;
+
+    XrResult result = p_xrCreateActionSet(m_instance, &actionSetCreateInfo, &m_actionSet);
+    if (!CheckXrResult(result, "xrCreateActionSet")) {
+        return false;
+    }
+
+    // Create actions
+    XrActionCreateInfo actionCreateInfo = {XR_TYPE_ACTION_CREATE_INFO};
+    actionCreateInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+
+    strcpy(actionCreateInfo.actionName, "button_a");
+    strcpy(actionCreateInfo.localizedActionName, "Button A");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonA);
+    if (!CheckXrResult(result, "xrCreateAction button_a")) return false;
+
+    strcpy(actionCreateInfo.actionName, "button_b");
+    strcpy(actionCreateInfo.localizedActionName, "Button B");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonB);
+    if (!CheckXrResult(result, "xrCreateAction button_b")) return false;
+
+    strcpy(actionCreateInfo.actionName, "button_x");
+    strcpy(actionCreateInfo.localizedActionName, "Button X");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonX);
+    if (!CheckXrResult(result, "xrCreateAction button_x")) return false;
+
+    strcpy(actionCreateInfo.actionName, "button_y");
+    strcpy(actionCreateInfo.localizedActionName, "Button Y");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonY);
+    if (!CheckXrResult(result, "xrCreateAction button_y")) return false;
+
+    strcpy(actionCreateInfo.actionName, "button_menu");
+    strcpy(actionCreateInfo.localizedActionName, "Menu Button");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonMenu);
+    if (!CheckXrResult(result, "xrCreateAction button_menu")) return false;
+
+    strcpy(actionCreateInfo.actionName, "thumbstick_click_left");
+    strcpy(actionCreateInfo.localizedActionName, "Left Thumbstick Click");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionThumbstickClickL);
+    if (!CheckXrResult(result, "xrCreateAction thumbstick_click_left")) return false;
+
+    strcpy(actionCreateInfo.actionName, "thumbstick_click_right");
+    strcpy(actionCreateInfo.localizedActionName, "Right Thumbstick Click");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionThumbstickClickR);
+    if (!CheckXrResult(result, "xrCreateAction thumbstick_click_right")) return false;
+
+    // Float actions for triggers and grips
+    actionCreateInfo.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
+
+    strcpy(actionCreateInfo.actionName, "trigger_left");
+    strcpy(actionCreateInfo.localizedActionName, "Left Trigger");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionTriggerL);
+    if (!CheckXrResult(result, "xrCreateAction trigger_left")) return false;
+
+    strcpy(actionCreateInfo.actionName, "trigger_right");
+    strcpy(actionCreateInfo.localizedActionName, "Right Trigger");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionTriggerR);
+    if (!CheckXrResult(result, "xrCreateAction trigger_right")) return false;
+
+    strcpy(actionCreateInfo.actionName, "grip_left");
+    strcpy(actionCreateInfo.localizedActionName, "Left Grip");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionGripL);
+    if (!CheckXrResult(result, "xrCreateAction grip_left")) return false;
+
+    strcpy(actionCreateInfo.actionName, "grip_right");
+    strcpy(actionCreateInfo.localizedActionName, "Right Grip");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionGripR);
+    if (!CheckXrResult(result, "xrCreateAction grip_right")) return false;
+
+    // Vector2 actions for thumbsticks
+    actionCreateInfo.actionType = XR_ACTION_TYPE_VECTOR2F_INPUT;
+
+    strcpy(actionCreateInfo.actionName, "thumbstick_left");
+    strcpy(actionCreateInfo.localizedActionName, "Left Thumbstick");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionThumbstickL);
+    if (!CheckXrResult(result, "xrCreateAction thumbstick_left")) return false;
+
+    strcpy(actionCreateInfo.actionName, "thumbstick_right");
+    strcpy(actionCreateInfo.localizedActionName, "Right Thumbstick");
+    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionThumbstickR);
+    if (!CheckXrResult(result, "xrCreateAction thumbstick_right")) return false;
+
+    // Suggest bindings for Oculus Touch controllers
+    XrPath profilePath = XR_NULL_PATH;
+    result = p_xrStringToPath(m_instance, "/interaction_profiles/oculus/touch_controller", &profilePath);
+    if (!CheckXrResult(result, "xrStringToPath touch_controller_profile")) return false;
+
+    std::vector<XrActionSuggestedBinding> bindings;
+
+    // Helper lambda to add bindings
+    auto addBinding = [&](XrAction action, const char* bindingPath) {
+        XrPath path;
+        XrResult res = p_xrStringToPath(m_instance, bindingPath, &path);
+        if (XR_SUCCEEDED(res)) {
+            bindings.push_back({action, path});
+        }
+        return XR_SUCCEEDED(res);
+    };
+
+    // Add all bindings
+    addBinding(m_actionButtonA, "/user/hand/right/input/a/click");
+    addBinding(m_actionButtonB, "/user/hand/right/input/b/click");
+    addBinding(m_actionButtonX, "/user/hand/left/input/x/click");
+    addBinding(m_actionButtonY, "/user/hand/left/input/y/click");
+    addBinding(m_actionButtonMenu, "/user/hand/left/input/menu/click");
+    addBinding(m_actionThumbstickClickL, "/user/hand/left/input/thumbstick/click");
+    addBinding(m_actionThumbstickClickR, "/user/hand/right/input/thumbstick/click");
+    addBinding(m_actionTriggerL, "/user/hand/left/input/trigger/value");
+    addBinding(m_actionTriggerR, "/user/hand/right/input/trigger/value");
+    addBinding(m_actionGripL, "/user/hand/left/input/squeeze/value");
+    addBinding(m_actionGripR, "/user/hand/right/input/squeeze/value");
+    addBinding(m_actionThumbstickL, "/user/hand/left/input/thumbstick");
+    addBinding(m_actionThumbstickR, "/user/hand/right/input/thumbstick");
+
+    XrInteractionProfileSuggestedBinding suggestedBindings = {XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+    suggestedBindings.interactionProfile = profilePath;
+    suggestedBindings.countSuggestedBindings = static_cast<uint32_t>(bindings.size());
+    suggestedBindings.suggestedBindings = bindings.data();
+
+    result = p_xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings);
+    if (!CheckXrResult(result, "xrSuggestInteractionProfileBindings")) return false;
+
+    // Attach action set to session
+    XrSessionActionSetsAttachInfo attachInfo = {XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
+    attachInfo.countActionSets = 1;
+    attachInfo.actionSets = &m_actionSet;
+
+    result = p_xrAttachSessionActionSets(m_session, &attachInfo);
+    if (!CheckXrResult(result, "xrAttachSessionActionSets")) return false;
+
+    // Create action spaces for hands
+    XrActionSpaceCreateInfo actionSpaceCreateInfo = {XR_TYPE_ACTION_SPACE_CREATE_INFO};
+    actionSpaceCreateInfo.action = m_actionTriggerL; // Use trigger as reference for hand poses
+    actionSpaceCreateInfo.poseInActionSpace = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
+
+    // We don't actually need hand spaces for button input, but create them for completeness
+    XrPath leftHandPath, rightHandPath;
+    p_xrStringToPath(m_instance, "/user/hand/left", &leftHandPath);
+    p_xrStringToPath(m_instance, "/user/hand/right", &rightHandPath);
+
+    actionSpaceCreateInfo.subactionPath = leftHandPath;
+    result = p_xrCreateActionSpace(m_session, &actionSpaceCreateInfo, &m_handSpaceL);
+    CheckXrResult(result, "xrCreateActionSpace left_hand"); // Don't fail on this
+
+    actionSpaceCreateInfo.subactionPath = rightHandPath;
+    result = p_xrCreateActionSpace(m_session, &actionSpaceCreateInfo, &m_handSpaceR);
+    CheckXrResult(result, "xrCreateActionSpace right_hand"); // Don't fail on this
+
+    LogInfo("OpenXR input actions initialized successfully");
+    return true;
+}
+
+void OpenXRManager::PollInput()
+{
+    if (m_actionSet == XR_NULL_HANDLE || !m_sessionRunning) {
+        return;
+    }
+
+    // OpenXR requires an active frame to sync actions.
+    // Submit empty frames (no layers) to keep input working.
+    static int frameLogCount = 0;
+    if (frameLogCount++ < 3) {
+        __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "PollInput: about to xrWaitFrame...");
+    }
+    XrFrameState frameState = {XR_TYPE_FRAME_STATE};
+    XrFrameWaitInfo waitInfo = {XR_TYPE_FRAME_WAIT_INFO};
+    if (!CheckXrResult(p_xrWaitFrame(m_session, &waitInfo, &frameState), "xrWaitFrame(input)")) {
+        return;
+    }
+
+    XrFrameBeginInfo beginInfo = {XR_TYPE_FRAME_BEGIN_INFO};
+    p_xrBeginFrame(m_session, &beginInfo);
+
+    // Sync actions
+    XrActiveActionSet activeActionSet = {};
+    activeActionSet.actionSet = m_actionSet;
+    activeActionSet.subactionPath = XR_NULL_PATH;
+
+    XrActionsSyncInfo syncInfo = {XR_TYPE_ACTIONS_SYNC_INFO};
+    syncInfo.countActiveActionSets = 1;
+    syncInfo.activeActionSets = &activeActionSet;
+
+    XrResult result = p_xrSyncActions(m_session, &syncInfo);
+    static int syncLogCount = 0;
+    if (syncLogCount++ < 5) {
+        __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "xrSyncActions result: %d actionSet=%p", (int)result, (void*)m_actionSet);
+    }
+    if (!CheckXrResult(result, "xrSyncActions")) {
+        // End frame even on failure
+        XrFrameEndInfo endInfo = {XR_TYPE_FRAME_END_INFO};
+        endInfo.displayTime = frameState.predictedDisplayTime;
+        endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+        endInfo.layerCount = 0;
+        endInfo.layers = nullptr;
+        p_xrEndFrame(m_session, &endInfo);
+        return;
+    }
+
+    // Get button states
+    XrActionStateGetInfo getInfo = {XR_TYPE_ACTION_STATE_GET_INFO};
+    XrActionStateBoolean boolState = {XR_TYPE_ACTION_STATE_BOOLEAN};
+    XrActionStateFloat floatState = {XR_TYPE_ACTION_STATE_FLOAT};
+    XrActionStateVector2f vector2State = {XR_TYPE_ACTION_STATE_VECTOR2F};
+
+    // Clear previous state
+    memset(&m_inputState, 0, sizeof(m_inputState));
+
+    // Button A (index 0)
+    getInfo.action = m_actionButtonA;
+    XrResult aResult = p_xrGetActionStateBoolean(m_session, &getInfo, &boolState);
+    if (XR_SUCCEEDED(aResult)) {
+        m_inputState.buttons[0] = boolState.currentState && boolState.isActive;
+        if (syncLogCount <= 5 || boolState.currentState) {
+            __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Button A: active=%d current=%d changed=%d", boolState.isActive, boolState.currentState, boolState.changedSinceLastSync);
+        }
+    } else {
+        if (syncLogCount <= 5) {
+            __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Button A getState failed: %d action=%p", (int)aResult, (void*)m_actionButtonA);
+        }
+    }
+
+    // Button B (index 1)
+    getInfo.action = m_actionButtonB;
+    if (XR_SUCCEEDED(p_xrGetActionStateBoolean(m_session, &getInfo, &boolState))) {
+        m_inputState.buttons[1] = boolState.currentState && boolState.isActive;
+    }
+
+    // Button X (index 2)
+    getInfo.action = m_actionButtonX;
+    if (XR_SUCCEEDED(p_xrGetActionStateBoolean(m_session, &getInfo, &boolState))) {
+        m_inputState.buttons[2] = boolState.currentState && boolState.isActive;
+    }
+
+    // Button Y (index 3)
+    getInfo.action = m_actionButtonY;
+    if (XR_SUCCEEDED(p_xrGetActionStateBoolean(m_session, &getInfo, &boolState))) {
+        m_inputState.buttons[3] = boolState.currentState && boolState.isActive;
+    }
+
+    // Menu button (index 4)
+    getInfo.action = m_actionButtonMenu;
+    if (XR_SUCCEEDED(p_xrGetActionStateBoolean(m_session, &getInfo, &boolState))) {
+        m_inputState.buttons[4] = boolState.currentState && boolState.isActive;
+    }
+
+    // Left thumbstick click (index 5)
+    getInfo.action = m_actionThumbstickClickL;
+    if (XR_SUCCEEDED(p_xrGetActionStateBoolean(m_session, &getInfo, &boolState))) {
+        m_inputState.buttons[5] = boolState.currentState && boolState.isActive;
+    }
+
+    // Right thumbstick click (index 6)
+    getInfo.action = m_actionThumbstickClickR;
+    if (XR_SUCCEEDED(p_xrGetActionStateBoolean(m_session, &getInfo, &boolState))) {
+        m_inputState.buttons[6] = boolState.currentState && boolState.isActive;
+    }
+
+    // Left trigger
+    getInfo.action = m_actionTriggerL;
+    if (XR_SUCCEEDED(p_xrGetActionStateFloat(m_session, &getInfo, &floatState))) {
+        m_inputState.triggerL = floatState.isActive ? floatState.currentState : 0.0f;
+    }
+
+    // Right trigger
+    getInfo.action = m_actionTriggerR;
+    if (XR_SUCCEEDED(p_xrGetActionStateFloat(m_session, &getInfo, &floatState))) {
+        m_inputState.triggerR = floatState.isActive ? floatState.currentState : 0.0f;
+    }
+
+    // Left grip
+    getInfo.action = m_actionGripL;
+    if (XR_SUCCEEDED(p_xrGetActionStateFloat(m_session, &getInfo, &floatState))) {
+        m_inputState.gripL = floatState.isActive ? floatState.currentState : 0.0f;
+    }
+
+    // Right grip
+    getInfo.action = m_actionGripR;
+    if (XR_SUCCEEDED(p_xrGetActionStateFloat(m_session, &getInfo, &floatState))) {
+        m_inputState.gripR = floatState.isActive ? floatState.currentState : 0.0f;
+    }
+
+    // Left thumbstick
+    getInfo.action = m_actionThumbstickL;
+    if (XR_SUCCEEDED(p_xrGetActionStateVector2f(m_session, &getInfo, &vector2State))) {
+        if (vector2State.isActive) {
+            m_inputState.thumbstickLX = vector2State.currentState.x;
+            m_inputState.thumbstickLY = vector2State.currentState.y;
+        }
+    }
+
+    // Right thumbstick
+    getInfo.action = m_actionThumbstickR;
+    if (XR_SUCCEEDED(p_xrGetActionStateVector2f(m_session, &getInfo, &vector2State))) {
+        if (vector2State.isActive) {
+            m_inputState.thumbstickRX = vector2State.currentState.x;
+            m_inputState.thumbstickRY = vector2State.currentState.y;
+        }
+    }
+
+    // End the frame (empty, no layers — just keeping session alive for input)
+    XrFrameEndInfo endInfo = {XR_TYPE_FRAME_END_INFO};
+    endInfo.displayTime = frameState.predictedDisplayTime;
+    endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+    endInfo.layerCount = 0;
+    endInfo.layers = nullptr;
+    p_xrEndFrame(m_session, &endInfo);
+}
+
+OpenXRManager::ControllerInputState OpenXRManager::GetInputState() const
+{
+    return m_inputState;
 }

@@ -1263,3 +1263,104 @@ void PPCInterpreterFull_executeInstruction(PPCInterpreter_t* hCPU)
 {
 	PPCInterpreterContainer<PPCItpSupervisorWithMMU>::executeInstruction(hCPU);
 }
+
+#if TARGET_OS_VISION
+#include "PPCDecodedCache.h"
+
+// Cached-decode interpreter for visionOS
+// Uses the opcode ID cache to skip the primary switch dispatch.
+// The opcode is decoded once; subsequent calls use the cached ID.
+// All handlers from the .hpp includes are accessible here.
+void PPCDecodedCache_executeInstruction(PPCInterpreter_t* hCPU)
+{
+	// Heartbeat
+	static std::atomic<uint64> s_instrCount{0};
+	uint64 count = s_instrCount.fetch_add(1, std::memory_order_relaxed);
+	if ((count & 0xFFFFF) == 0) { // every ~1M instructions
+		fprintf(stderr, "visionOS interpreter: %lluM instructions\n", count / 1000000);
+	}
+
+	uint32 ip = hCPU->instructionPointer;
+	uint32 cacheIdx = (ip >> 2) & (DECODED_CACHE_SIZE - 1);
+	DecodedInstr& d = g_decodedCache[cacheIdx];
+
+	uint32 opcode = PPCItpCafeOSUsermode::memory_readCodeU32(hCPU, ip);
+
+	// Check if cached (and for same address to handle aliasing)
+	if (d.opcodeId == OPC_INVALID || d.ppcAddress != ip) {
+		d.opcodeId = PPCDecodedCache_decodeOpcodeId(opcode);
+		d.ppcAddress = ip;
+	}
+
+	// Dispatch based on cached opcode ID — avoids the multi-level switch
+	switch (d.opcodeId) {
+	// Arithmetic immediate
+	case OPC_ADDI:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_ADDI(hCPU, opcode); break;
+	case OPC_ADDIS:  PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_ADDIS(hCPU, opcode); break;
+	case OPC_ADDIC:  PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_ADDIC(hCPU, opcode); break;
+	case OPC_ADDIC_: PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_ADDIC_(hCPU, opcode); break;
+	case OPC_SUBFIC: PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_SUBFIC(hCPU, opcode); break;
+	case OPC_MULLI:  PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_MULLI(hCPU, opcode); break;
+
+	// Compare
+	case OPC_CMPI:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_CMPI(hCPU, opcode); break;
+	case OPC_CMPLI:  PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_CMPLI(hCPU, opcode); break;
+
+	// Logical immediate
+	case OPC_ANDI_:  PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_ANDI_(hCPU, opcode); break;
+	case OPC_ANDIS_: PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_ANDIS_(hCPU, opcode); break;
+	case OPC_ORI:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_ORI(hCPU, opcode); break;
+	case OPC_ORIS:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_ORIS(hCPU, opcode); break;
+	case OPC_XORI:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_XORI(hCPU, opcode); break;
+	case OPC_XORIS:  PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_XORIS(hCPU, opcode); break;
+
+	// Rotate
+	case OPC_RLWIMI: PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_RLWIMI(hCPU, opcode); break;
+	case OPC_RLWINM: PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_RLWINM(hCPU, opcode); break;
+	case OPC_RLWNM:  PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_RLWNM(hCPU, opcode); break;
+
+	// Load integer
+	case OPC_LWZ:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LWZ(hCPU, opcode); break;
+	case OPC_LWZU:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LWZU(hCPU, opcode); break;
+	case OPC_LBZ:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LBZ(hCPU, opcode); break;
+	case OPC_LBZU:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LBZU(hCPU, opcode); break;
+	case OPC_LHZ:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LHZ(hCPU, opcode); break;
+	case OPC_LHZU:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LHZU(hCPU, opcode); break;
+	case OPC_LHA:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LHA(hCPU, opcode); break;
+	case OPC_LHAU:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LHAU(hCPU, opcode); break;
+	case OPC_LMW:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LMW(hCPU, opcode); break;
+
+	// Store integer
+	case OPC_STW:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STW(hCPU, opcode); break;
+	case OPC_STWU:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STWU(hCPU, opcode); break;
+	case OPC_STB:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STB(hCPU, opcode); break;
+	case OPC_STBU:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STBU(hCPU, opcode); break;
+	case OPC_STH:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STH(hCPU, opcode); break;
+	case OPC_STHU:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STHU(hCPU, opcode); break;
+	case OPC_STMW:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STMW(hCPU, opcode); break;
+
+	// Load/store float
+	case OPC_LFS:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LFS(hCPU, opcode); break;
+	case OPC_LFSU:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LFSU(hCPU, opcode); break;
+	case OPC_LFD:    PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LFD(hCPU, opcode); break;
+	case OPC_LFDU:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_LFDU(hCPU, opcode); break;
+	case OPC_STFS:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STFS(hCPU, opcode); break;
+	case OPC_STFSU:  PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STFSU(hCPU, opcode); break;
+	case OPC_STFD:   PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STFD(hCPU, opcode); break;
+	case OPC_STFDU:  PPCInterpreterContainer<PPCItpCafeOSUsermode>::PPCInterpreter_STFDU(hCPU, opcode); break;
+
+	// Branches (standalone functions, not template members)
+	case OPC_BX:     PPCInterpreter_BX(hCPU, opcode); break;
+	case OPC_BCX:    PPCInterpreter_BCX(hCPU, opcode); break;
+	case OPC_BCLRX:  PPCInterpreter_BCLRX(hCPU, opcode); break;
+	case OPC_BCCTR:  PPCInterpreter_BCCTR(hCPU, opcode); break;
+	case OPC_SC:     PPCInterpreter_SC(hCPU, opcode); break;
+
+	// Fallback: use full switch interpreter for extended/uncommon opcodes
+	case OPC_GENERIC:
+	default:
+		PPCInterpreterContainer<PPCItpCafeOSUsermode>::executeInstruction(hCPU);
+		break;
+	}
+}
+#endif // TARGET_OS_VISION

@@ -50,6 +50,18 @@ public:
     bool Initialize(jobject activityObject = nullptr);
 
     /**
+     * Phase 1: Create OpenXR instance and Vulkan objects only (no session).
+     * Use this when you need Vulkan objects before starting VR rendering.
+     */
+    bool InitializeVulkanOnly(jobject activityObject = nullptr);
+
+    /**
+     * Phase 2: Create session, reference space, and input actions.
+     * Call after VulkanRenderer is constructed. This starts the VR session.
+     */
+    bool StartSession();
+
+    /**
      * Create OpenXR swapchain for rendering.
      *
      * @param width    Swapchain width in pixels
@@ -82,6 +94,12 @@ public:
      * Only render when this returns true.
      */
     bool IsSessionRunning() const { return m_sessionRunning; }
+
+    /**
+     * Submit an empty frame with zero composition layers.
+     * Used to keep the session alive during initialization.
+     */
+    bool SubmitEmptyFrame();
 
     /**
      * Begin an OpenXR frame. Call before rendering.
@@ -144,6 +162,41 @@ public:
      */
     void PollEvents();
 
+    /**
+     * Controller input state structure.
+     * Stores current state of all Quest controller inputs.
+     */
+    struct ControllerInputState {
+        bool buttons[16] = {false}; // A, B, X, Y, menu, thumbstick clicks, etc.
+        float triggerL = 0.0f;
+        float triggerR = 0.0f;
+        float gripL = 0.0f;
+        float gripR = 0.0f;
+        float thumbstickLX = 0.0f;
+        float thumbstickLY = 0.0f;
+        float thumbstickRX = 0.0f;
+        float thumbstickRY = 0.0f;
+    };
+
+    /**
+     * Initialize OpenXR input actions for Quest controllers.
+     * Creates action set and binds to Touch controller profile.
+     * Must be called after session creation.
+     */
+    bool InitializeInputActions();
+
+    /**
+     * Poll controller input and update internal state.
+     * Should be called regularly (e.g., once per frame).
+     */
+    void PollInput();
+
+    /**
+     * Get current controller input state.
+     * Returns a copy of the current input state.
+     */
+    ControllerInputState GetInputState() const;
+
 private:
     // OpenXR state
     XrInstance m_instance = XR_NULL_HANDLE;
@@ -174,6 +227,27 @@ private:
 
     // Android
     jobject m_activityObject = nullptr;
+
+    // Input actions
+    XrActionSet m_actionSet = XR_NULL_HANDLE;
+    XrAction m_actionButtonA = XR_NULL_HANDLE;
+    XrAction m_actionButtonB = XR_NULL_HANDLE;
+    XrAction m_actionButtonX = XR_NULL_HANDLE;
+    XrAction m_actionButtonY = XR_NULL_HANDLE;
+    XrAction m_actionButtonMenu = XR_NULL_HANDLE;
+    XrAction m_actionThumbstickClickL = XR_NULL_HANDLE;
+    XrAction m_actionThumbstickClickR = XR_NULL_HANDLE;
+    XrAction m_actionTriggerL = XR_NULL_HANDLE;
+    XrAction m_actionTriggerR = XR_NULL_HANDLE;
+    XrAction m_actionGripL = XR_NULL_HANDLE;
+    XrAction m_actionGripR = XR_NULL_HANDLE;
+    XrAction m_actionThumbstickL = XR_NULL_HANDLE;
+    XrAction m_actionThumbstickR = XR_NULL_HANDLE;
+    XrSpace m_handSpaceL = XR_NULL_HANDLE;
+    XrSpace m_handSpaceR = XR_NULL_HANDLE;
+
+    // Controller input state
+    ControllerInputState m_inputState;
 
     // Dynamic loading state
     void* m_openxrLibrary = nullptr;
@@ -210,6 +284,18 @@ private:
     PFN_xrCreateVulkanInstanceKHR m_xrCreateVulkanInstanceKHR = nullptr;
     PFN_xrCreateVulkanDeviceKHR m_xrCreateVulkanDeviceKHR = nullptr;
     PFN_xrGetVulkanGraphicsDevice2KHR m_xrGetVulkanGraphicsDevice2KHR = nullptr;
+
+    // Input action function pointers
+    PFN_xrCreateActionSet p_xrCreateActionSet = nullptr;
+    PFN_xrCreateAction p_xrCreateAction = nullptr;
+    PFN_xrSuggestInteractionProfileBindings p_xrSuggestInteractionProfileBindings = nullptr;
+    PFN_xrAttachSessionActionSets p_xrAttachSessionActionSets = nullptr;
+    PFN_xrSyncActions p_xrSyncActions = nullptr;
+    PFN_xrGetActionStateBoolean p_xrGetActionStateBoolean = nullptr;
+    PFN_xrGetActionStateFloat p_xrGetActionStateFloat = nullptr;
+    PFN_xrGetActionStateVector2f p_xrGetActionStateVector2f = nullptr;
+    PFN_xrStringToPath p_xrStringToPath = nullptr;
+    PFN_xrCreateActionSpace p_xrCreateActionSpace = nullptr;
 
     // Helper methods
     bool LoadOpenXRLibrary();

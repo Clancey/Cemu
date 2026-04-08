@@ -435,6 +435,9 @@ private fun EmulationSurface(
                         surfaceTexture: SurfaceTexture, width: Int, height: Int
                     ) {
                         NativeEmulation.setSurfaceSize(width, height, isTV)
+                        // Re-provide the surface so Vulkan swapchain gets recreated
+                        val surface = android.view.Surface(surfaceTexture)
+                        NativeEmulation.setSurface(surface, isTV)
                     }
                     override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
                         // Don't call holderCallback.surfaceDestroyed — it expects non-null SurfaceHolder

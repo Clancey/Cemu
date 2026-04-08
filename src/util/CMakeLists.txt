@@ -82,6 +82,13 @@ elseif(ANDROID)
 	target_sources(CemuUtil PRIVATE MemMapper/MemMapperUnix.cpp)
 	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoUnix.cpp)
 	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoLinux.cpp)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
+	# visionOS: custom ARM64 assembly fiber context switch
+	enable_language(ASM)
+	target_sources(CemuUtil PRIVATE Fiber/FiberPThread.cpp Fiber/fiber_asm_arm64.S)
+	target_sources(CemuUtil PRIVATE MemMapper/MemMapperUnix.cpp)
+	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoUnix.cpp)
+	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoMac.cpp)
 elseif(UNIX)
 	target_sources(CemuUtil PRIVATE Fiber/FiberUContext.cpp)
 	target_sources(CemuUtil PRIVATE MemMapper/MemMapperUnix.cpp)
@@ -105,8 +112,9 @@ target_link_libraries(CemuUtil PRIVATE
   CemuCommon
 )
 
-# Link boost_context for Android builds
+# Link boost_context for Android builds (FiberFContext needs it)
+# visionOS uses FiberPThread which doesn't need boost_context
 if(ANDROID)
-  find_package(Boost COMPONENTS context REQUIRED)
+  find_package(boost_context CONFIG REQUIRED)
   target_link_libraries(CemuUtil PRIVATE Boost::context)
 endif()

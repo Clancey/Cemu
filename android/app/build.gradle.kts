@@ -117,6 +117,7 @@ android {
             cmake {
                 val vcpkgRoot = file("${projectDir}/../../dependencies/vcpkg").absolutePath
                 val ndkDir = android.ndkDirectory.absolutePath
+                val vcpkgInstalled = file("${projectDir}/../../vcpkg_installed").absolutePath
                 arguments(
                     "-DANDROID_STL=c++_shared",
                     "-DANDROID_PLATFORM=android-29",
@@ -124,6 +125,8 @@ android {
                     "-DVCPKG_TARGET_TRIPLET=arm64-android",
                     "-DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${ndkDir}/build/cmake/android.toolchain.cmake",
                     "-DCMAKE_TOOLCHAIN_FILE=${vcpkgRoot}/scripts/buildsystems/vcpkg.cmake",
+                    "-DVCPKG_INSTALLED_DIR=${vcpkgInstalled}",
+                    "-DVCPKG_MANIFEST_INSTALL=OFF",
                     "-DENABLE_VCPKG=ON",
                     "-DENABLE_SDL=OFF",
                     "-DENABLE_WXWIDGETS=OFF",

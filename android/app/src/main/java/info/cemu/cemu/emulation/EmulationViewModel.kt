@@ -22,6 +22,9 @@ import info.cemu.cemu.common.settings.OverlayInputConfig
 import info.cemu.cemu.common.ui.localization.tr
 import info.cemu.cemu.nativeinterface.NativeEmulation
 import info.cemu.cemu.nativeinterface.NativeException
+import info.cemu.cemu.nativeinterface.NativeInput
+import info.cemu.cemu.nativeinterface.NativeSettings
+import info.cemu.cemu.settings.input.InputMapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +41,7 @@ data class SideMenuState(
     val isMotionEnabled: Boolean = false,
     val isTVReplacedWithPad: Boolean = false,
     val isPadVisible: Boolean = false,
-    val isInputOverlayVisible: Boolean = false,
+    val isInputOverlayVisible: Boolean = true,
 )
 
 class ConditionFlags(
@@ -189,15 +192,9 @@ class EmulationViewModel(
     }
 
     private suspend fun initializeRenderer(): Either<Unit, String> {
-        return withContext(Dispatchers.IO) {
-            try {
-                // OpenXR is initialized from EmulationActivity.onResume()
-                // Skip renderer init here — OpenXR handles rendering
-                return@withContext Success(Unit)
-            } catch (exception: NativeException) {
-                val errorMessage = tr("Failed creating renderer: {0}", exception.message!!)
-                return@withContext Error(errorMessage)
-            }
+        return attemptWithContext(Dispatchers.IO) {
+            NativeEmulation.initializeRenderer()
+            NativeEmulation.initializeSurface(isMainCanvas = true)
         }
     }
 
@@ -237,13 +234,41 @@ class EmulationViewModel(
 
         emulationInitializationJob = viewModelScope.launch {
             prepareTitle()
-                .bind { initializeSystems() }
+                .bind {
+                    autoConfigureIfNeeded()
+                    initializeSystems()
+                }
                 .bind { initializeRenderer() }
                 .bind { launchTitle() }
                 .onError { _emulationError.value = it }
 
             _isEmulationInitialized.value = true
         }
+    }
+
+    private fun autoConfigureIfNeeded() {
+        // Ensure audio is enabled
+        if (!NativeSettings.getAudioDeviceEnabled(true)) {
+            NativeSettings.setAudioDeviceEnabled(true, true)
+        }
+        // Auto-configure controller 0 as Pro Controller if not configured
+        // Pro Controller maps naturally to Quest controllers (no touchscreen needed)
+        if (NativeInput.isControllerDisabled(0)) {
+            NativeInput.setControllerType(0, NativeInput.EmulatedControllerType.PRO)
+            val deviceIds = android.view.InputDevice.getDeviceIds()
+            for (id in deviceIds) {
+                val device = android.view.InputDevice.getDevice(id) ?: continue
+                if (device.isVirtual) continue
+                val sources = device.sources
+                if (sources and android.view.InputDevice.SOURCE_GAMEPAD == android.view.InputDevice.SOURCE_GAMEPAD ||
+                    sources and android.view.InputDevice.SOURCE_JOYSTICK == android.view.InputDevice.SOURCE_JOYSTICK) {
+                    InputMapper.mapAllInputs(id, 0)
+                    break
+                }
+            }
+        }
+        // Show TV view, not GamePad screen
+        NativeEmulation.setReplaceTVWithPadView(false)
     }
 
     companion object {

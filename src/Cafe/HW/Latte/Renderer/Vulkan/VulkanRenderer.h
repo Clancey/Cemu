@@ -180,6 +180,7 @@ public:
 
 	static std::vector<DeviceInfo> GetDevices();
 	VulkanRenderer();
+	VulkanRenderer(VkInstance instance, VkPhysicalDevice physDevice, VkDevice device, uint32_t graphicsQueueFamily);
 	virtual ~VulkanRenderer();
 
 	RendererAPI GetType() override { return RendererAPI::Vulkan; }
@@ -605,6 +606,7 @@ private:
 	VkDevice  m_logicalDevice = VK_NULL_HANDLE;
 	VkDebugUtilsMessengerEXT m_debugCallback = nullptr;
 	volatile bool m_destructionRequested = false;
+	bool m_externalVulkanObjects = false;
 
 	QueueFamilyIndices m_indices{};
 

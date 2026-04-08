@@ -26,8 +26,10 @@ namespace NativeEmulation
 	void initializeAudioDevices()
 	{
 		auto& config = GetConfig();
-		if (!config.tv_device.empty())
-			AndroidAudio::createAudioDevice(IAudioAPI::AudioAPI::Cubeb, config.tv_channels, config.tv_volume, true);
+		// Always initialize TV audio on Android
+		if (config.tv_device.empty())
+			config.tv_device = L"Default";
+		AndroidAudio::createAudioDevice(IAudioAPI::AudioAPI::Cubeb, config.tv_channels, config.tv_volume, true);
 
 		if (!config.pad_device.empty())
 			AndroidAudio::createAudioDevice(IAudioAPI::AudioAPI::Cubeb, config.pad_channels, config.pad_volume, false);
@@ -214,8 +216,21 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* e
 	s_rendererInitialized = false;
 }
 
+// Helper: submit empty OpenXR frame to prevent Quest from killing us during long init
+void SubmitOpenXRKeepaliveFrame();
+
 // Global OpenXR manager instance
 std::unique_ptr<OpenXRManager> g_openxrManager = nullptr;
+
+// Submits an empty OpenXR frame with zero composition layers
+// Thread-safe alongside Vulkan init (no Vulkan commands used)
+void SubmitOpenXRKeepaliveFrame()
+{
+	if (!g_openxrManager) return;
+	g_openxrManager->PollEvents();
+	if (!g_openxrManager->IsSessionRunning()) return;
+	g_openxrManager->SubmitEmptyFrame();
+}
 
 // Store Activity reference for OpenXR
 static jobject s_openxrActivity = nullptr;
@@ -236,163 +251,19 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env
 			return false;
 		}
 
-		// Create OpenXR manager and let it create Vulkan objects via OpenXR
+		// Create OpenXR manager — Phase 1: Vulkan objects only, NO session
 		g_openxrManager = std::make_unique<OpenXRManager>();
 
-		// Initialize OpenXR (this creates Vulkan objects through OpenXR)
-		if (!g_openxrManager->Initialize(s_openxrActivity)) {
-			cemuLog_log(LogType::Force, "OpenXR: Failed to initialize OpenXR manager");
+		if (!g_openxrManager->InitializeVulkanOnly(s_openxrActivity)) {
+			cemuLog_log(LogType::Force, "OpenXR: Failed to create Vulkan objects");
 			g_openxrManager.reset();
 			return false;
 		}
 
-		// Get OpenXR-created Vulkan objects
-		VkInstance vkInstance = g_openxrManager->GetVkInstance();
-		VkPhysicalDevice vkPhysicalDevice = g_openxrManager->GetVkPhysicalDevice();
-		VkDevice vkDevice = g_openxrManager->GetVkDevice();
-		uint32_t queueFamilyIndex = g_openxrManager->GetQueueFamilyIndex();
-
-		cemuLog_log(LogType::Force, "OpenXR: Created Vulkan objects - Instance={:p} PhysDevice={:p} Device={:p} QueueFamily={}",
-			(void*)vkInstance, (void*)vkPhysicalDevice, (void*)vkDevice, queueFamilyIndex);
-
-		// TODO: Pass these Vulkan objects to VulkanRenderer
-		// For now, just ensure the session is created successfully
-		// g_renderer = std::make_unique<VulkanRenderer>(vkInstance, vkPhysicalDevice, vkDevice, queueFamilyIndex);
-
-		// Create OpenXR swapchain (1920x1080 for now, typical TV resolution)
-		const uint32_t swapchainWidth = 1920;
-		const uint32_t swapchainHeight = 1080;
-		const VkFormat swapchainFormat = VK_FORMAT_R8G8B8A8_SRGB;
-
-		if (!g_openxrManager->CreateSwapchain(swapchainWidth, swapchainHeight, swapchainFormat)) {
-			cemuLog_log(LogType::Force, "OpenXR: Failed to create swapchain");
-			g_openxrManager.reset();
-			return false;
-		}
-
-		cemuLog_log(LogType::Force, "OpenXR: Initialization successful - starting frame loop");
-
-		// Test xrPollEvent directly
-		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Testing xrPollEvent directly...");
-		// Wait a moment for the session to finish creating
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
-		g_openxrManager->PollEvents();
-		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "PollEvents works!");
-
-		// Start OpenXR frame loop on a background thread
-		std::thread([]() {
-			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR frame loop started, manager=%p", g_openxrManager.get());
-			int frameCount = 0;
-			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Entering while loop, manager valid: %d", g_openxrManager.get() != nullptr ? 1 : 0);
-			try {
-			while (true) {
-				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Loop top");
-				if (!g_openxrManager) {
-					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Manager became null, exiting loop");
-					break;
-				}
-				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Before PollEvents");
-				g_openxrManager->PollEvents();
-				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "After PollEvents");
-				bool running = g_openxrManager->IsSessionRunning();
-				if (frameCount < 3) {
-					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Loop iter %d: running=%d", frameCount, running ? 1 : 0);
-				}
-				if (!running) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(100));
-					frameCount++;
-					continue;
-				}
-				bool beginResult = g_openxrManager->BeginFrame();
-				if (frameCount < 5) {
-					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Frame %d: BeginFrame=%d sessionRunning=%d",
-						frameCount, beginResult ? 1 : 0, g_openxrManager->IsSessionRunning() ? 1 : 0);
-				}
-				frameCount++;
-				if (beginResult) {
-					uint32_t imageIndex = g_openxrManager->AcquireSwapchainImage();
-					if (imageIndex != UINT32_MAX) {
-						// Clear swapchain image to blue to prove rendering works
-						VkImage swapchainImage = g_openxrManager->GetSwapchainImage(imageIndex);
-						VkDevice device = g_openxrManager->GetVkDevice();
-						VkQueue queue = VK_NULL_HANDLE;
-						vkGetDeviceQueue(device, g_openxrManager->GetQueueFamilyIndex(), 0, &queue);
-
-						// Create command pool/buffer for clearing
-						static VkCommandPool cmdPool = VK_NULL_HANDLE;
-						static VkCommandBuffer cmdBuf = VK_NULL_HANDLE;
-						if (cmdPool == VK_NULL_HANDLE) {
-							VkCommandPoolCreateInfo poolInfo = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
-							poolInfo.queueFamilyIndex = g_openxrManager->GetQueueFamilyIndex();
-							poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-							vkCreateCommandPool(device, &poolInfo, nullptr, &cmdPool);
-
-							VkCommandBufferAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-							allocInfo.commandPool = cmdPool;
-							allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-							allocInfo.commandBufferCount = 1;
-							vkAllocateCommandBuffers(device, &allocInfo, &cmdBuf);
-						}
-
-						VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-						beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-						vkBeginCommandBuffer(cmdBuf, &beginInfo);
-
-						// Transition image to TRANSFER_DST
-						VkImageMemoryBarrier barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-						barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-						barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-						barrier.image = swapchainImage;
-						barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-						vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-							0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-						// Clear to blue
-						VkClearColorValue clearColor = {{0.0f, 0.2f, 0.8f, 1.0f}};
-						VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-						vkCmdClearColorImage(cmdBuf, swapchainImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &range);
-
-						// Transition image to COLOR_ATTACHMENT_OPTIMAL (for OpenXR)
-						barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-						barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-						vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-							0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-						vkEndCommandBuffer(cmdBuf);
-
-						// Submit and wait with fence
-						VkFenceCreateInfo fenceInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-						VkFence fence;
-						vkCreateFence(device, &fenceInfo, nullptr, &fence);
-
-						VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
-						submitInfo.commandBufferCount = 1;
-						submitInfo.pCommandBuffers = &cmdBuf;
-						vkQueueSubmit(queue, 1, &submitInfo, fence);
-						vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
-						vkDestroyFence(device, fence, nullptr);
-
-						g_openxrManager->ReleaseSwapchainImage();
-					}
-					// Submit frame as a quad panel in VR space
-					XrPosef quadPose = {
-						.orientation = {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f},
-						.position = {.x = 0.0f, .y = 0.0f, .z = -2.0f}
-					};
-					XrExtent2Df quadSize = {.width = 2.0f, .height = 1.125f};
-					bool endResult = g_openxrManager->EndFrame(quadPose, quadSize);
-					if (frameCount <= 5) {
-						__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Frame %d: EndFrame=%d", frameCount, endResult ? 1 : 0);
-					}
-				}
-			}
-			} catch (const std::exception& e) {
-				__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR frame loop exception: %s", e.what());
-			} catch (...) {
-				__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR frame loop unknown exception");
-			}
-			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR frame loop ended");
-		}).detach();
+		cemuLog_log(LogType::Force, "OpenXR: Vulkan objects created (session deferred until renderer ready)");
+		cemuLog_log(LogType::Force, "OpenXR: Instance={:p} PhysDevice={:p} Device={:p} QueueFamily={}",
+			(void*)g_openxrManager->GetVkInstance(), (void*)g_openxrManager->GetVkPhysicalDevice(),
+			(void*)g_openxrManager->GetVkDevice(), g_openxrManager->GetQueueFamilyIndex());
 
 		return true;
 
@@ -413,6 +284,138 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_shutdownOpenXR([[maybe_unuse
 	}
 }
 
+extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRendererForVR(JNIEnv* env, [[maybe_unused]] jclass clazz)
+{
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> initializeRendererForVR called");
+
+	if (!g_openxrManager) {
+		__android_log_print(ANDROID_LOG_ERROR, "Cemu", "initializeRendererForVR: OpenXR not initialized");
+		return;
+	}
+
+	// Wait for emulation init to complete
+	while (!s_emulationInitialized.load())
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+	// Load global Vulkan function pointers
+	InitializeGlobalVulkan();
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "initializeRendererForVR: creating VulkanRenderer (NO session yet — no time pressure)");
+
+	try {
+	// Create VulkanRenderer using OpenXR's Vulkan objects
+	// NO OpenXR session exists yet, so Quest won't kill us for not submitting frames
+	g_renderer = std::make_unique<VulkanRenderer>(
+		g_openxrManager->GetVkInstance(),
+		g_openxrManager->GetVkPhysicalDevice(),
+		g_openxrManager->GetVkDevice(),
+		g_openxrManager->GetQueueFamilyIndex()
+	);
+	s_rendererInitialized = true;
+	} catch (const std::exception& e) {
+		__android_log_print(ANDROID_LOG_ERROR, "Cemu", "VulkanRenderer creation FAILED: %s", e.what());
+		return;
+	}
+
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VulkanRenderer created! Now starting OpenXR session...");
+
+	// Set up window info before session starts
+	auto& windowInfo = WindowSystem::GetWindowInfo();
+	windowInfo.width = windowInfo.phys_width = 1920;
+	windowInfo.height = windowInfo.phys_height = 1080;
+
+	// NOW create and start the OpenXR session (phase 2)
+	// This begins the VR session — must start submitting frames immediately after
+	if (!g_openxrManager->StartSession()) {
+		__android_log_print(ANDROID_LOG_ERROR, "Cemu", "Failed to start OpenXR session");
+		return;
+	}
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR session running: %d", g_openxrManager->IsSessionRunning() ? 1 : 0);
+
+	// Submit first frame SYNCHRONOUSLY before anything else
+	g_openxrManager->SubmitEmptyFrame();
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "First VR frame submitted!");
+
+	// Start VR frame loop — clear swapchain to blue and submit as quad
+	// Set up Vulkan command pool/buffer for clearing
+	VkDevice device = g_openxrManager->GetVkDevice();
+	VkCommandPool cmdPool = VK_NULL_HANDLE;
+	VkCommandBuffer cmdBuf = VK_NULL_HANDLE;
+	{
+		VkCommandPoolCreateInfo poolInfo = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+		poolInfo.queueFamilyIndex = g_openxrManager->GetQueueFamilyIndex();
+		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		vkCreateCommandPool(device, &poolInfo, nullptr, &cmdPool);
+		VkCommandBufferAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+		allocInfo.commandPool = cmdPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = 1;
+		vkAllocateCommandBuffers(device, &allocInfo, &cmdBuf);
+	}
+
+	std::thread([cmdPool, cmdBuf, device]() {
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR frame loop started (clearing to blue)");
+		VkQueue queue = VK_NULL_HANDLE;
+		vkGetDeviceQueue(device, g_openxrManager->GetQueueFamilyIndex(), 0, &queue);
+
+		while (g_openxrManager && g_openxrManager->IsSessionRunning()) {
+			g_openxrManager->PollEvents();
+			if (g_openxrManager->BeginFrame()) {
+				uint32_t imgIdx = g_openxrManager->AcquireSwapchainImage();
+				if (imgIdx != UINT32_MAX) {
+					VkImage img = g_openxrManager->GetSwapchainImage(imgIdx);
+
+					// Clear image to blue
+					VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+					beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+					vkBeginCommandBuffer(cmdBuf, &beginInfo);
+
+					VkImageMemoryBarrier barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+					barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+					barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+					barrier.image = img;
+					barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+					vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+						0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+					VkClearColorValue clearColor = {{0.0f, 0.2f, 0.8f, 1.0f}};
+					VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+					vkCmdClearColorImage(cmdBuf, img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &range);
+
+					barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+					barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+						0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+					vkEndCommandBuffer(cmdBuf);
+
+					VkFenceCreateInfo fenceInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+					VkFence fence;
+					vkCreateFence(device, &fenceInfo, nullptr, &fence);
+					VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+					submitInfo.commandBufferCount = 1;
+					submitInfo.pCommandBuffers = &cmdBuf;
+					vkQueueSubmit(queue, 1, &submitInfo, fence);
+					vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+					vkDestroyFence(device, fence, nullptr);
+
+					g_openxrManager->ReleaseSwapchainImage();
+				}
+				XrPosef pose = {{0,0,0,1},{0,0,-2}};
+				XrExtent2Df size = {2.0f, 1.125f};
+				g_openxrManager->EndFrame(pose, size);
+			}
+		}
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR frame loop ended");
+	}).detach();
+
+	// Skip VulkanRenderer::Initialize() — it needs a swapchain for ImGui render pass
+	// Just do the base Renderer::Initialize() for ImGui contexts
+	// Full VulkanRenderer init will happen when swapchain is set up
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Skipping full Initialize(), base renderer only");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Renderer ready for game launch!");
+}
+
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_isOpenXRActive([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
@@ -431,6 +434,88 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_updateOpenXRFrame([[maybe_un
 
 	// Return true if session is running and we should continue rendering
 	return g_openxrManager->IsSessionRunning();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_pollOpenXRInput(JNIEnv* env, jclass clazz)
+{
+	if (!g_openxrManager) {
+		return;
+	}
+
+	// Always poll events to advance session state
+	g_openxrManager->PollEvents();
+
+	static int logCounter = 0;
+	if (!g_openxrManager->IsSessionRunning()) {
+		if (logCounter++ % 60 == 0) {
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "pollOpenXRInput: session not running yet (poll %d)", logCounter);
+		}
+		return;
+	}
+
+	// Poll input actions
+	g_openxrManager->PollInput();
+
+	// Get current input state
+	auto inputState = g_openxrManager->GetInputState();
+
+	// Get Android controller provider
+	auto apiProvider = InputManager::instance().get_api_provider(InputAPI::Android);
+	auto androidControllerProvider = dynamic_cast<AndroidControllerProvider*>(apiProvider.get());
+	if (!androidControllerProvider) {
+		return;
+	}
+
+	const std::string descriptor = "openxr_quest_controller";
+	const std::string name = "Quest Controller";
+
+	// Map buttons to Android keycodes
+	static const int buttonKeyCodes[] = {
+		96,  // AKEYCODE_BUTTON_A (Right A)
+		97,  // AKEYCODE_BUTTON_B (Right B)
+		99,  // AKEYCODE_BUTTON_X (Left X)
+		100, // AKEYCODE_BUTTON_Y (Left Y)
+		108, // AKEYCODE_BUTTON_START (Menu)
+		106, // AKEYCODE_BUTTON_THUMBL (Left thumbstick click)
+		107, // AKEYCODE_BUTTON_THUMBR (Right thumbstick click)
+	};
+
+	static bool previousButtonStates[7] = {false};
+
+	// Send button events only on state changes
+	for (int i = 0; i < 7; ++i) {
+		if (inputState.buttons[i] != previousButtonStates[i]) {
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR button %d (keycode %d) = %d", i, buttonKeyCodes[i], inputState.buttons[i] ? 1 : 0);
+			androidControllerProvider->on_key_event(descriptor, name, buttonKeyCodes[i], inputState.buttons[i]);
+			previousButtonStates[i] = inputState.buttons[i];
+		}
+	}
+
+	// Handle grip buttons as digital buttons (when grip > 0.5)
+	static bool previousGripL = false;
+	static bool previousGripR = false;
+
+	bool currentGripL = inputState.gripL > 0.5f;
+	bool currentGripR = inputState.gripR > 0.5f;
+
+	if (currentGripL != previousGripL) {
+		androidControllerProvider->on_key_event(descriptor, name, 102, currentGripL); // AKEYCODE_BUTTON_L1
+		previousGripL = currentGripL;
+	}
+
+	if (currentGripR != previousGripR) {
+		androidControllerProvider->on_key_event(descriptor, name, 103, currentGripR); // AKEYCODE_BUTTON_R1
+		previousGripR = currentGripR;
+	}
+
+	// Send axis events (always send, as small changes matter for analog inputs)
+	androidControllerProvider->on_axis_event(descriptor, name, 17, inputState.triggerL);  // AMOTION_EVENT_AXIS_LTRIGGER
+	androidControllerProvider->on_axis_event(descriptor, name, 18, inputState.triggerR);  // AMOTION_EVENT_AXIS_RTRIGGER
+	androidControllerProvider->on_axis_event(descriptor, name, 0, inputState.thumbstickLX);  // AMOTION_EVENT_AXIS_X
+	androidControllerProvider->on_axis_event(descriptor, name, 1, -inputState.thumbstickLY); // AMOTION_EVENT_AXIS_Y (invert Y)
+	androidControllerProvider->on_axis_event(descriptor, name, 12, inputState.thumbstickRX); // AMOTION_EVENT_AXIS_RX
+	androidControllerProvider->on_axis_event(descriptor, name, 13, -inputState.thumbstickRY); // AMOTION_EVENT_AXIS_RY (invert Y)
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL

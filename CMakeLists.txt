@@ -415,6 +415,14 @@ if(NOT ANDROID)
 		patch_lib_for_visionos(Boost::program_options "/opt/homebrew/lib/libboost_program_options.a")
 		patch_lib_for_visionos(Boost::nowide "/opt/homebrew/lib/libboost_nowide.a")
 		patch_lib_for_visionos(Boost::filesystem "/opt/homebrew/lib/libboost_filesystem.a")
+		# Boost::context for FiberFContext (create target here so it gets patched)
+		if(NOT TARGET Boost::context AND EXISTS "/opt/homebrew/lib/libboost_context.a")
+			add_library(Boost::context STATIC IMPORTED GLOBAL)
+			set_target_properties(Boost::context PROPERTIES
+				INTERFACE_INCLUDE_DIRECTORIES "/opt/homebrew/include"
+			)
+			patch_lib_for_visionos(Boost::context "/opt/homebrew/lib/libboost_context.a")
+		endif()
 		# zstd already patched above when target was created
 		# Patch curl
 		if(TARGET CURL::libcurl)

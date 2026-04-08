@@ -147,8 +147,21 @@ class CemuApplication : Application() {
         val gamesDir = java.io.File(filesDir, "games")
         if (!gamesDir.exists()) gamesDir.mkdirs()
         initializeEmulation()
+        // Add default game paths
+        val defaultPaths = listOf(
+            "/sdcard/CemuGames",
+            "/storage/emulated/0/CemuGames",
+            getExternalFilesDir(null)?.resolve("games")?.absolutePath,
+        )
+        for (path in defaultPaths) {
+            if (path != null && java.io.File(path).exists()) {
+                NativeSettings.addGamesPath(path)
+            }
+        }
         initializeSwkbd()
         refreshGraphicPacks()
+        // Rescan title list to pick up paths added after initial scan
+        info.cemu.cemu.nativeinterface.NativeGameTitles.refreshCafeTitleList()
     }
 
     private val internalCemuDataFolder: String

@@ -1362,8 +1362,10 @@ namespace coreinit
 		{
 			if (hCPU->remainingCycles > 0)
 			{
-				// try to enter recompiler immediately
+#if !TARGET_OS_VISION
+				// try to enter recompiler immediately (not available on visionOS)
 				PPCRecompiler_attemptEnterWithoutRecompile(hCPU, hCPU->instructionPointer);
+#endif
 				// keep executing as long as there are cycles left
 				while ((--hCPU->remainingCycles) >= 0)
 #if TARGET_OS_VISION

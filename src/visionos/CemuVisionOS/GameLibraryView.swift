@@ -84,15 +84,14 @@ struct GameLibraryView: View {
     // MARK: - Actions
 
     private func launchGame(_ game: GameEntry) {
-        #if DEBUG && targetEnvironment(simulator)
+        // Local games (from Documents/Games) have empty bookmark data — load directly
         if game.bookmarkData.isEmpty {
             core.loadGame(at: game.path)
             dismiss()
             return
         }
-        #endif
 
-        // Resolve the bookmark to a URL.
+        // External games — resolve bookmark to get current path
         var isStale = false
         guard let url = try? URL(
             resolvingBookmarkData: game.bookmarkData,
@@ -101,7 +100,6 @@ struct GameLibraryView: View {
             return
         }
 
-        // Use URL-based loader which keeps security scope alive
         core.loadGame(from: url)
         dismiss()
     }
@@ -232,24 +230,31 @@ struct GameLibraryView: View {
     private static let bookmarksKey = "GameLibraryBookmarks"
 
     private func loadBookmarkedGames() {
-        // Always scan the local Documents/Games folder first
+        // Always scan the local Documents/Games folder fresh (no persistence needed)
         games = scanLocalGamesFolder()
 
-        // Load bookmarked games
+        // Deduplicate by game name (paths change between launches due to GUID)
+        let existingNames = Set(games.map(\.name))
+
+        // Load bookmarked games (external paths only — skip if name already found locally)
         if let stored = UserDefaults.standard.array(forKey: Self.bookmarksKey) as? [[String: Any]] {
-            let bookmarked: [GameEntry] = stored.compactMap { dict in
+            for dict in stored {
                 guard let name = dict["name"] as? String,
-                      let path = dict["path"] as? String,
-                      let data = dict["bookmark"] as? Data else { return nil }
-                return GameEntry(name: name, path: path, bookmarkData: data)
+                      let data = dict["bookmark"] as? Data,
+                      !data.isEmpty,
+                      !existingNames.contains(name) else { continue }
+
+                // Resolve bookmark to get current path
+                var isStale = false
+                if let url = try? URL(resolvingBookmarkData: data, bookmarkDataIsStale: &isStale) {
+                    games.append(GameEntry(name: name, path: url.path, bookmarkData: data))
+                }
             }
-            let existingPaths = Set(games.map(\.path))
-            games.append(contentsOf: bookmarked.filter { !existingPaths.contains($0.path) })
         }
 
         #if DEBUG && targetEnvironment(simulator)
-        let existingPaths = Set(games.map(\.path))
-        let debugGames = scanDebugGamePath().filter { !existingPaths.contains($0.path) }
+        let existingNames2 = Set(games.map(\.name))
+        let debugGames = scanDebugGamePath().filter { !existingNames2.contains($0.name) }
         games.append(contentsOf: debugGames)
         #endif
     }
@@ -318,13 +323,17 @@ struct GameLibraryView: View {
     #endif
 
     private func saveBookmarkedGames() {
-        let stored: [[String: Any]] = games.map { entry in
-            [
-                "name": entry.name,
-                "path": entry.path,
-                "bookmark": entry.bookmarkData
-            ]
-        }
+        // Only save games that have bookmark data (external paths).
+        // Local Documents/Games entries have empty bookmarks and are scanned fresh each launch.
+        let stored: [[String: Any]] = games
+            .filter { !$0.bookmarkData.isEmpty }
+            .map { entry in
+                [
+                    "name": entry.name,
+                    "path": entry.path,
+                    "bookmark": entry.bookmarkData
+                ]
+            }
         UserDefaults.standard.set(stored, forKey: Self.bookmarksKey)
     }
 }

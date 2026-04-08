@@ -27,6 +27,7 @@ import info.cemu.cemu.common.ui.components.ActivityContent
 import info.cemu.cemu.common.ui.localization.TranslatableContent
 import info.cemu.cemu.emulation.EmulationActivity
 import info.cemu.cemu.emulation.EmulationConstants
+import info.cemu.cemu.emulation.VREmulationActivity
 import info.cemu.cemu.games.GameListRoute
 import info.cemu.cemu.games.gamesNavigation
 import info.cemu.cemu.graphicpacks.GraphicPacksRoute
@@ -50,6 +51,7 @@ class MainActivity : GamepadInputManager, AppCompatActivity() {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        android.util.Log.d("Cemu", "MAIN dispatchMotion: action=${event.action} source=0x${event.source.toString(16)} device=${event.device?.name}")
         if (handler.onMotionEvent(event)) {
             return true
         }
@@ -58,6 +60,7 @@ class MainActivity : GamepadInputManager, AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        android.util.Log.d("Cemu", "MAIN dispatchKey: keyCode=${event.keyCode} action=${event.action} source=0x${event.source.toString(16)} device=${event.device?.name}")
         if (handler.onKeyEvent(event)) {
             return true
         }
@@ -100,6 +103,7 @@ private fun MainNav() {
         gamesNavigation(
             navController = navController,
             startGame = { startGame(context, it) },
+            startGameInVR = { startGameInVR(context, it) },
             tryCreateShortcut = { tryCreateShortcutForGame(context, it) },
             goToSettings = { navController.navigate(SettingsRoute) },
             goToTitleManager = { navController.navigate(TitleManagerRoute) },
@@ -115,7 +119,7 @@ private fun MainNav() {
 
 private fun createIntentForGame(context: Context, game: Game): Intent {
     val intent = Intent(
-        context, EmulationActivity::class.java
+        context, VREmulationActivity::class.java
     )
     intent.action = Intent.ACTION_VIEW
     intent.putExtra(EmulationConstants.EXTRA_LAUNCH_PATH, game.path)
@@ -127,6 +131,15 @@ private fun startGame(context: Context, game: Game) {
     NativeSettings.saveSettings()
 
     val intent = createIntentForGame(context, game)
+    context.startActivity(intent)
+}
+
+private fun startGameInVR(context: Context, game: Game) {
+    NativeSettings.saveSettings()
+
+    val intent = Intent(context, VREmulationActivity::class.java)
+    intent.action = Intent.ACTION_VIEW
+    intent.putExtra(EmulationConstants.EXTRA_LAUNCH_PATH, game.path)
     context.startActivity(intent)
 }
 

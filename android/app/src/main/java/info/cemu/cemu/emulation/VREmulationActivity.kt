@@ -104,50 +104,75 @@ class VREmulationActivity : Activity() {
         android.util.Log.d("Cemu", "VREmulationActivity.onResume() called")
         sensorManager.resumeListening()
 
-        // Initialize OpenXR immediately - no need to wait for window since we have no UI
+        // Initialize OpenXR and launch game in VR
         if (!openxrInitialized) {
             openxrInitialized = true
-            // Start OpenXR init on background thread to avoid blocking
             Thread {
                 try {
-                    android.util.Log.d("Cemu", "VR Activity starting OpenXR init")
+                    android.util.Log.d("Cemu", "VR: Starting OpenXR init")
                     val result = info.cemu.cemu.nativeinterface.NativeEmulation.initializeOpenXR(this)
-                    android.util.Log.d("Cemu", "VR Activity OpenXR init result: $result")
+                    android.util.Log.d("Cemu", "VR: OpenXR init result: $result")
 
                     if (result) {
-                        // Start emulation after OpenXR is ready
                         val gamePath = getGamePath()
-                        android.util.Log.d("Cemu", "VR Activity starting emulation with: $gamePath")
+                        android.util.Log.d("Cemu", "VR: Starting emulation with: $gamePath")
 
-                        // Initialize emulation systems
-                        info.cemu.cemu.nativeinterface.NativeEmulation.initializeEmulation()
-                        info.cemu.cemu.nativeinterface.NativeEmulation.initializeRenderer()
+                        // 1. Prepare game title (waits for CemuCommonInit)
+                        val prepareResult = info.cemu.cemu.nativeinterface.NativeEmulation.prepareTitle(gamePath)
+                        if (prepareResult != 0) {
+                            android.util.Log.e("Cemu", "VR: Failed to prepare title: $prepareResult")
+                            return@Thread
+                        }
+
+                        // 2. Initialize audio and input systems
                         info.cemu.cemu.nativeinterface.NativeEmulation.initializeSystems()
 
-                        // Prepare and launch the game
-                        val prepareResult = info.cemu.cemu.nativeinterface.NativeEmulation.prepareTitle(gamePath)
-                        if (prepareResult == 0) { // SUCCESSFUL
-                            info.cemu.cemu.nativeinterface.NativeEmulation.launchTitle()
-                            android.util.Log.d("Cemu", "VR Activity game launched successfully")
-                        } else {
-                            android.util.Log.e("Cemu", "VR Activity failed to prepare title: $prepareResult")
-                        }
+                        // 3. Create VulkanRenderer using OpenXR's Vulkan objects
+                        info.cemu.cemu.nativeinterface.NativeEmulation.initializeRendererForVR()
+
+                        // 4. Don't launch game yet — keepalive should show black panel in VR
+                        // TODO: wire up SwapchainInfoXR before launching game
+                        android.util.Log.d("Cemu", "VR: Ready! You should see a floating black panel in VR")
+
+                        // Input polling disabled for now — conflicts with keepalive thread
+                        // TODO: integrate input polling into the keepalive frame loop
                     } else {
-                        android.util.Log.e("Cemu", "VR Activity OpenXR initialization failed")
+                        android.util.Log.e("Cemu", "VR: OpenXR initialization failed")
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("Cemu", "VR Activity OpenXR init failed: ${e.message}")
+                    android.util.Log.e("Cemu", "VR: Init failed: ${e.message}", e)
                 }
             }.start()
         }
     }
 
+    @Volatile private var inputPollingRunning = false
+    private var inputPollingThread: Thread? = null
+
+    private fun startInputPolling() {
+        inputPollingRunning = true
+        inputPollingThread = Thread {
+            android.util.Log.d("Cemu", "VR: Input polling started")
+            while (inputPollingRunning) {
+                try {
+                    info.cemu.cemu.nativeinterface.NativeEmulation.pollOpenXRInput()
+                } catch (e: Exception) {
+                    android.util.Log.e("Cemu", "VR: Input poll error: ${e.message}")
+                    break
+                }
+                Thread.sleep(16) // ~60Hz
+            }
+            android.util.Log.d("Cemu", "VR: Input polling stopped")
+        }.also { it.start() }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         android.util.Log.d("Cemu", "VREmulationActivity.onDestroy() called")
+        inputPollingRunning = false
+        inputPollingThread?.join(1000)
         sensorManager.pauseListening()
 
-        // Shutdown OpenXR
         try {
             info.cemu.cemu.nativeinterface.NativeEmulation.shutdownOpenXR()
         } catch (e: Exception) {

@@ -1,4 +1,10 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
+#if BOOST_PLAT_ANDROID
+#include <android/log.h>
+// Forward declare for keepalive frame submission during VR constructor
+class OpenXRManager;
+extern std::unique_ptr<OpenXRManager> g_openxrManager;
+#endif
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/LatteTextureVk.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/RendererShaderVk.h"
@@ -672,8 +678,16 @@ VulkanRenderer::VulkanRenderer()
 	vkMapMemory(m_logicalDevice, m_textureReadbackBufferMemory, 0, VK_WHOLE_SIZE, 0, &bufferPtr);
 	m_textureReadbackBufferPtr = (uint8*)bufferPtr;
 
-	// transform feedback ringbuffer
-	memoryManager->CreateBuffer(LatteStreamout_GetRingBufferSize(), VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | (m_featureControl.mode.useTFEmulationViaSSBO ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0), 0, m_xfbRingBuffer, m_xfbRingBufferMemory);
+	// transform feedback ringbuffer — skip if extension not available
+	if (m_featureControl.deviceExtensions.transform_feedback)
+	{
+		memoryManager->CreateBuffer(LatteStreamout_GetRingBufferSize(), VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | (m_featureControl.mode.useTFEmulationViaSSBO ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0), 0, m_xfbRingBuffer, m_xfbRingBufferMemory);
+	}
+	else
+	{
+		// Allocate without transform feedback flag
+		memoryManager->CreateBuffer(LatteStreamout_GetRingBufferSize(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | (m_featureControl.mode.useTFEmulationViaSSBO ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0), 0, m_xfbRingBuffer, m_xfbRingBufferMemory);
+	}
 
 	// occlusion query result buffer
 	if (!memoryManager->CreateBuffer(OCCLUSION_QUERY_POOL_SIZE * sizeof(uint64), VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, m_occlusionQueries.bufferQueryResults, m_occlusionQueries.memoryQueryResults))
@@ -689,6 +703,153 @@ VulkanRenderer::VulkanRenderer()
 
 	// start compilation threads
 	RendererShaderVk::Init();
+}
+
+VulkanRenderer::VulkanRenderer(VkInstance instance, VkPhysicalDevice physDevice, VkDevice device, uint32_t graphicsQueueFamily)
+{
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR ENTER inst=%p dev=%p", (void*)instance, (void*)device);
+#endif
+	// glslang already initialized by CemuCommonInit — don't call again
+	m_externalVulkanObjects = true;
+
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: set external=true, assigning objects");
+#endif
+
+	m_instance = instance;
+	m_physicalDevice = physDevice;
+	m_logicalDevice = device;
+
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: InitializeInstanceVulkan");
+#endif
+	if (!InitializeInstanceVulkan(m_instance))
+		throw std::runtime_error("Unable to load instanced Vulkan functions");
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: InitializeInstanceVulkan OK");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: InitializeDeviceVulkan");
+#endif
+	InitializeDeviceVulkan(m_logicalDevice);
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: InitializeDeviceVulkan OK");
+#endif
+
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: about to CheckDeviceExtensionSupport physDev=%p", (void*)m_physicalDevice);
+#endif
+	CheckDeviceExtensionSupport(m_physicalDevice, m_featureControl);
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: CheckDeviceExtensionSupport OK");
+#endif
+	DetermineVendor();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: DetermineVendor OK");
+#endif
+	GetDeviceFeatures();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: GetDeviceFeatures OK");
+#endif
+#if BOOST_PLAT_ANDROID
+#endif
+
+	memoryManager.reset(new VKRMemoryManager(this));
+	m_indices.graphicsFamily = graphicsQueueFamily;
+	m_indices.presentFamily = graphicsQueueFamily;
+	vkGetDeviceQueue(m_logicalDevice, graphicsQueueFamily, 0, &m_graphicsQueue);
+	vkGetDeviceQueue(m_logicalDevice, graphicsQueueFamily, 0, &m_presentQueue);
+	m_state.currentViewport.width = 4;
+	m_state.currentViewport.height = 4;
+	m_state.currentScissorRect.extent.width = 4;
+	m_state.currentScissorRect.extent.height = 4;
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: queues + memMgr OK");
+#endif
+	QueryMemoryInfo();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: QueryMemoryInfo OK");
+#endif
+	QueryAvailableFormats();
+	CreateCommandPool();
+	CreateCommandBuffers();
+	CreateDescriptorPool();
+	swapchain_createDescriptorSetLayout();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: cmdPool+cmdBufs+descPool OK, starting buffers");
+#endif
+	void* bufferPtr;
+	// init ringbuffer for uniform vars
+	m_uniformVarBufferMemoryIsCoherent = false;
+	if (memoryManager->CreateBuffer(UNIFORMVAR_RINGBUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, m_uniformVarBuffer, m_uniformVarBufferMemory))
+		m_uniformVarBufferMemoryIsCoherent = true;
+	else if (memoryManager->CreateBuffer(UNIFORMVAR_RINGBUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_uniformVarBuffer, m_uniformVarBufferMemory))
+		m_uniformVarBufferMemoryIsCoherent = true; // unified memory
+	else if (memoryManager->CreateBuffer(UNIFORMVAR_RINGBUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_uniformVarBuffer, m_uniformVarBufferMemory))
+		m_uniformVarBufferMemoryIsCoherent = true;
+	else if (memoryManager->CreateBuffer(UNIFORMVAR_RINGBUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_uniformVarBuffer, m_uniformVarBufferMemory))
+		m_uniformVarBufferMemoryIsCoherent = true;
+	else
+	{
+		memoryManager->CreateBuffer(UNIFORMVAR_RINGBUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, m_uniformVarBuffer, m_uniformVarBufferMemory);
+	}
+
+	if (!m_uniformVarBufferMemoryIsCoherent)
+		cemuLog_log(LogType::Force, "[Vulkan-Info] Using non-coherent memory for uniform data");
+	bufferPtr = nullptr;
+	vkMapMemory(m_logicalDevice, m_uniformVarBufferMemory, 0, VK_WHOLE_SIZE, 0, &bufferPtr);
+	m_uniformVarBufferPtr = (uint8*)bufferPtr;
+
+	// texture readback buffer
+	if (!memoryManager->CreateBuffer(TEXTURE_READBACK_SIZE, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, m_textureReadbackBuffer, m_textureReadbackBufferMemory))
+	{
+		memoryManager->CreateBuffer(TEXTURE_READBACK_SIZE, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, m_textureReadbackBuffer, m_textureReadbackBufferMemory);
+	}
+	bufferPtr = nullptr;
+	vkMapMemory(m_logicalDevice, m_textureReadbackBufferMemory, 0, VK_WHOLE_SIZE, 0, &bufferPtr);
+	m_textureReadbackBufferPtr = (uint8*)bufferPtr;
+
+#if BOOST_PLAT_ANDROID
+#endif
+	// transform feedback ringbuffer
+	memoryManager->CreateBuffer(LatteStreamout_GetRingBufferSize(), VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | (m_featureControl.mode.useTFEmulationViaSSBO ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0), 0, m_xfbRingBuffer, m_xfbRingBufferMemory);
+
+#if BOOST_PLAT_ANDROID
+#endif
+	// occlusion query result buffer
+	if (!memoryManager->CreateBuffer(OCCLUSION_QUERY_POOL_SIZE * sizeof(uint64), VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, m_occlusionQueries.bufferQueryResults, m_occlusionQueries.memoryQueryResults))
+	{
+		memoryManager->CreateBuffer(OCCLUSION_QUERY_POOL_SIZE * sizeof(uint64), VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, m_occlusionQueries.bufferQueryResults, m_occlusionQueries.memoryQueryResults);
+	}
+	bufferPtr = nullptr;
+	vkMapMemory(m_logicalDevice, m_occlusionQueries.memoryQueryResults, 0, VK_WHOLE_SIZE, 0, &bufferPtr);
+	m_occlusionQueries.ptrQueryResults = (uint64*)bufferPtr;
+
+	for (sint32 i = 0; i < OCCLUSION_QUERY_POOL_SIZE; i++)
+		m_occlusionQueries.list_availableQueryIndices.emplace_back(i);
+
+#if BOOST_PLAT_ANDROID
+	if (!m_externalVulkanObjects) {
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: ALL BUFFERS OK, calling RendererShaderVk::Init");
+		RendererShaderVk::Init();
+	} else {
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: ALL BUFFERS OK (skipped RendererShaderVk::Init for VR)");
+	}
+#else
+	RendererShaderVk::Init();
+#endif
+
+#if BOOST_PLAT_ANDROID
+	if (m_externalVulkanObjects) {
+		// Skip Initialize() for VR — the render thread needs a swapchain/surface
+		// which will be set up after the OpenXR session starts
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR CTOR: *** CONSTRUCTOR COMPLETE (skipped Initialize for VR) ***");
+	} else {
+		// Renderer thread init (normal path)
+		Initialize();
+	}
+#else
+	Initialize();
+#endif
 }
 
 VulkanRenderer::~VulkanRenderer()
@@ -789,15 +950,18 @@ VulkanRenderer::~VulkanRenderer()
 	// destroy memory manager
 	memoryManager.reset();
 
-	// destroy instance, devices
-	if (m_instance != VK_NULL_HANDLE)
+	// destroy instance, devices (only if we created them)
+	if (!m_externalVulkanObjects)
 	{
-		if (m_logicalDevice != VK_NULL_HANDLE)
+		if (m_instance != VK_NULL_HANDLE)
 		{
-			vkDestroyDevice(m_logicalDevice, nullptr);
-		}
+			if (m_logicalDevice != VK_NULL_HANDLE)
+			{
+				vkDestroyDevice(m_logicalDevice, nullptr);
+			}
 
-		vkDestroyInstance(m_instance, nullptr);
+			vkDestroyInstance(m_instance, nullptr);
+		}
 	}
 
 	// crashes?
@@ -840,7 +1004,18 @@ const std::unique_ptr<SwapchainInfoVk>& VulkanRenderer::GetChainInfoPtr(bool mai
 
 SwapchainInfoVk& VulkanRenderer::GetChainInfo(bool mainWindow) const
 {
-	return *GetChainInfoPtr(mainWindow);
+	auto& ptr = GetChainInfoPtr(mainWindow);
+	if (!ptr) [[unlikely]] {
+		// VR mode: swapchain not yet created — return a non-null reference
+		// Callers should check IsSwapchainInfoValid() before using
+		static std::unique_ptr<SwapchainInfoVk> s_dummyChain;
+		if (!s_dummyChain) {
+			// Create minimal dummy — won't be used for rendering
+			s_dummyChain = std::make_unique<SwapchainInfoVk>(mainWindow, Vector2i{64, 64});
+		}
+		return *s_dummyChain;
+	}
+	return *ptr;
 }
 
 void VulkanRenderer::StopUsingPadAndWait()
@@ -1958,6 +2133,9 @@ void VulkanRenderer::QueryAvailableFormats()
 
 bool VulkanRenderer::ImguiBegin(bool mainWindow)
 {
+	if (!IsSwapchainInfoValid(mainWindow))
+		return false;
+
 	if (!Renderer::ImguiBegin(mainWindow))
 		return false;
 

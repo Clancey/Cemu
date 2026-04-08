@@ -26,6 +26,9 @@ object NativeEmulation {
     external fun initializeRenderer()
 
     @JvmStatic
+    external fun initializeRendererForVR()
+
+    @JvmStatic
     external fun initializeOpenXR(activity: android.app.Activity): Boolean
 
     @JvmStatic
@@ -62,6 +65,9 @@ object NativeEmulation {
 
     @JvmStatic
     external fun setReplaceTVWithPadView(swapped: Boolean)
+
+    @JvmStatic
+    external fun pollOpenXRInput()
 
     @JvmStatic
     external fun supportsLoadingCustomDriver(): Boolean

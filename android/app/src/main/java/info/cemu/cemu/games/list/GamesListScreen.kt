@@ -79,6 +79,7 @@ fun GamesListScreen(
     goToGameDetails: (Game) -> Unit,
     goToGameEditProfile: (Game) -> Unit,
     startGame: (Game) -> Unit,
+    startGameInVR: (Game) -> Unit,
     goToSettings: () -> Unit,
     goToTitleManager: () -> Unit,
     goToGraphicPacks: () -> Unit,
@@ -174,6 +175,7 @@ fun GamesListScreen(
                     snackbarHostState.showMessage(coroutineScope, tr("Shader caches removed"))
                 },
                 startGame = startGame,
+                startGameInVR = startGameInVR,
                 goToGameDetails = goToGameDetails,
                 goToGameEditProfile = goToGameEditProfile,
                 createShortcut = {
@@ -201,6 +203,7 @@ fun GamesListScreen(
 private fun GameList(
     games: List<Game>,
     startGame: (Game) -> Unit,
+    startGameInVR: (Game) -> Unit,
     goToGameDetails: (Game) -> Unit,
     goToGameEditProfile: (Game) -> Unit,
     setFavorite: (Game, Boolean) -> Unit,
@@ -219,6 +222,7 @@ private fun GameList(
                 modifier = Modifier.animateItem(),
                 game = game,
                 onStartGame = startGame,
+                onStartGameInVR = startGameInVR,
                 onIsFavoriteChanged = { isFavorite ->
                     setFavorite(game, isFavorite)
                 },
@@ -266,6 +270,7 @@ private fun ShaderCachesConfirmationDialog(
 @Composable
 private fun GameListItem(
     onStartGame: (Game) -> Unit,
+    onStartGameInVR: (Game) -> Unit,
     onIsFavoriteChanged: (Boolean) -> Unit,
     onEditGameProfile: () -> Unit,
     onRemoveShaderCaches: () -> Unit,
@@ -317,6 +322,7 @@ private fun GameListItem(
             expanded = contextMenuExpanded,
             onDismissRequest = { contextMenuExpanded = false },
             game = game,
+            onStartGameInVR = { onStartGameInVR(game) },
             onIsFavoriteChanged = onIsFavoriteChanged,
             onEditGameProfile = onEditGameProfile,
             onRemoveShaderCaches = onRemoveShaderCaches,
@@ -330,6 +336,7 @@ private fun GameListItem(
 private fun GameContextMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
+    onStartGameInVR: () -> Unit,
     onIsFavoriteChanged: (Boolean) -> Unit,
     onEditGameProfile: () -> Unit,
     onRemoveShaderCaches: () -> Unit,
@@ -360,6 +367,10 @@ private fun GameContextMenu(
         val gameTitleHasCaches = rememberSaveable {
             NativeGameTitles.titleHasShaderCacheFiles(game.titleId)
         }
+        GameContextMenuItem(
+            onClick = onStartGameInVR,
+            text = tr("Launch in VR"),
+        )
         GameContextMenuItem(
             onClick = { onIsFavoriteChanged(!game.isFavorite) },
             text = tr("Favorite"),

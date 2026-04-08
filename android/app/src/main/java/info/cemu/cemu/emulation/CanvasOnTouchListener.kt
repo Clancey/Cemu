@@ -10,6 +10,11 @@ class CanvasOnTouchListener(val isTV: Boolean) : View.OnTouchListener {
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouch(v: View, event: MotionEvent): Boolean {
+        // On Quest, controller ray-cast simulates touch — disable all touch input
+        // when using Pro Controller. Touch on the game view would toggle TV/GamePad
+        // which is not wanted. Physical touch on a real phone still won't reach here
+        // since Quest doesn't have a touchscreen.
+        return false
         val pointerIndex = event.actionIndex
         val pointerId = event.getPointerId(pointerIndex)
         if (currentPointerId != -1 && pointerId != currentPointerId) {
