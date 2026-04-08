@@ -671,7 +671,6 @@ namespace WindowSystem
 - (void)onControllerButtonEvent:(uint32_t)buttonCode pressed:(BOOL)pressed
 {
 #ifdef VISIONOS
-    cemuLog_log(LogType::Force, "visionOS: Controller button {} = {}", buttonCode, pressed ? "PRESSED" : "RELEASED");
     VisionOSControllerProvider::on_key_event(buttonCode, pressed);
 #endif
 }
@@ -679,8 +678,24 @@ namespace WindowSystem
 - (void)onControllerAxisEvent:(uint32_t)axisCode value:(float)value
 {
 #ifdef VISIONOS
-    cemuLog_log(LogType::Force, "visionOS: Controller axis {} = {}", axisCode, value);
     VisionOSControllerProvider::on_axis_event(axisCode, value);
+#endif
+}
+
+- (void)onControllerMotionWithGravityX:(float)gx gravityY:(float)gy gravityZ:(float)gz
+                      userAccelerationX:(float)uax userAccelerationY:(float)uay userAccelerationZ:(float)uaz
+                         rotationRateX:(float)rrx rotationRateY:(float)rry rotationRateZ:(float)rrz
+                             attitudeX:(float)aqx attitudeY:(float)aqy attitudeZ:(float)aqz attitudeW:(float)aqw
+{
+#ifdef VISIONOS
+    VisionOSControllerProvider::on_motion_event(gx, gy, gz, uax, uay, uaz, rrx, rry, rrz, aqx, aqy, aqz, aqw);
+#endif
+}
+
+- (void)setControllerMode:(uint32_t)mode
+{
+#ifdef VISIONOS
+    VisionOSControllerProvider::set_mode(mode == 0 ? VisionOSControllerMode::ProController : VisionOSControllerMode::WiimoteNunchuck);
 #endif
 }
 

@@ -106,7 +106,10 @@ void padscoreExport_WPADProbe(PPCInterpreter_t* hCPU)
 	if (channel == 0)
 	{
 		if (type)
-			*type = kWAPDevURCC;
+		{
+			auto mode = VisionOSControllerProvider::get_mode();
+			*type = (mode == VisionOSControllerMode::WiimoteNunchuck) ? kWAPDevMPLSFreeStyle : kWAPDevURCC;
+		}
 		osLib_returnFromFunction(hCPU, WPAD_ERR_NONE);
 		return;
 	}
@@ -453,7 +456,7 @@ bool g_kpadIsInited = true;
 sint32 _KPADRead(uint32 channel, KPADStatus_t* samplingBufs, uint32 length, betype<KPAD_ERROR>* errResult)
 {
 #ifdef VISIONOS
-	// Direct input injection — emulate Pro Controller from visionOS gamepad
+	// Direct input injection — emulate controller from visionOS gamepad
 	if (channel == 0)
 	{
 		if (g_kpadIsInited == false)
@@ -475,43 +478,109 @@ sint32 _KPADRead(uint32 channel, KPADStatus_t* samplingBufs, uint32 length, bety
 
 		memset(samplingBufs, 0x00, sizeof(KPADStatus_t));
 		samplingBufs->wpadErr = WPAD_ERR_NONE;
-		samplingBufs->data_format = kDataFormat_URCC;
-		samplingBufs->devType = kWAPDevURCC;
 
 		auto& state = VisionOSControllerProvider::get_controller_state();
 		auto& btn = state.buttons;
-		uint32 hold = 0;
+		auto mode = VisionOSControllerProvider::get_mode();
 
-		// Map gamepad buttons to Pro Controller buttons
-		if (btn.GetButtonState(0x1000)) hold |= kProButton_A;
-		if (btn.GetButtonState(0x1001)) hold |= kProButton_B;
-		if (btn.GetButtonState(0x1002)) hold |= kProButton_X;
-		if (btn.GetButtonState(0x1003)) hold |= kProButton_Y;
-		if (btn.GetButtonState(0x1004)) hold |= kProButton_L;
-		if (btn.GetButtonState(0x1005)) hold |= kProButton_R;
-		if (btn.GetButtonState(0x1006)) hold |= kProButton_ZL;
-		if (btn.GetButtonState(0x1007)) hold |= kProButton_ZR;
-		if (btn.GetButtonState(0x1008)) hold |= kProButton_Up;
-		if (btn.GetButtonState(0x1009)) hold |= kProButton_Down;
-		if (btn.GetButtonState(0x1010)) hold |= kProButton_Left;
-		if (btn.GetButtonState(0x1011)) hold |= kProButton_Right;
-		if (btn.GetButtonState(0x1012)) hold |= kProButton_Plus;
-		if (btn.GetButtonState(0x1013)) hold |= kProButton_Minus;
-		if (btn.GetButtonState(0x1014)) hold |= kProButton_Home;
-		if (btn.GetButtonState(0x1015)) hold |= kProButton_StickL;
-		if (btn.GetButtonState(0x1016)) hold |= kProButton_StickR;
+		if (mode == VisionOSControllerMode::WiimoteNunchuck)
+		{
+			// Wiimote + Nunchuck (Freestyle) mode
+			samplingBufs->data_format = kDataFormat_FREESTYLE_ACC_DPD;
+			samplingBufs->devType = kWAPDevMPLSFreeStyle;
 
-		static uint32 prevHold = 0;
-		samplingBufs->ex_status.uc.hold = hold;
-		samplingBufs->ex_status.uc.trig = hold & ~prevHold;
-		samplingBufs->ex_status.uc.release = prevHold & ~hold;
-		prevHold = hold;
+			// Core Wiimote buttons (right hand)
+			uint32 hold = 0;
+			if (btn.GetButtonState(0x1000)) hold |= kWPADButton_A;      // A → Wiimote A
+			if (btn.GetButtonState(0x1005)) hold |= kWPADButton_B;      // R → Wiimote B (trigger)
+			if (btn.GetButtonState(0x1002)) hold |= kWPADButton_1;      // X → Wiimote 1
+			if (btn.GetButtonState(0x1003)) hold |= kWPADButton_2;      // Y → Wiimote 2
+			if (btn.GetButtonState(0x1008)) hold |= kWPADButton_Up;     // D-pad
+			if (btn.GetButtonState(0x1009)) hold |= kWPADButton_Down;
+			if (btn.GetButtonState(0x1010)) hold |= kWPADButton_Left;
+			if (btn.GetButtonState(0x1011)) hold |= kWPADButton_Right;
+			if (btn.GetButtonState(0x1012)) hold |= kWPADButton_Plus;
+			if (btn.GetButtonState(0x1013)) hold |= kWPADButton_Minus;
+			if (btn.GetButtonState(0x1014)) hold |= kWPADButton_Home;
+			// Nunchuck buttons (left hand)
+			if (btn.GetButtonState(0x1006)) hold |= kWPADButton_Z;      // ZL → Nunchuck Z
+			if (btn.GetButtonState(0x1004)) hold |= kWPADButton_C;      // L → Nunchuck C
 
-		// Analog sticks
-		samplingBufs->ex_status.uc.lstick.x = state.axis.x;
-		samplingBufs->ex_status.uc.lstick.y = state.axis.y;
-		samplingBufs->ex_status.uc.rstick.x = state.rotation.x;
-		samplingBufs->ex_status.uc.rstick.y = state.rotation.y;
+			static uint32 prevHoldWii = 0;
+			samplingBufs->hold = hold;
+			samplingBufs->trig = hold & ~prevHoldWii;
+			samplingBufs->release = prevHoldWii & ~hold;
+			prevHoldWii = hold;
+
+			// Wiimote accelerometer from GCMotion (right hand motion)
+			auto& motion = VisionOSControllerProvider::get_motion_state();
+			// Map gravity to Wiimote accelerometer space:
+			// Wiimote held pointing forward: gravity = (0, -1, 0) in world
+			// Wiimote acc: x=right, y=up, z=towards screen
+			samplingBufs->acc.x = motion.gravityX + motion.userAccX;
+			samplingBufs->acc.y = -(motion.gravityY + motion.userAccY); // invert Y
+			samplingBufs->acc.z = motion.gravityZ + motion.userAccZ;
+			samplingBufs->acc_value = 1.0f; // magnitude
+			samplingBufs->acc_speed = 0.0f;
+
+			// Pointing data — derive from attitude
+			// Convert controller orientation to screen-space pointing
+			// Attitude quaternion (x,y,z,w) — project forward vector to 2D
+			float qx = motion.attX, qy = motion.attY, qz = motion.attZ, qw = motion.attW;
+			// Forward vector from quaternion: (2(xz+wy), 2(yz-wx), 1-2(xx+yy))
+			float fx = 2.0f * (qx * qz + qw * qy);
+			float fy = 2.0f * (qy * qz - qw * qx);
+			// Map to screen coordinates (centered at 0,0 — range roughly -1 to 1)
+			samplingBufs->pos.x = fx * 1024.0f + 512.0f;   // map to ~0-1024
+			samplingBufs->pos.y = -fy * 768.0f + 384.0f;   // map to ~0-768
+			samplingBufs->dpd_valid_fg = 1; // pointing data valid
+
+			// Nunchuck extension data (left hand)
+			samplingBufs->ex_status.fs.stick.x = state.axis.x;  // left stick
+			samplingBufs->ex_status.fs.stick.y = state.axis.y;
+			// Nunchuck accelerometer — use gravity as default (held still)
+			samplingBufs->ex_status.fs.acc.x = 0.0f;
+			samplingBufs->ex_status.fs.acc.y = -1.0f;
+			samplingBufs->ex_status.fs.acc.z = 0.0f;
+			samplingBufs->ex_status.fs.accValue = 1.0f;
+			samplingBufs->ex_status.fs.accSpeed = 0.0f;
+		}
+		else
+		{
+			// Pro Controller (URCC) mode
+			samplingBufs->data_format = kDataFormat_URCC;
+			samplingBufs->devType = kWAPDevURCC;
+
+			uint32 hold = 0;
+			if (btn.GetButtonState(0x1000)) hold |= kProButton_A;
+			if (btn.GetButtonState(0x1001)) hold |= kProButton_B;
+			if (btn.GetButtonState(0x1002)) hold |= kProButton_X;
+			if (btn.GetButtonState(0x1003)) hold |= kProButton_Y;
+			if (btn.GetButtonState(0x1004)) hold |= kProButton_L;
+			if (btn.GetButtonState(0x1005)) hold |= kProButton_R;
+			if (btn.GetButtonState(0x1006)) hold |= kProButton_ZL;
+			if (btn.GetButtonState(0x1007)) hold |= kProButton_ZR;
+			if (btn.GetButtonState(0x1008)) hold |= kProButton_Up;
+			if (btn.GetButtonState(0x1009)) hold |= kProButton_Down;
+			if (btn.GetButtonState(0x1010)) hold |= kProButton_Left;
+			if (btn.GetButtonState(0x1011)) hold |= kProButton_Right;
+			if (btn.GetButtonState(0x1012)) hold |= kProButton_Plus;
+			if (btn.GetButtonState(0x1013)) hold |= kProButton_Minus;
+			if (btn.GetButtonState(0x1014)) hold |= kProButton_Home;
+			if (btn.GetButtonState(0x1015)) hold |= kProButton_StickL;
+			if (btn.GetButtonState(0x1016)) hold |= kProButton_StickR;
+
+			static uint32 prevHoldPro = 0;
+			samplingBufs->ex_status.uc.hold = hold;
+			samplingBufs->ex_status.uc.trig = hold & ~prevHoldPro;
+			samplingBufs->ex_status.uc.release = prevHoldPro & ~hold;
+			prevHoldPro = hold;
+
+			samplingBufs->ex_status.uc.lstick.x = state.axis.x;
+			samplingBufs->ex_status.uc.lstick.y = state.axis.y;
+			samplingBufs->ex_status.uc.rstick.x = state.rotation.x;
+			samplingBufs->ex_status.uc.rstick.y = state.rotation.y;
+		}
 
 		if (errResult)
 			*errResult = KPAD_ERROR::NONE;

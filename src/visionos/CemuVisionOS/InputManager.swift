@@ -191,6 +191,36 @@ final class InputManager {
         gamepad.valueChangedHandler = { [weak self] pad, _ in
             self?.syncGamepadState(pad)
         }
+
+        // Set up motion handler if available (PSVR2 controllers support this)
+        if let motion = controller.motion {
+            motion.sensorsActive = true
+            motion.valueChangedHandler = { [weak self] motion in
+                self?.syncMotionState(motion)
+            }
+            logger.info("Motion sensors activated for \(controller.vendorName ?? "controller")")
+        }
+    }
+
+    /// Set controller emulation mode.
+    /// - Parameter wiimoteMode: true for Wiimote+Nunchuck, false for Pro Controller
+    func setWiimoteMode(_ wiimoteMode: Bool) {
+        bridge.setControllerMode(wiimoteMode ? 1 : 0)
+        logger.info("Controller mode: \(wiimoteMode ? "Wiimote+Nunchuck" : "Pro Controller")")
+    }
+
+    private nonisolated func syncMotionState(_ motion: GCMotion) {
+        let bridge = CemuBridge.shared()
+        let g = motion.gravity
+        let ua = motion.userAcceleration
+        let rr = motion.rotationRate
+        let att = motion.attitude
+        bridge.onControllerMotion(
+            withGravityX: Float(g.x), gravityY: Float(g.y), gravityZ: Float(g.z),
+            userAccelerationX: Float(ua.x), userAccelerationY: Float(ua.y), userAccelerationZ: Float(ua.z),
+            rotationRateX: Float(rr.x), rotationRateY: Float(rr.y), rotationRateZ: Float(rr.z),
+            attitudeX: Float(att.x), attitudeY: Float(att.y), attitudeZ: Float(att.z), attitudeW: Float(att.w)
+        )
     }
 
     private nonisolated func syncGamepadState(_ pad: GCExtendedGamepad) {

@@ -120,6 +120,15 @@ typedef NS_ENUM(NSInteger, CemuEmulationState) {
 /// @param value The axis value (-1.0 to 1.0 for sticks, 0.0 to 1.0 for triggers).
 - (void)onControllerAxisEvent:(uint32_t)axisCode value:(float)value;
 
+/// Forward motion data from GCMotion.
+- (void)onControllerMotionWithGravityX:(float)gx gravityY:(float)gy gravityZ:(float)gz
+                      userAccelerationX:(float)uax userAccelerationY:(float)uay userAccelerationZ:(float)uaz
+                         rotationRateX:(float)rrx rotationRateY:(float)rry rotationRateZ:(float)rrz
+                             attitudeX:(float)aqx attitudeY:(float)aqy attitudeZ:(float)aqz attitudeW:(float)aqw;
+
+/// Set controller emulation mode (0 = Pro Controller, 1 = Wiimote+Nunchuck).
+- (void)setControllerMode:(uint32_t)mode;
+
 @end
 
 NS_ASSUME_NONNULL_END

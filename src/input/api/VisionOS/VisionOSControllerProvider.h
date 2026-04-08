@@ -2,6 +2,27 @@
 
 #include "input/api/ControllerProvider.h"
 #include "input/api/ControllerState.h"
+#include <atomic>
+
+// Controller emulation mode
+enum class VisionOSControllerMode
+{
+	ProController,      // Single Pro Controller (URCC)
+	WiimoteNunchuck,    // Wiimote (right hand) + Nunchuck (left hand)
+};
+
+// Motion data from GCMotion
+struct VisionOSMotionState
+{
+	// Gravity vector (accelerometer reference)
+	float gravityX = 0.0f, gravityY = -1.0f, gravityZ = 0.0f;
+	// User acceleration (excluding gravity)
+	float userAccX = 0.0f, userAccY = 0.0f, userAccZ = 0.0f;
+	// Rotation rate (gyroscope)
+	float rotRateX = 0.0f, rotRateY = 0.0f, rotRateZ = 0.0f;
+	// Attitude quaternion
+	float attX = 0.0f, attY = 0.0f, attZ = 0.0f, attW = 1.0f;
+};
 
 class VisionOSControllerProvider : public ControllerProviderBase
 {
@@ -14,6 +35,10 @@ class VisionOSControllerProvider : public ControllerProviderBase
 
 	static void on_key_event(int keyCode, bool isPressed);
 	static void on_axis_event(int axisCode, float value);
+	static void on_motion_event(float gx, float gy, float gz,
+	                            float uax, float uay, float uaz,
+	                            float rrx, float rry, float rrz,
+	                            float aqx, float aqy, float aqz, float aqw);
 
 	// Button constants
 	static constexpr int kButtonA = 0x1000;
@@ -44,6 +69,12 @@ class VisionOSControllerProvider : public ControllerProviderBase
 
    public:
 	static ControllerState& get_controller_state();
+	static VisionOSMotionState& get_motion_state();
+	static VisionOSControllerMode get_mode();
+	static void set_mode(VisionOSControllerMode mode);
+
 	static std::mutex s_controllerMutex;
 	static ControllerState s_controllerState;
+	static VisionOSMotionState s_motionState;
+	static std::atomic<VisionOSControllerMode> s_controllerMode;
 };
