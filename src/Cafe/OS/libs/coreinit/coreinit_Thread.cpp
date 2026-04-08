@@ -9,6 +9,10 @@
 #include "Cafe/HW/Espresso/Interpreter/PPCInterpreterInternal.h"
 #include "Cafe/HW/Espresso/Recompiler/PPCRecompiler.h"
 
+#if TARGET_OS_VISION
+#include "Cafe/HW/Espresso/Interpreter/PPCDecodedCache.h"
+#endif
+
 #include "util/helpers/Semaphore.h"
 #include "util/helpers/ConcurrentQueue.h"
 #include "util/Fiber/Fiber.h"
@@ -1362,7 +1366,11 @@ namespace coreinit
 				PPCRecompiler_attemptEnterWithoutRecompile(hCPU, hCPU->instructionPointer);
 				// keep executing as long as there are cycles left
 				while ((--hCPU->remainingCycles) >= 0)
+#if TARGET_OS_VISION
+					PPCDecodedCache_executeInstruction(hCPU);
+#else
 					PPCInterpreterSlim_executeInstruction(hCPU);
+#endif
 			}
 
 			// reset reservation

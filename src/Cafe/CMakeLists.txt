@@ -48,6 +48,8 @@ add_library(CemuCafe
   HW/Espresso/Debugger/GDBBreakpoints.h
   HW/Espresso/EspressoISA.h
   HW/Espresso/Interpreter/PPCInterpreterALU.hpp
+  HW/Espresso/Interpreter/PPCDecodedCache.h
+  HW/Espresso/Interpreter/PPCDecodedCache.cpp
   HW/Espresso/Interpreter/PPCInterpreterFPU.cpp
   HW/Espresso/Interpreter/PPCInterpreterHelper.h
   HW/Espresso/Interpreter/PPCInterpreterHLE.cpp

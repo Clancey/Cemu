@@ -7,6 +7,10 @@
 #include "Cafe/HW/Espresso/Recompiler/PPCRecompiler.h"
 #include "Cafe/CafeSystem.h"
 
+#if TARGET_OS_VISION
+#include "Cafe/HW/Espresso/Interpreter/PPCDecodedCache.h"
+#endif
+
 uint32 ppcThreadQuantum = 45000; // execute 45000 instructions before thread reschedule happens, this value can be overwritten by game profiles
 
 void PPCInterpreter_relinquishTimeslice()
@@ -83,7 +87,11 @@ PPCInterpreter_t* PPCCore_executeCallbackInternal(uint32 functionMPTR)
 			// execute any remaining instructions in interpreter
 			while ((--hCPU->remainingCycles) >= 0)
 			{
+#if TARGET_OS_VISION
+				PPCDecodedCache_executeInstruction(hCPU);
+#else
 				PPCInterpreterSlim_executeInstruction(hCPU);
+#endif
 			};
 		}
 		if (hCPU->instructionPointer == 0)
