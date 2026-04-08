@@ -192,6 +192,9 @@ public:
 	void GetDeviceFeatures();
 	void DetermineVendor();
 	void InitializeSurface(const Vector2i& size, bool mainWindow);
+#if BOOST_PLAT_ANDROID
+	void InitializeSurfaceFromOpenXR(const std::vector<VkImage>& swapchainImages, uint32_t width, uint32_t height, VkFormat format);
+#endif
 
 	const std::unique_ptr<SwapchainInfoVk>& GetChainInfoPtr(bool mainWindow) const;
 	SwapchainInfoVk& GetChainInfo(bool mainWindow) const;
@@ -607,6 +610,11 @@ private:
 	VkDebugUtilsMessengerEXT m_debugCallback = nullptr;
 	volatile bool m_destructionRequested = false;
 	bool m_externalVulkanObjects = false;
+	std::mutex m_vrDeviceMutex;
+public:
+	bool IsExternalVulkanObjects() const { return m_externalVulkanObjects; }
+	std::mutex& GetVRDeviceMutex() { return m_vrDeviceMutex; }
+private:
 
 	QueueFamilyIndices m_indices{};
 

@@ -83,7 +83,7 @@ elseif(ANDROID)
 	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoUnix.cpp)
 	target_sources(CemuUtil PRIVATE SystemInfo/SystemInfoLinux.cpp)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS)
-	# visionOS: custom ARM64 assembly fiber context switch
+	# visionOS: custom ARM64 assembly fiber for both device and simulator
 	enable_language(ASM)
 	target_sources(CemuUtil PRIVATE Fiber/FiberPThread.cpp Fiber/fiber_asm_arm64.S)
 	target_sources(CemuUtil PRIVATE MemMapper/MemMapperUnix.cpp)

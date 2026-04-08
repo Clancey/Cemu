@@ -12,9 +12,14 @@ thread_local Fiber* tl_currentFiber{nullptr};
 static void FiberEntry(void* arg)
 {
 	Fiber* fiber = tl_currentFiber;
-	if (fiber && fiber->m_entryPoint)
+	fprintf(stderr, "FiberEntry: tl_currentFiber=%p\n", fiber);
+	if (!fiber) {
+		fprintf(stderr, "FATAL: FiberEntry called but tl_currentFiber is null!\n");
+		abort();
+	}
+	fprintf(stderr, "FiberEntry: entryPoint=%p userParam=%p\n", (void*)fiber->m_entryPoint, fiber->m_userParam);
+	if (fiber->m_entryPoint)
 		fiber->m_entryPoint(fiber->m_userParam);
-	// Should never return — fibers yield by switching, not returning
 	fprintf(stderr, "FATAL: Fiber entry point returned!\n");
 	abort();
 }
@@ -64,7 +69,14 @@ void Fiber::Switch(Fiber& targetFiber)
 	Fiber* prevFiber = tl_currentFiber;
 	tl_currentFiber = &targetFiber;
 
+	static int switchLog = 0;
+	if (switchLog++ < 20)
+		fprintf(stderr, "Fiber::Switch from=%p(ctx=%p) to=%p(ctx=%p)\n", prevFiber, prevFiber->m_context, &targetFiber, targetFiber.m_context);
+
 	fiber_switch_context(&prevFiber->m_context, targetFiber.m_context);
+
+	if (switchLog < 25)
+		fprintf(stderr, "Fiber::Switch RESUMED at %p\n", tl_currentFiber);
 }
 
 void* Fiber::GetFiberPrivateData()

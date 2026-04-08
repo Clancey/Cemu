@@ -9,15 +9,21 @@
 
 SwapchainInfoVk::SwapchainInfoVk(bool mainWindow, Vector2i size) : mainWindow(mainWindow), m_desiredExtent(size)
 {
-	auto& windowHandleInfo = mainWindow ? WindowSystem::GetWindowInfo().canvas_main : WindowSystem::GetWindowInfo().canvas_pad;
 	auto renderer = VulkanRenderer::GetInstance();
 	m_instance = renderer->GetVkInstance();
 	m_logicalDevice = renderer->GetLogicalDevice();
 	m_physicalDevice = renderer->GetPhysicalDevice();
 
 #if BOOST_PLAT_ANDROID
+	// In VR mode (external Vulkan objects), skip surface creation — no ANativeWindow
+	if (renderer->IsExternalVulkanObjects()) {
+		m_surface = VK_NULL_HANDLE;
+		return;
+	}
+	auto& windowHandleInfo = mainWindow ? WindowSystem::GetWindowInfo().canvas_main : WindowSystem::GetWindowInfo().canvas_pad;
 	m_surface = renderer->CreateFramebufferSurface(m_instance, windowHandleInfo, &m_currentWindow);
 #else
+	auto& windowHandleInfo = mainWindow ? WindowSystem::GetWindowInfo().canvas_main : WindowSystem::GetWindowInfo().canvas_pad;
 	m_surface = renderer->CreateFramebufferSurface(m_instance, windowHandleInfo);
 #endif
 }
@@ -252,6 +258,26 @@ VkSemaphore SwapchainInfoVk::ConsumeAcquireSemaphore()
 
 bool SwapchainInfoVk::AcquireImage()
 {
+	if (m_isOpenXR && m_openxrManager) {
+		m_xrPollEvents(m_openxrManager);
+		if (!m_xrIsRunning(m_openxrManager)) {
+			swapchainImageIndex = -1;
+			return false;
+		}
+		if (!m_xrBeginFrame(m_openxrManager)) {
+			swapchainImageIndex = -1;
+			return false;
+		}
+		uint32_t idx = m_xrAcquireImage(m_openxrManager);
+		if (idx == UINT32_MAX) {
+			swapchainImageIndex = -1;
+			return false;
+		}
+		swapchainImageIndex = idx;
+		m_currentSemaphore = VK_NULL_HANDLE;
+		return true;
+	}
+
 	ResetAvailableFence();
 
 	VkSemaphore acquireSemaphore = m_acquireSemaphores[m_acquireIndex];

@@ -150,14 +150,9 @@ bool OpenXRManager::StartSession()
         LogError("Warning: swapchain creation failed");
     }
 
-    // Poll events to advance session to READY state and begin it
-    for (int i = 0; i < 20; i++) {
-        PollEvents();
-        if (m_sessionRunning) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
-
-    LogInfo("OpenXR session started, running=%d", m_sessionRunning ? 1 : 0);
+    // Don't poll events yet — let caller decide when to begin session
+    // (PollEvents triggers session READY → begin, which starts the frame deadline)
+    LogInfo("OpenXR session created (not yet begun — call PollEvents when ready)");
     return true;
 }
 

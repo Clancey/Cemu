@@ -91,6 +91,32 @@ struct SwapchainInfoVk
 
 	VkRenderPass m_swapchainRenderPass = nullptr;
 
+	// OpenXR VR mode — when set, AcquireImage/Present use OpenXR instead of VkSwapchainKHR
+	bool m_isOpenXR = false;
+	void* m_openxrManager = nullptr;
+
+	// Callback function pointers for OpenXR operations (avoids header dependency)
+	using FnPollEvents = void(*)(void*);
+	using FnIsRunning = bool(*)(void*);
+	using FnBeginFrame = bool(*)(void*);
+	using FnAcquireImage = uint32_t(*)(void*);
+	using FnReleaseImage = void(*)(void*);
+	using FnEndFrame = void(*)(void*);
+
+	FnPollEvents m_xrPollEvents = nullptr;
+	FnIsRunning m_xrIsRunning = nullptr;
+	FnBeginFrame m_xrBeginFrame = nullptr;
+	FnAcquireImage m_xrAcquireImage = nullptr;
+	FnReleaseImage m_xrReleaseImage = nullptr;
+	FnEndFrame m_xrEndFrame = nullptr;
+
+	void SetOpenXRCallbacks(void* mgr, FnPollEvents pe, FnIsRunning ir, FnBeginFrame bf, FnAcquireImage ai, FnReleaseImage ri, FnEndFrame ef) {
+		m_openxrManager = mgr; m_isOpenXR = true;
+		m_xrPollEvents = pe; m_xrIsRunning = ir; m_xrBeginFrame = bf;
+		m_xrAcquireImage = ai; m_xrReleaseImage = ri; m_xrEndFrame = ef;
+	}
+	bool IsOpenXR() const { return m_isOpenXR; }
+
 private:
 	uint32 m_acquireIndex = 0;
 	std::vector<VkSemaphore> m_acquireSemaphores; // indexed by m_acquireIndex

@@ -130,9 +130,9 @@ class VREmulationActivity : Activity() {
                         // 3. Create VulkanRenderer using OpenXR's Vulkan objects
                         info.cemu.cemu.nativeinterface.NativeEmulation.initializeRendererForVR()
 
-                        // 4. Don't launch game yet — keepalive should show black panel in VR
-                        // TODO: wire up SwapchainInfoXR before launching game
-                        android.util.Log.d("Cemu", "VR: Ready! You should see a floating black panel in VR")
+                        // 4. Launch the game — keepalive renders blue panel while game initializes
+                        info.cemu.cemu.nativeinterface.NativeEmulation.launchTitle()
+                        android.util.Log.d("Cemu", "VR: Game launched! Blue panel should be visible in VR")
 
                         // Input polling disabled for now — conflicts with keepalive thread
                         // TODO: integrate input polling into the keepalive frame loop

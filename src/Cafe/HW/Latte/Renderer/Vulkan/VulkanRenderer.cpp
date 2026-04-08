@@ -977,6 +977,90 @@ VulkanRenderer* VulkanRenderer::GetInstance()
 	return (VulkanRenderer*)g_renderer.get();
 }
 
+#if BOOST_PLAT_ANDROID
+void VulkanRenderer::InitializeSurfaceFromOpenXR(const std::vector<VkImage>& swapchainImages, uint32_t width, uint32_t height, VkFormat format)
+{
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "InitializeSurfaceFromOpenXR: %dx%d format=%d images=%zu", width, height, format, swapchainImages.size());
+
+	// Create SwapchainInfoVk with fake size (constructor needs it)
+	m_mainSwapchainInfo = std::make_unique<SwapchainInfoVk>(true, Vector2i{(int)width, (int)height});
+	auto& chain = *m_mainSwapchainInfo;
+
+	// Set basic properties
+	chain.m_actualExtent = {width, height};
+	chain.m_surfaceFormat.format = format;
+	chain.m_surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+	chain.m_instance = m_instance;
+	chain.m_physicalDevice = m_physicalDevice;
+	chain.m_logicalDevice = m_logicalDevice;
+
+	// Set swapchain images from OpenXR (may be empty during pre-init)
+	chain.m_swapchainImages = swapchainImages;
+
+	if (swapchainImages.empty()) {
+		// Pre-init mode: just create render pass for Initialize() — no images yet
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "InitializeSurfaceFromOpenXR: pre-init mode (render pass only)");
+	}
+
+	// Create image views
+	chain.m_swapchainImageViews.resize(swapchainImages.size());
+	for (size_t i = 0; i < swapchainImages.size(); i++) {
+		VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+		viewInfo.image = swapchainImages[i];
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		viewInfo.format = format;
+		viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+		vkCreateImageView(m_logicalDevice, &viewInfo, nullptr, &chain.m_swapchainImageViews[i]);
+	}
+
+	// Create render pass (final layout = COLOR_ATTACHMENT_OPTIMAL for OpenXR)
+	VkAttachmentDescription colorAttachment = {};
+	colorAttachment.format = format;
+	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference colorRef = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+	VkSubpassDescription subpass = {};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorRef;
+
+	VkRenderPassCreateInfo rpInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+	rpInfo.attachmentCount = 1;
+	rpInfo.pAttachments = &colorAttachment;
+	rpInfo.subpassCount = 1;
+	rpInfo.pSubpasses = &subpass;
+	vkCreateRenderPass(m_logicalDevice, &rpInfo, nullptr, &chain.m_swapchainRenderPass);
+
+	// Create framebuffers
+	chain.m_swapchainFramebuffers.resize(swapchainImages.size());
+	for (size_t i = 0; i < swapchainImages.size(); i++) {
+		VkFramebufferCreateInfo fbInfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+		fbInfo.renderPass = chain.m_swapchainRenderPass;
+		fbInfo.attachmentCount = 1;
+		fbInfo.pAttachments = &chain.m_swapchainImageViews[i];
+		fbInfo.width = width;
+		fbInfo.height = height;
+		fbInfo.layers = 1;
+		vkCreateFramebuffer(m_logicalDevice, &fbInfo, nullptr, &chain.m_swapchainFramebuffers[i]);
+	}
+
+	// Create present semaphores (OpenXR handles sync but VulkanRenderer expects them)
+	chain.m_presentSemaphores.resize(swapchainImages.size());
+	for (auto& sem : chain.m_presentSemaphores) {
+		VkSemaphoreCreateInfo semInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+		vkCreateSemaphore(m_logicalDevice, &semInfo, nullptr, &sem);
+	}
+
+	// OpenXR callbacks are set by the caller (NativeEmulation.cpp) after this returns
+
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "InitializeSurfaceFromOpenXR: SUCCESS! %zu images, render pass=%p, openxr=%d", swapchainImages.size(), (void*)chain.m_swapchainRenderPass, chain.IsOpenXR() ? 1 : 0);
+}
+#endif
+
 void VulkanRenderer::InitializeSurface(const Vector2i& size, bool mainWindow)
 {
 	auto& windowHandleInfo = mainWindow ? WindowSystem::GetWindowInfo().canvas_main : WindowSystem::GetWindowInfo().canvas_pad;
@@ -2203,7 +2287,8 @@ bool VulkanRenderer::BeginFrame(bool mainWindow)
 	auto& chainInfo = GetChainInfo(mainWindow);
 
 	VkClearColorValue clearColor{ 0, 0, 0, 0 };
-	ClearColorImageRaw(chainInfo.m_swapchainImages[chainInfo.swapchainImageIndex], 0, 0, clearColor, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	VkImageLayout outputLayout = chainInfo.IsOpenXR() ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	ClearColorImageRaw(chainInfo.m_swapchainImages[chainInfo.swapchainImageIndex], 0, 0, clearColor, VK_IMAGE_LAYOUT_UNDEFINED, outputLayout);
 
 	// mark current swapchain image as well defined
 	chainInfo.hasDefinedSwapchainImage = true;
@@ -2325,7 +2410,12 @@ void VulkanRenderer::SubmitCommandBuffer(VkSemaphore signalSemaphore, VkSemaphor
 	submitInfo.pWaitDstStageMask = semWaitStageMask;
 	submitInfo.pWaitSemaphores = waitSemArray;
 
-	const VkResult result = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_cmd_buffer_fences[m_commandBufferIndex]);
+	VkResult result;
+	{
+		// Lock VR mutex to prevent concurrent Vulkan queue submission with keepalive thread
+		std::lock_guard<std::mutex> vrLock(m_vrDeviceMutex);
+		result = vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_cmd_buffer_fences[m_commandBufferIndex]);
+	}
 	if (result != VK_SUCCESS)
 		UnrecoverableError(fmt::format("failed to submit command buffer. Error {}", result).c_str());
 	m_numSubmittedCmdBuffers++;
@@ -3168,6 +3258,25 @@ void VulkanRenderer::SwapBuffer(bool mainWindow)
 		return;
 
 	auto& chainInfo = GetChainInfo(mainWindow);
+
+	if (chainInfo.IsOpenXR()) {
+		// OpenXR present path
+		if (!chainInfo.hasDefinedSwapchainImage) {
+			VkClearColorValue clearColor{ 0, 0, 0, 0 };
+			ClearColorImageRaw(chainInfo.m_swapchainImages[chainInfo.swapchainImageIndex], 0, 0, clearColor, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		}
+
+		SubmitCommandBuffer();
+		WaitDeviceIdle();
+
+		// Release and present via callbacks
+		chainInfo.m_xrReleaseImage(chainInfo.m_openxrManager);
+		chainInfo.m_xrEndFrame(chainInfo.m_openxrManager);
+
+		chainInfo.swapchainImageIndex = -1;
+		chainInfo.hasDefinedSwapchainImage = false;
+		return;
+	}
 
 	if (!chainInfo.hasDefinedSwapchainImage)
 	{
