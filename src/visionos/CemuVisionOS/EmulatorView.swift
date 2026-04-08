@@ -27,8 +27,8 @@ struct EmulatorView: View {
             MetalEmulatorView(core: core)
                 .aspectRatio(854.0 / 480.0, contentMode: .fit)
 
-            // On-screen controls — toggle with toolbar button
-            if core.isRunning && showControls {
+            // On-screen controls — hidden when a physical controller is connected
+            if core.isRunning && showControls && core.inputManager.connectedController == nil {
                 VStack {
                     Spacer()
                     onScreenControls
@@ -105,21 +105,21 @@ struct EmulatorView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .bottomOrnament) {
-            Button {
-                showGameLibrary = true
-            } label: {
-                Label("Library", systemImage: "square.grid.2x2")
-            }
-            .disabled(!core.isInitialized)
+            if !core.isRunning {
+                Button {
+                    showGameLibrary = true
+                } label: {
+                    Label("Library", systemImage: "square.grid.2x2")
+                }
+                .disabled(!core.isInitialized)
 
-            Button {
-                showFilePicker = true
-            } label: {
-                Label("Open", systemImage: "folder")
+                Button {
+                    showFilePicker = true
+                } label: {
+                    Label("Open", systemImage: "folder")
+                }
+                .disabled(!core.isInitialized)
             }
-            .disabled(!core.isInitialized)
-
-            Divider()
 
             if core.isRunning {
                 if core.emulationState == .paused {

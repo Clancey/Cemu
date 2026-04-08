@@ -66,6 +66,8 @@ class VisionOSControllerProvider : public ControllerProviderBase
 	static constexpr int kAxisRStickY = 3;
 	static constexpr int kAxisLTrigger = 4;
 	static constexpr int kAxisRTrigger = 5;
+	static constexpr int kAxisPointingX = 10; // spatial raycast pointing X (0-1024)
+	static constexpr int kAxisPointingY = 11; // spatial raycast pointing Y (0-768)
 
    public:
 	static ControllerState& get_controller_state();
@@ -77,4 +79,7 @@ class VisionOSControllerProvider : public ControllerProviderBase
 	static ControllerState s_controllerState;
 	static VisionOSMotionState s_motionState;
 	static std::atomic<VisionOSControllerMode> s_controllerMode;
+	static std::atomic<float> s_pointingX; // 0-1024 (Wiimote DPD space)
+	static std::atomic<float> s_pointingY; // 0-768
+	static std::atomic<bool> s_pointingValid;
 };

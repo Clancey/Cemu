@@ -8,6 +8,9 @@ std::mutex VisionOSControllerProvider::s_controllerMutex;
 ControllerState VisionOSControllerProvider::s_controllerState{};
 VisionOSMotionState VisionOSControllerProvider::s_motionState{};
 std::atomic<VisionOSControllerMode> VisionOSControllerProvider::s_controllerMode{VisionOSControllerMode::ProController};
+std::atomic<float> VisionOSControllerProvider::s_pointingX{512.0f};
+std::atomic<float> VisionOSControllerProvider::s_pointingY{384.0f};
+std::atomic<bool> VisionOSControllerProvider::s_pointingValid{false};
 
 ControllerState& VisionOSControllerProvider::get_controller_state()
 {
@@ -55,6 +58,13 @@ void VisionOSControllerProvider::on_axis_event(int axisCode, float value)
 		break;
 	case kAxisRTrigger:
 		s_controllerState.trigger.y = value;
+		break;
+	case kAxisPointingX:
+		s_pointingX.store(value);
+		s_pointingValid.store(true);
+		break;
+	case kAxisPointingY:
+		s_pointingY.store(value);
 		break;
 	}
 }

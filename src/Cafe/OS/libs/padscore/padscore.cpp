@@ -9,6 +9,7 @@
 #ifdef VISIONOS
 #include "input/api/VisionOS/VisionOSControllerProvider.h"
 #include "input/emulated/WPADController.h"
+#include <algorithm>
 #endif
 
 // KPAD
@@ -512,28 +513,35 @@ sint32 _KPADRead(uint32 channel, KPADStatus_t* samplingBufs, uint32 length, bety
 			samplingBufs->release = prevHoldWii & ~hold;
 			prevHoldWii = hold;
 
-			// Wiimote accelerometer from GCMotion (right hand motion)
+			// Wiimote accelerometer from GCMotion
 			auto& motion = VisionOSControllerProvider::get_motion_state();
-			// Map gravity to Wiimote accelerometer space:
-			// Wiimote held pointing forward: gravity = (0, -1, 0) in world
-			// Wiimote acc: x=right, y=up, z=towards screen
 			samplingBufs->acc.x = motion.gravityX + motion.userAccX;
-			samplingBufs->acc.y = -(motion.gravityY + motion.userAccY); // invert Y
+			samplingBufs->acc.y = -(motion.gravityY + motion.userAccY);
 			samplingBufs->acc.z = motion.gravityZ + motion.userAccZ;
-			samplingBufs->acc_value = 1.0f; // magnitude
+			samplingBufs->acc_value = 1.0f;
 			samplingBufs->acc_speed = 0.0f;
 
-			// Pointing data — derive from attitude
-			// Convert controller orientation to screen-space pointing
-			// Attitude quaternion (x,y,z,w) — project forward vector to 2D
-			float qx = motion.attX, qy = motion.attY, qz = motion.attZ, qw = motion.attW;
-			// Forward vector from quaternion: (2(xz+wy), 2(yz-wx), 1-2(xx+yy))
-			float fx = 2.0f * (qx * qz + qw * qy);
-			float fy = 2.0f * (qy * qz - qw * qx);
-			// Map to screen coordinates (centered at 0,0 — range roughly -1 to 1)
-			samplingBufs->pos.x = fx * 1024.0f + 512.0f;   // map to ~0-1024
-			samplingBufs->pos.y = -fy * 768.0f + 384.0f;   // map to ~0-768
-			samplingBufs->dpd_valid_fg = 1; // pointing data valid
+			// Pointing — use spatial raycast if available, else right stick fallback
+			if (VisionOSControllerProvider::s_pointingValid.load())
+			{
+				// Spatial raycasting from controller to screen
+				samplingBufs->pos.x = VisionOSControllerProvider::s_pointingX.load();
+				samplingBufs->pos.y = VisionOSControllerProvider::s_pointingY.load();
+				samplingBufs->dpd_valid_fg = 1;
+			}
+			else
+			{
+				// Fallback: right stick cursor control
+				static float cursorX = 512.0f, cursorY = 384.0f;
+				float rx = state.rotation.x;
+				float ry = state.rotation.y;
+				constexpr float cursorSpeed = 15.0f;
+				cursorX = std::clamp(cursorX + rx * cursorSpeed, 0.0f, 1024.0f);
+				cursorY = std::clamp(cursorY - ry * cursorSpeed, 0.0f, 768.0f);
+				samplingBufs->pos.x = cursorX;
+				samplingBufs->pos.y = cursorY;
+				samplingBufs->dpd_valid_fg = 1;
+			}
 
 			// Nunchuck extension data (left hand)
 			samplingBufs->ex_status.fs.stick.x = state.axis.x;  // left stick

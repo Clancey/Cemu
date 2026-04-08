@@ -17,6 +17,9 @@ final class InputManager {
     /// The currently connected and active game controller, if any.
     private(set) var connectedController: GCController?
 
+    /// Spatial controller tracker for PSVR2 raycasting.
+    private var spatialTracker: AnyObject? // SpatialControllerTracker (visionOS 26+)
+
     /// Human-readable name of the connected controller.
     var controllerName: String? {
         connectedController?.vendorName
@@ -134,9 +137,20 @@ final class InputManager {
 
         // Auto-select mode: PSVR2 controllers have motion → Wiimote+Nunchuck
         // Standard gamepads (DualSense, Xbox, etc.) → Pro Controller
-        if controller.motion != nil {
+        let isSpatial = controller.motion != nil
+        if isSpatial {
             setWiimoteMode(true)
             logger.info("Motion-capable controller detected — using Wiimote+Nunchuck mode")
+
+            // Start spatial tracking for raycasting (visionOS 26+)
+            if #available(visionOS 26.0, *) {
+                let tracker = SpatialControllerTracker()
+                spatialTracker = tracker
+                Task {
+                    await tracker.start()
+                    await tracker.trackController(controller)
+                }
+            }
         } else {
             setWiimoteMode(false)
             logger.info("Standard gamepad detected — using Pro Controller mode")
@@ -150,6 +164,11 @@ final class InputManager {
         if connectedController === controller {
             connectedController = nil
             bridge.releaseAllKeys()
+
+            if #available(visionOS 26.0, *), let tracker = spatialTracker as? SpatialControllerTracker {
+                tracker.stop()
+                spatialTracker = nil
+            }
         }
     }
 

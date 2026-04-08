@@ -21,6 +21,7 @@
 		B2E857BE8D9A4641D555AEF7 /* glslang.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E628E83DE68E48D87EF29A4B /* glslang.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B3396CDB1955EEBA69592CEB /* SPIRVTools.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 86ECDF07BB87CC9A206E234C /* SPIRVTools.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B3AAA0E01A2676A6B09C88FE /* MetalEmulatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8D88A4E0F7B766DCB400C6 /* MetalEmulatorView.swift */; };
+		CD16E60675EC06988C9006F9 /* SpatialControllerTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89D3D80E514C61129CC1DC88 /* SpatialControllerTracker.swift */; };
 		E7E044B4B74C790F12F634BD /* EmulatorCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0986E31DBD70BD0FB8BCC64B /* EmulatorCore.swift */; };
 		ECAC63981636FADADA2A6164 /* InputManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86AADB4BCA4BFAA3A974479E /* InputManager.swift */; };
 /* End PBXBuildFile section */
@@ -55,6 +56,7 @@
 		83EA4E6590F0EEF9FEB4378F /* MetalHostView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MetalHostView.h; sourceTree = "<group>"; };
 		86AADB4BCA4BFAA3A974479E /* InputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputManager.swift; sourceTree = "<group>"; };
 		86ECDF07BB87CC9A206E234C /* SPIRVTools.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SPIRVTools.xcframework; path = ../../build_xcframework/SPIRVTools.xcframework; sourceTree = "<group>"; };
+		89D3D80E514C61129CC1DC88 /* SpatialControllerTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialControllerTracker.swift; sourceTree = "<group>"; };
 		985388295DD201335B4D2D12 /* EmulatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmulatorView.swift; sourceTree = "<group>"; };
 		C0789311EE57825603945A6E /* MetalLayerVisionOS.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MetalLayerVisionOS.mm; sourceTree = "<group>"; };
 		C19F75D071F608BA3E5E188D /* CemuVision-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "CemuVision-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -113,6 +115,7 @@
 				D63A4D0AAAE42AEA550EAEB6 /* GameLibraryView.swift */,
 				86AADB4BCA4BFAA3A974479E /* InputManager.swift */,
 				3F8D88A4E0F7B766DCB400C6 /* MetalEmulatorView.swift */,
+				89D3D80E514C61129CC1DC88 /* SpatialControllerTracker.swift */,
 			);
 			path = CemuVisionOS;
 			sourceTree = "<group>";
@@ -152,8 +155,6 @@
 			dependencies = (
 			);
 			name = CemuVisionOS;
-			packageProductDependencies = (
-			);
 			productName = CemuVisionOS;
 			productReference = 7590881E11776B3A7414FBA2 /* CemuVisionOS.app */;
 			productType = "com.apple.product-type.application";
@@ -177,6 +178,7 @@
 			);
 			mainGroup = B662674DABB25656B467AC67;
 			minimizedProjectReferenceProxies = 1;
+			productRefGroup = C6862E28BF1219B767F2CD6F /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -198,6 +200,7 @@
 				2A7B816C13FCD2550E435C60 /* GameLibraryView.swift in Sources */,
 				ECAC63981636FADADA2A6164 /* InputManager.swift in Sources */,
 				B3AAA0E01A2676A6B09C88FE /* MetalEmulatorView.swift in Sources */,
+				CD16E60675EC06988C9006F9 /* SpatialControllerTracker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
