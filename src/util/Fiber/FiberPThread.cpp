@@ -9,17 +9,31 @@ extern "C" void fiber_switch_context(void** fromCtx, void* toCtx);
 thread_local Fiber* tl_currentFiber{nullptr};
 
 // Fiber entry wrapper — called when switching to a new fiber for the first time
+__attribute__((noinline))
 static void FiberEntry(void* arg)
 {
 	Fiber* fiber = tl_currentFiber;
-	fprintf(stderr, "FiberEntry: tl_currentFiber=%p\n", fiber);
 	if (!fiber) {
-		fprintf(stderr, "FATAL: FiberEntry called but tl_currentFiber is null!\n");
+		fprintf(stderr, "FATAL: FiberEntry - tl_currentFiber is null!\n");
 		abort();
 	}
-	fprintf(stderr, "FiberEntry: entryPoint=%p userParam=%p\n", (void*)fiber->m_entryPoint, fiber->m_userParam);
+	fprintf(stderr, "FiberEntry: fiber=%p entry=%p param=%p private=%p\n",
+		fiber, (void*)fiber->m_entryPoint, fiber->m_userParam, fiber->m_privateData);
+
+	// Verify stack is in a valid range
+	volatile char stackVar = 0;
+	uintptr_t sp = (uintptr_t)&stackVar;
+	if (fiber->m_stackPtr) {
+		uintptr_t stackBase = (uintptr_t)fiber->m_stackPtr;
+		uintptr_t stackEnd = stackBase + fiber->m_stackSize;
+		fprintf(stderr, "FiberEntry: SP=%p stack=[%p-%p] %s\n", (void*)sp,
+			(void*)stackBase, (void*)stackEnd,
+			(sp >= stackBase && sp < stackEnd) ? "OK" : "OUT OF RANGE!");
+	}
+
 	if (fiber->m_entryPoint)
 		fiber->m_entryPoint(fiber->m_userParam);
+
 	fprintf(stderr, "FATAL: Fiber entry point returned!\n");
 	abort();
 }
@@ -38,9 +52,9 @@ Fiber::Fiber(void (*fiberEntryPoint)(void* userParam), void* userParam, void* pr
 		return;
 	}
 
-	// Stack grows down — top is base + size, 16-byte aligned
-	void* stackTop = (void*)(((uintptr_t)m_stackPtr + m_stackSize) & ~(uintptr_t)0xF);
-	m_context = fiber_make_context(stackTop, FiberEntry);
+	// Stack grows down — leave 256 bytes headroom from top, 16-byte aligned
+	void* stackTop = (void*)(((uintptr_t)m_stackPtr + m_stackSize - 256) & ~(uintptr_t)0xF);
+	m_context = (volatile void*)fiber_make_context(stackTop, FiberEntry);
 }
 
 Fiber::Fiber(void* privateData)
@@ -73,7 +87,9 @@ void Fiber::Switch(Fiber& targetFiber)
 	if (switchLog++ < 20)
 		fprintf(stderr, "Fiber::Switch from=%p(ctx=%p) to=%p(ctx=%p)\n", prevFiber, prevFiber->m_context, &targetFiber, targetFiber.m_context);
 
-	fiber_switch_context(&prevFiber->m_context, targetFiber.m_context);
+	void* targetCtx = (void*)targetFiber.m_context;
+	void** fromCtx = (void**)&prevFiber->m_context;
+	fiber_switch_context(fromCtx, targetCtx);
 
 	if (switchLog < 25)
 		fprintf(stderr, "Fiber::Switch RESUMED at %p\n", tl_currentFiber);

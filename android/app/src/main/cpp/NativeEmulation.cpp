@@ -229,7 +229,7 @@ void SubmitOpenXRKeepaliveFrame()
 	if (!g_openxrManager) return;
 	g_openxrManager->PollEvents();
 	if (!g_openxrManager->IsSessionRunning()) return;
-	g_openxrManager->SubmitEmptyFrame();
+	{ g_openxrManager->PollEvents(); if (g_openxrManager->BeginFrame()) { auto idx = g_openxrManager->AcquireSwapchainImage(); if (idx != UINT32_MAX) g_openxrManager->ReleaseSwapchainImage(); XrPosef p={{0,0,0,1},{0,0,-2}}; XrExtent2Df s={2.0f,1.125f}; g_openxrManager->EndFrame(p,s); } }
 }
 
 // Store Activity reference for OpenXR
@@ -376,14 +376,14 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRendererForVR(JNIE
 		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive started (until game renders)");
 		while (g_openxrManager && g_openxrManager->IsSessionRunning()) {
 			auto* renderer = VulkanRenderer::GetInstance();
-			if (renderer && renderer->IsSwapchainInfoValid(true)) {
+			if (renderer && renderer->GetChainInfoPtr(true) != nullptr) {
 				auto& chain = renderer->GetChainInfo(true);
 				if (chain.swapchainImageIndex != (uint32)-1) {
 					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive: game took over");
 					break;
 				}
 			}
-			g_openxrManager->SubmitEmptyFrame();
+			{ g_openxrManager->PollEvents(); if (g_openxrManager->BeginFrame()) { auto idx = g_openxrManager->AcquireSwapchainImage(); if (idx != UINT32_MAX) g_openxrManager->ReleaseSwapchainImage(); XrPosef p={{0,0,0,1},{0,0,-2}}; XrExtent2Df s={2.0f,1.125f}; g_openxrManager->EndFrame(p,s); } }
 		}
 		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive ended");
 	}).detach();
