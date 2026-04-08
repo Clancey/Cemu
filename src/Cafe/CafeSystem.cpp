@@ -31,6 +31,8 @@
 #include "Common/FileStream.h"
 #include "GamePatch.h"
 #include "HW/Espresso/Debugger/GDBStub.h"
+#include "HW/Espresso/Recompiler/AOT/PPCAOTCompiler.h"
+#include "util/MemMapper/MemMapper.h"
 
 #include "Cafe/IOSU/legacy/iosu_ioctl.h"
 #include "Cafe/IOSU/legacy/iosu_act.h"
@@ -926,6 +928,36 @@ namespace CafeSystem
 
 	void LaunchForegroundTitle()
 	{
+		// Check if AOT compilation was requested
+		if (LaunchSettings::AOTCompileMode())
+		{
+			cemuLog_log(LogType::Force, "AOT: Running in AOT compilation mode");
+
+			// Determine output path
+			std::filesystem::path outputPath;
+			if (LaunchSettings::GetAOTOutputPath().has_value())
+				outputPath = LaunchSettings::GetAOTOutputPath().value();
+			else
+				outputPath = ActiveSettings::GetUserDataPath("aot_cache.bin");
+
+			// Ensure recompiler instance data is allocated for the code generation pipeline.
+			// PPCRecompiler_init() may not have allocated it if we're in AOT/interpreter mode.
+			if (!ppcRecompilerInstanceData)
+			{
+				ppcRecompilerInstanceData = (PPCRecompilerInstanceData_t*)MemMapper::ReserveMemory(nullptr, sizeof(PPCRecompilerInstanceData_t), MemMapper::PAGE_PERMISSION::P_RW);
+				MemMapper::AllocateMemory(&(ppcRecompilerInstanceData->_x64XMM_xorNegateMaskBottom),
+					sizeof(PPCRecompilerInstanceData_t) - offsetof(PPCRecompilerInstanceData_t, _x64XMM_xorNegateMaskBottom),
+					MemMapper::PAGE_PERMISSION::P_RW, true);
+			}
+
+			bool success = PPCAOTCompiler::CompileLoadedModules(outputPath);
+
+			cemuLog_log(LogType::Force, "AOT: Compilation {} — exiting",
+				success ? "succeeded" : "failed");
+			exit(success ? 0 : 1);
+			return;
+		}
+
 		PPCTimer_waitForInit();
 		// start system
 		sSystemRunning = true;

@@ -100,6 +100,8 @@ add_library(CemuCafe
   HW/Espresso/Recompiler/AOT/PPCAOTLoader.cpp
   HW/Espresso/Recompiler/AOT/PPCAOTAssemblyGen.h
   HW/Espresso/Recompiler/AOT/PPCAOTAssemblyGen.cpp
+  HW/Espresso/Recompiler/AOT/PPCAOTCompiler.h
+  HW/Espresso/Recompiler/AOT/PPCAOTCompiler.cpp
   HW/Latte/Common/RegisterSerializer.cpp
   HW/Latte/Common/RegisterSerializer.h
   HW/Latte/Common/ShaderSerializer.cpp

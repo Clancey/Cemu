@@ -30,6 +30,9 @@ public:
 	static bool ForceInterpreter() { return s_force_interpreter; };
 	static bool ForceMultiCoreInterpreter() { return s_force_multicore_interpreter; }
 
+	static bool AOTCompileMode() { return s_aot_compile; }
+	static std::optional<fs::path> GetAOTOutputPath() { return s_aot_output_path; }
+
 	static std::optional<uint32> GetPersistentId() { return s_persistent_id; }
 
 	static uint32 GetPPCRecLowerAddr() { return ppcRec_limitLowerAddr; };
@@ -50,6 +53,9 @@ private:
 
 	inline static bool s_force_interpreter = false;
 	inline static bool s_force_multicore_interpreter = false;
+
+	inline static bool s_aot_compile = false;
+	inline static std::optional<fs::path> s_aot_output_path{};
 	
 	inline static std::optional<uint32> s_persistent_id{};
 
