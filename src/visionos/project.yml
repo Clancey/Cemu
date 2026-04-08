@@ -62,6 +62,7 @@ targets:
         DEVELOPMENT_TEAM: ""
         ARCHS: arm64
         EXCLUDED_ARCHS: x86_64
+        CODE_SIGN_ENTITLEMENTS: CemuVisionOS.entitlements
 
     scheme:
       environmentVariables:

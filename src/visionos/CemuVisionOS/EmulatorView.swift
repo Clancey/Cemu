@@ -152,15 +152,11 @@ struct EmulatorView: View {
         case .success(let urls):
             guard let url = urls.first else { return }
 
-            // Start security-scoped access for sandboxed file access.
-            guard url.startAccessingSecurityScopedResource() else {
-                return
-            }
-
             // Persist a bookmark so the file can be re-opened on next launch.
             persistBookmark(for: url)
 
-            core.loadGame(at: url.path)
+            // Use URL-based loader which handles security scope
+            core.loadGame(from: url)
 
             // Note: stopAccessingSecurityScopedResource will be called when
             // emulation ends and the URL is no longer needed.

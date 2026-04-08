@@ -405,31 +405,75 @@ namespace WindowSystem
 
     // Try loading as a title (directory with meta/code/content, WUD, WUX, etc.)
     TitleInfo launchTitle{gamePath};
+    os_log_info(cemuLog(), "TitleInfo valid=%d path=%{public}s", launchTitle.IsValid(), gamePath.generic_string().c_str());
     if (launchTitle.IsValid())
     {
-        cemuLog_log(LogType::Force, "visionOS: Loading valid title from path");
-        // Add the game itself
+        os_log_info(cemuLog(), "Loading valid title, appTitleId=%{public}016llx", launchTitle.GetAppTitleId());
         CafeTitleList::AddTitleFromPath(gamePath);
-        // Also scan the parent directory to discover updates and DLC
         fs::path parentPath = gamePath.parent_path();
         if (!parentPath.empty())
         {
-            cemuLog_log(LogType::Force, "visionOS: Scanning parent dir for updates/DLC: {}", parentPath.generic_string());
+            os_log_info(cemuLog(), "Scanning parent: %{public}s", parentPath.generic_string().c_str());
             CafeTitleList::AddScanPath(parentPath);
             CafeTitleList::Refresh();
-            // Wait for scan to find sibling titles (update, DLC)
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
         TitleId baseTitleId;
         if (CafeTitleList::FindBaseTitleId(launchTitle.GetAppTitleId(), baseTitleId))
         {
-            cemuLog_log(LogType::Force, "visionOS: Found base title ID {:016x}", baseTitleId);
+            os_log_info(cemuLog(), "Found base title ID: %{public}016llx", baseTitleId);
             status = CafeSystem::PrepareForegroundTitle(baseTitleId);
+            os_log_info(cemuLog(), "PrepareForegroundTitle status=%d", (int)status);
+
+            // If mount failed, the game files may be on a File Provider path
+            // that C++ can't access. Log the error for now.
+            if (status != CafeSystem::PREPARE_STATUS_CODE::SUCCESS) {
+                os_log_error(cemuLog(), "Mount failed (status=%d). Game files may need to be in the app's local storage. "
+                    "File Provider / iCloud paths are not directly accessible.", (int)status);
+            }
         }
         else
         {
-            cemuLog_log(LogType::Force, "visionOS: Could not find base title, trying direct launch");
-            status = CafeSystem::PrepareForegroundTitleFromStandaloneRPX(gamePath);
+            os_log_info(cemuLog(), "Could not find base title, trying standalone RPX");
+            // Try finding RPX in code/ directory
+            fs::path codePath = gamePath / "code";
+            if (fs::exists(codePath)) {
+                for (auto& entry : fs::directory_iterator(codePath)) {
+                    if (entry.path().extension() == ".rpx") {
+                        os_log_info(cemuLog(), "Trying RPX: %{public}s", entry.path().generic_string().c_str());
+                        status = CafeSystem::PrepareForegroundTitleFromStandaloneRPX(entry.path());
+                        os_log_info(cemuLog(), "StandaloneRPX status=%d", (int)status);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    else if (fs::is_directory(gamePath))
+    {
+        // TitleInfo didn't recognize it, but it's a directory — try scanning and finding RPX
+        os_log_info(cemuLog(), "TitleInfo invalid, scanning directory for RPX");
+        fs::path codePath = gamePath / "code";
+        bool codeExists = fs::exists(codePath);
+        os_log_info(cemuLog(), "code/ exists=%d at %{public}s", codeExists, codePath.generic_string().c_str());
+        if (codeExists)
+        {
+            for (auto& entry : fs::directory_iterator(codePath))
+            {
+                os_log_info(cemuLog(), "Found file: %{public}s", entry.path().filename().c_str());
+                if (entry.path().extension() == ".rpx")
+                {
+                    os_log_info(cemuLog(), "Found RPX: %{public}s", entry.path().generic_string().c_str());
+                    // Add parent as scan path for update/DLC discovery
+                    CafeTitleList::AddScanPath(gamePath.parent_path());
+                    CafeTitleList::AddTitleFromPath(gamePath);
+                    CafeTitleList::Refresh();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                    // Try standalone RPX
+                    status = CafeSystem::PrepareForegroundTitleFromStandaloneRPX(entry.path());
+                    break;
+                }
+            }
         }
     }
     else

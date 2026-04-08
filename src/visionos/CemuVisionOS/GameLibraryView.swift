@@ -85,7 +85,6 @@ struct GameLibraryView: View {
 
     private func launchGame(_ game: GameEntry) {
         #if DEBUG && targetEnvironment(simulator)
-        // On simulator, paths are direct host filesystem paths — no bookmark needed
         if game.bookmarkData.isEmpty {
             core.loadGame(at: game.path)
             dismiss()
@@ -102,9 +101,8 @@ struct GameLibraryView: View {
             return
         }
 
-        guard url.startAccessingSecurityScopedResource() else { return }
-
-        core.loadGame(at: url.path)
+        // Use URL-based loader which keeps security scope alive
+        core.loadGame(from: url)
         dismiss()
     }
 
@@ -112,22 +110,116 @@ struct GameLibraryView: View {
         guard case .success(let urls) = result, let url = urls.first else { return }
         guard url.startAccessingSecurityScopedResource() else { return }
 
-        // Create and persist a bookmark.
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        fm.fileExists(atPath: url.path, isDirectory: &isDir)
+
+        if isDir.boolValue {
+            // Check if this is a single game folder (has code/ and meta/)
+            let hasCode = fm.fileExists(atPath: url.appendingPathComponent("code").path)
+            let hasMeta = fm.fileExists(atPath: url.appendingPathComponent("meta").path)
+
+            if hasCode && hasMeta {
+                // Single game directory — add it directly
+                addGameEntry(url: url)
+            } else {
+                // Parent folder — scan for game directories inside
+                scanAndAddGames(from: url)
+            }
+        } else {
+            // Single file (RPX, WUD, etc.) — add directly
+            addGameEntry(url: url)
+        }
+
+        saveBookmarkedGames()
+    }
+
+    private func addGameEntry(url: URL) {
         guard let bookmarkData = try? url.bookmarkData(
             options: .minimalBookmark,
             includingResourceValuesForKeys: nil,
             relativeTo: nil
-        ) else {
-            return
-        }
+        ) else { return }
 
-        let entry = GameEntry(
-            name: url.lastPathComponent,
-            path: url.path,
-            bookmarkData: bookmarkData
-        )
-        games.append(entry)
-        saveBookmarkedGames()
+        // Clean up display name
+        var name = url.lastPathComponent
+        name = name.replacingOccurrences(of: #"\s*\[(Game|Update|DLC)\].*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        if name.isEmpty { name = url.lastPathComponent }
+
+        // Don't add duplicates
+        if games.contains(where: { $0.path == url.path }) { return }
+
+        games.append(GameEntry(name: name, path: url.path, bookmarkData: bookmarkData))
+    }
+
+    /// Scan the app's local Documents/Games folder for game titles.
+    private func scanLocalGamesFolder() -> [GameEntry] {
+        let gamesDir = EmulatorCore.gamesFolderURL
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: gamesDir.path) else { return [] }
+        guard let items = try? fm.contentsOfDirectory(atPath: gamesDir.path) else { return [] }
+
+        var entries: [GameEntry] = []
+        for item in items {
+            let itemURL = gamesDir.appendingPathComponent(item)
+            var isDir: ObjCBool = false
+            fm.fileExists(atPath: itemURL.path, isDirectory: &isDir)
+
+            guard isDir.boolValue else {
+                let ext = (item as NSString).pathExtension.lowercased()
+                if ["wud", "wux", "wua", "iso"].contains(ext) {
+                    let name = (item as NSString).deletingPathExtension
+                    entries.append(GameEntry(name: name, path: itemURL.path, bookmarkData: Data()))
+                }
+                continue
+            }
+
+            // Skip Update and DLC folders
+            if item.contains("[Update]") || item.contains("[DLC]") { continue }
+
+            // Check for game directory (code/ and meta/)
+            let hasCode = fm.fileExists(atPath: itemURL.appendingPathComponent("code").path)
+            let hasMeta = fm.fileExists(atPath: itemURL.appendingPathComponent("meta").path)
+            if hasCode || hasMeta {
+                var name = item
+                name = name.replacingOccurrences(of: #"\s*\[(Game|Update|DLC)\].*"#, with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespaces)
+                if name.isEmpty { name = item }
+                entries.append(GameEntry(name: name, path: itemURL.path, bookmarkData: Data()))
+            }
+        }
+        return entries
+    }
+
+    private func scanAndAddGames(from folderURL: URL) {
+        let fm = FileManager.default
+        guard let items = try? fm.contentsOfDirectory(atPath: folderURL.path) else { return }
+
+        for item in items {
+            let itemURL = folderURL.appendingPathComponent(item)
+            var isDir: ObjCBool = false
+            fm.fileExists(atPath: itemURL.path, isDirectory: &isDir)
+
+            guard isDir.boolValue else {
+                // Check for game files (WUD, WUX, etc.)
+                let ext = (item as NSString).pathExtension.lowercased()
+                if ["wud", "wux", "wua", "iso"].contains(ext) {
+                    addGameEntry(url: itemURL)
+                }
+                continue
+            }
+
+            // Skip Update and DLC folders
+            if item.contains("[Update]") || item.contains("[DLC]") { continue }
+
+            // Check if this subdirectory is a game (has code/ and meta/)
+            let hasCode = fm.fileExists(atPath: itemURL.appendingPathComponent("code").path)
+            let hasMeta = fm.fileExists(atPath: itemURL.appendingPathComponent("meta").path)
+            if hasCode && hasMeta {
+                addGameEntry(url: itemURL)
+            }
+        }
     }
 
     private func deleteGames(at offsets: IndexSet) {
@@ -140,25 +232,22 @@ struct GameLibraryView: View {
     private static let bookmarksKey = "GameLibraryBookmarks"
 
     private func loadBookmarkedGames() {
-        guard let stored = UserDefaults.standard.array(forKey: Self.bookmarksKey)
-                as? [[String: Any]] else {
-            #if DEBUG && targetEnvironment(simulator)
-            games = scanDebugGamePath()
-            #endif
-            return
-        }
+        // Always scan the local Documents/Games folder first
+        games = scanLocalGamesFolder()
 
-        games = stored.compactMap { dict in
-            guard let name = dict["name"] as? String,
-                  let path = dict["path"] as? String,
-                  let data = dict["bookmark"] as? Data else {
-                return nil
+        // Load bookmarked games
+        if let stored = UserDefaults.standard.array(forKey: Self.bookmarksKey) as? [[String: Any]] {
+            let bookmarked: [GameEntry] = stored.compactMap { dict in
+                guard let name = dict["name"] as? String,
+                      let path = dict["path"] as? String,
+                      let data = dict["bookmark"] as? Data else { return nil }
+                return GameEntry(name: name, path: path, bookmarkData: data)
             }
-            return GameEntry(name: name, path: path, bookmarkData: data)
+            let existingPaths = Set(games.map(\.path))
+            games.append(contentsOf: bookmarked.filter { !existingPaths.contains($0.path) })
         }
 
         #if DEBUG && targetEnvironment(simulator)
-        // Append games from the debug path that aren't already bookmarked
         let existingPaths = Set(games.map(\.path))
         let debugGames = scanDebugGamePath().filter { !existingPaths.contains($0.path) }
         games.append(contentsOf: debugGames)

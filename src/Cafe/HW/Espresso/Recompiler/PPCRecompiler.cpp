@@ -230,7 +230,7 @@ PPCRecFunction_t* PPCRecompiler_recompileFunction(PPCFunctionBoundaryTracker::PP
 	{
 		return nullptr;
 	}
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) && !TARGET_OS_VISION
 	bool aarch64GenerationSuccess = PPCRecompiler_generateAArch64Code(ppcRecFunc, &ppcImlGenContext);
 	if (aarch64GenerationSuccess == false)
 	{
@@ -686,6 +686,11 @@ void PPCRecompiler_initPlatform()
 
 void PPCRecompiler_init()
 {
+#if TARGET_OS_VISION
+	// visionOS: JIT not allowed, always use interpreter (but multicore scheduler is active)
+	ppcRecompilerEnabled = false;
+	return;
+#endif
 	if (ActiveSettings::GetCPUMode() == CPUMode::SinglecoreInterpreter)
 	{
 		ppcRecompilerEnabled = false;
@@ -706,7 +711,7 @@ void PPCRecompiler_init()
 	MemMapper::AllocateMemory(&(ppcRecompilerInstanceData->_x64XMM_xorNegateMaskBottom), sizeof(PPCRecompilerInstanceData_t) - offsetof(PPCRecompilerInstanceData_t, _x64XMM_xorNegateMaskBottom), MemMapper::PAGE_PERMISSION::P_RW, true);
 #ifdef ARCH_X86_64
 	PPCRecompilerX64Gen_generateRecompilerInterfaceFunctions();
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) && !TARGET_OS_VISION
 	PPCRecompilerAArch64Gen_generateRecompilerInterfaceFunctions();
 #endif
     PPCRecompiler_allocateRange(0, 0x1000); // the first entry is used for fallback to interpreter

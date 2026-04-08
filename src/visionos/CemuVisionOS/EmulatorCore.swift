@@ -144,7 +144,6 @@ final class EmulatorCore {
         lastError = nil
         do {
             try bridge.loadGame(atPath: path)
-            // Update running state and start polling for changes
             isRunning = bridge.isRunning
             startStatePolling()
         } catch {
@@ -152,6 +151,19 @@ final class EmulatorCore {
             lastError = message
             logger.error("Load game failed: \(message)")
         }
+    }
+
+    /// Retained security-scoped URL to keep access alive during emulation.
+    private var activeSecurityScopedURL: URL?
+
+    /// Load a game from a security-scoped URL (file picker / bookmark).
+    func loadGame(from url: URL) {
+        // Start accessing security-scoped resource and KEEP it alive
+        let gained = url.startAccessingSecurityScopedResource()
+        if gained {
+            activeSecurityScopedURL = url
+        }
+        loadGame(at: url.path)
     }
 
     private var stateTimer: Timer?
@@ -217,5 +229,23 @@ final class EmulatorCore {
         let dataPath = Bundle.main.resourcePath ?? configPath
 
         bridge.setStoragePathsWithConfig(configPath, cache: cachePath, data: dataPath)
+
+        // Create a Games folder in Documents for users to add ROMs via Files app
+        createGamesFolder()
+    }
+
+    /// The app's Documents/Games folder — visible in Files app via UIFileSharingEnabled.
+    static var gamesFolderURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Games")
+    }
+
+    private func createGamesFolder() {
+        let fm = FileManager.default
+        let gamesDir = Self.gamesFolderURL
+        if !fm.fileExists(atPath: gamesDir.path) {
+            try? fm.createDirectory(at: gamesDir, withIntermediateDirectories: true)
+            logger.info("Created Games folder at \(gamesDir.path)")
+        }
     }
 }
