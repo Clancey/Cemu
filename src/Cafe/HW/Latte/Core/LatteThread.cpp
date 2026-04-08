@@ -112,9 +112,17 @@ void LatteThread_HandleOSScreen()
 		g_renderer->SwapBuffers(swapTV, swapDRC);
 }
 
+#if __APPLE__
+extern "C" void LatteThread_CreateAutoreleasePool();
+extern "C" void LatteThread_DrainAutoreleasePool();
+#endif
+
 int Latte_ThreadEntry()
 {
 	SetThreadName("LatteThread");
+#if __APPLE__
+	LatteThread_CreateAutoreleasePool();
+#endif
 	sint32 w,h;
 	WindowSystem::GetWindowPhysSize(w,h);
 

@@ -36,6 +36,12 @@ float supportBufferData[512 * 4];
 // Defined in the OpenGL renderer
 void LatteDraw_handleSpecialState8_clearAsDepth();
 
+#if __APPLE__
+extern "C" void LatteThread_DrainAutoreleasePool();
+#else
+static inline void LatteThread_DrainAutoreleasePool() {}
+#endif
+
 std::vector<MetalRenderer::DeviceInfo> MetalRenderer::GetDevices()
 {
 #if TARGET_OS_OSX
@@ -340,8 +346,7 @@ void MetalRenderer::ResizeLayer(const Vector2i& size, bool mainWindow)
 
 void MetalRenderer::Initialize()
 {
-    // Create autorelease pool for the GPU thread
-    m_autoreleasePool = NS::AutoreleasePool::alloc()->init();
+    m_autoreleasePool = nullptr; // not using metal-cpp pool — ObjC pool handled separately
     Renderer::Initialize();
     RendererShaderMtl::Initialize();
 }
@@ -408,12 +413,6 @@ void MetalRenderer::SwapBuffers(bool swapTV, bool swapDRC)
         m_captureFrame = false;
     }
 
-    // Drain and recreate autorelease pool to prevent Metal object leaks
-    if (m_autoreleasePool)
-    {
-        m_autoreleasePool->drain();
-        m_autoreleasePool = NS::AutoreleasePool::alloc()->init();
-    }
 }
 
 void MetalRenderer::HandleScreenshotRequest(LatteTextureView* texView, bool padView) {

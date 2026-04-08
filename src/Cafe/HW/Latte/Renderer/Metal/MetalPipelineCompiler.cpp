@@ -8,6 +8,22 @@
 
 #include "Cafe/HW/Latte/Core/FetchShader.h"
 #include "Cafe/HW/Latte/ISA/RegDefines.h"
+
+#include <csignal>
+#include <csetjmp>
+
+// Catch SIGABRT from Metal validation to prevent crash
+static thread_local sigjmp_buf s_pipelineAbortJmpBuf;
+static thread_local bool s_pipelineAbortCatchActive = false;
+
+static void pipelineAbortHandler(int sig)
+{
+    if (s_pipelineAbortCatchActive)
+        siglongjmp(s_pipelineAbortJmpBuf, 1);
+    // If not catching, let the default handler run
+    signal(SIGABRT, SIG_DFL);
+    raise(SIGABRT);
+}
 #include "Cafe/HW/Latte/Core/LatteConst.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 
@@ -342,17 +358,66 @@ bool MetalPipelineCompiler::Compile(bool forceCompile, bool isRenderThread, bool
     MTL::RenderPipelineState* pipeline = nullptr;
     NS::Error* error = nullptr;
 
+    // Pre-check: ensure render target storage doesn't exceed 32 bytes
+    // (visionOS simulator limit; real devices support more)
+    {
+        auto getPixelFormatSize = [](MTL::PixelFormat fmt) -> uint32 {
+            switch (fmt) {
+            case MTL::PixelFormatRGBA32Float: case MTL::PixelFormatRGBA32Uint: case MTL::PixelFormatRGBA32Sint: return 16;
+            case MTL::PixelFormatRGBA16Float: case MTL::PixelFormatRGBA16Unorm: case MTL::PixelFormatRGBA16Snorm:
+            case MTL::PixelFormatRGBA16Uint: case MTL::PixelFormatRGBA16Sint:
+            case MTL::PixelFormatRG32Float: case MTL::PixelFormatRG32Uint: case MTL::PixelFormatRG32Sint: return 8;
+            case MTL::PixelFormatRGBA8Unorm: case MTL::PixelFormatRGBA8Unorm_sRGB: case MTL::PixelFormatBGRA8Unorm:
+            case MTL::PixelFormatBGRA8Unorm_sRGB: case MTL::PixelFormatRGBA8Snorm:
+            case MTL::PixelFormatRGBA8Uint: case MTL::PixelFormatRGBA8Sint:
+            case MTL::PixelFormatRGB10A2Unorm: case MTL::PixelFormatRGB10A2Uint:
+            case MTL::PixelFormatRG11B10Float: case MTL::PixelFormatBGR10A2Unorm:
+            case MTL::PixelFormatR32Float: case MTL::PixelFormatR32Uint: case MTL::PixelFormatR32Sint: return 4;
+            case MTL::PixelFormatRG16Float: case MTL::PixelFormatRG16Unorm: case MTL::PixelFormatRG16Snorm:
+            case MTL::PixelFormatRG16Uint: case MTL::PixelFormatRG16Sint: return 4;
+            case MTL::PixelFormatRG8Unorm: case MTL::PixelFormatRG8Snorm:
+            case MTL::PixelFormatR16Float: case MTL::PixelFormatR16Unorm: case MTL::PixelFormatR16Snorm: return 2;
+            case MTL::PixelFormatR8Unorm: case MTL::PixelFormatR8Snorm:
+            case MTL::PixelFormatR8Uint: case MTL::PixelFormatR8Sint: return 1;
+            case MTL::PixelFormatInvalid: return 0;
+            default: return 4;
+            }
+        };
+
+        uint32 totalBytes = 0;
+        if (m_usesGeometryShader)
+        {
+            auto desc = static_cast<MTL::MeshRenderPipelineDescriptor*>(m_pipelineDescriptor);
+            for (uint32 i = 0; i < 8; i++)
+                totalBytes += getPixelFormatSize(desc->colorAttachments()->object(i)->pixelFormat());
+        }
+        else
+        {
+            auto desc = static_cast<MTL::RenderPipelineDescriptor*>(m_pipelineDescriptor);
+            for (uint32 i = 0; i < 8; i++)
+                totalBytes += getPixelFormatSize(desc->colorAttachments()->object(i)->pixelFormat());
+            // Depth and stencil also count toward the limit
+            totalBytes += getPixelFormatSize(desc->depthAttachmentPixelFormat());
+            if (desc->stencilAttachmentPixelFormat() != MTL::PixelFormatInvalid)
+                totalBytes += 1; // stencil is 1 byte
+        }
+
+#if TARGET_OS_SIMULATOR
+        // Simulator has a 32-byte render target storage limit
+        if (totalBytes > 32)
+            return false;
+#endif
+    }
+
     auto start = std::chrono::high_resolution_clock::now();
+
     if (m_usesGeometryShader)
     {
         auto desc = static_cast<MTL::MeshRenderPipelineDescriptor*>(m_pipelineDescriptor);
-
-        // Shaders
         desc->setObjectFunction(m_vertexShaderMtl->GetFunction());
         desc->setMeshFunction(m_geometryShaderMtl->GetFunction());
         if (m_rasterizationEnabled)
             desc->setFragmentFunction(m_pixelShaderMtl->GetFunction());
-
 #ifdef CEMU_DEBUG_ASSERT
         desc->setLabel(GetLabel("Mesh render pipeline state", desc));
 #endif
@@ -361,17 +426,15 @@ bool MetalPipelineCompiler::Compile(bool forceCompile, bool isRenderThread, bool
     else
     {
         auto desc = static_cast<MTL::RenderPipelineDescriptor*>(m_pipelineDescriptor);
-
-        // Shaders
         desc->setVertexFunction(m_vertexShaderMtl->GetFunction());
         if (m_rasterizationEnabled)
             desc->setFragmentFunction(m_pixelShaderMtl->GetFunction());
-
 #ifdef CEMU_DEBUG_ASSERT
         desc->setLabel(GetLabel("Render pipeline state", desc));
 #endif
        	pipeline = m_mtlr->GetDevice()->newRenderPipelineState(desc, MTL::PipelineOptionNone, nullptr, &error);
     }
+
     // On visionOS simulator, Metal validation aborts on unsupported render target configs.
     // The error parameter captures the failure but the debug layer still asserts.
     // We handle this by returning false below if pipeline is null.

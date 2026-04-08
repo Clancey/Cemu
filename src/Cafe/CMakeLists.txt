@@ -496,6 +496,7 @@ if(APPLE)
 	target_sources(CemuCafe PRIVATE
 	    HW/Latte/Renderer/MetalView.mm
 	    HW/Latte/Renderer/MetalView.h
+	    HW/Latte/Core/LatteThread_Apple.mm
 	)
 endif()
 
