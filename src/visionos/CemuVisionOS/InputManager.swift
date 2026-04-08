@@ -127,9 +127,21 @@ final class InputManager {
     }
 
     private func controllerDidConnect(_ controller: GCController) {
-        logger.info("Controller connected: \(controller.vendorName ?? "Unknown")")
+        let name = controller.vendorName ?? "Unknown"
+        logger.info("Controller connected: \(name)")
         connectedController = controller
         controller.playerIndex = .index1
+
+        // Auto-select mode: PSVR2 controllers have motion → Wiimote+Nunchuck
+        // Standard gamepads (DualSense, Xbox, etc.) → Pro Controller
+        if controller.motion != nil {
+            setWiimoteMode(true)
+            logger.info("Motion-capable controller detected — using Wiimote+Nunchuck mode")
+        } else {
+            setWiimoteMode(false)
+            logger.info("Standard gamepad detected — using Pro Controller mode")
+        }
+
         configureMapping(for: controller)
     }
 
