@@ -142,10 +142,15 @@ final class InputManager {
 
         // Auto-select mode: PSVR2 controllers have motion → Wiimote+Nunchuck
         // Standard gamepads (DualSense, Xbox, etc.) → Pro Controller
+        // Simulator always uses Wiimote mode (keyboard + gaze pointing)
+        #if targetEnvironment(simulator)
+        let isSpatial = true
+        #else
         let isSpatial = controller.motion != nil
+        #endif
         if isSpatial {
             setWiimoteMode(true)
-            logger.info("Motion-capable controller detected — using Wiimote+Nunchuck mode")
+            logger.info("Using Wiimote+Nunchuck mode")
 
             // Start spatial tracking for raycasting (visionOS 26+)
             if #available(visionOS 26.0, *) {
