@@ -73,6 +73,7 @@ final class EmulatorCore {
     private func autoLaunchDebugGame() {
         let basePath = "/Users/clancey/Documents/Games/WiiU"
         let gameDirs = [
+            "Wii Sports Club [Game] [0005000010144d00]",
             "The Legend of Zelda Breath of the Wild [Game] [00050000101c9400]",
         ]
         let fm = FileManager.default

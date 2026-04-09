@@ -1719,12 +1719,16 @@ void AArch64GenContext_t::leaveRecompilerCode()
 
 bool initializedInterfaceFunctions = false;
 #if TARGET_OS_VISION
-AArch64Allocator enterAllocator_ios{};
-AArch64GenContext_t enterRecompilerCode_ctx{&enterAllocator_ios};
-AArch64Allocator leaveUnvisitedAllocator_ios{};
-AArch64GenContext_t leaveRecompilerCode_unvisited_ctx{&leaveUnvisitedAllocator_ios};
-AArch64Allocator leaveVisitedAllocator_ios{};
-AArch64GenContext_t leaveRecompilerCode_visited_ctx{&leaveVisitedAllocator_ios};
+// Lazy-initialized: JITMemoryUtil must be initialized before these are created
+static AArch64Allocator* enterAllocator_ios = nullptr;
+static AArch64GenContext_t* enterRecompilerCode_ctx_ptr = nullptr;
+static AArch64Allocator* leaveUnvisitedAllocator_ios = nullptr;
+static AArch64GenContext_t* leaveRecompilerCode_unvisited_ctx_ptr = nullptr;
+static AArch64Allocator* leaveVisitedAllocator_ios = nullptr;
+static AArch64GenContext_t* leaveRecompilerCode_visited_ctx_ptr = nullptr;
+#define enterRecompilerCode_ctx (*enterRecompilerCode_ctx_ptr)
+#define leaveRecompilerCode_unvisited_ctx (*leaveRecompilerCode_unvisited_ctx_ptr)
+#define leaveRecompilerCode_visited_ctx (*leaveRecompilerCode_visited_ctx_ptr)
 #else
 AArch64GenContext_t enterRecompilerCode_ctx{};
 AArch64GenContext_t leaveRecompilerCode_unvisited_ctx{};
@@ -1736,6 +1740,16 @@ void PPCRecompilerAArch64Gen_generateRecompilerInterfaceFunctions()
 	if (initializedInterfaceFunctions)
 		return;
 	initializedInterfaceFunctions = true;
+
+#if TARGET_OS_VISION
+	// Create allocators and contexts now that JITMemoryUtil is initialized
+	enterAllocator_ios = new AArch64Allocator();
+	enterRecompilerCode_ctx_ptr = new AArch64GenContext_t(enterAllocator_ios);
+	leaveUnvisitedAllocator_ios = new AArch64Allocator();
+	leaveRecompilerCode_unvisited_ctx_ptr = new AArch64GenContext_t(leaveUnvisitedAllocator_ios);
+	leaveVisitedAllocator_ios = new AArch64Allocator();
+	leaveRecompilerCode_visited_ctx_ptr = new AArch64GenContext_t(leaveVisitedAllocator_ios);
+#endif
 
 	enterRecompilerCode_ctx.enterRecompilerCode();
 	enterRecompilerCode_ctx.readyRE();

@@ -429,6 +429,7 @@ void padscoreExport_WPADSetExtensionCallback(PPCInterpreter_t* hCPU)
 
 	const auto old_callback = padscore::g_padscore.controller_data[channel].extension_callback;
 	padscore::g_padscore.controller_data[channel].extension_callback = callback;
+
 	osLib_returnFromFunction(hCPU, old_callback.GetMPTR());
 }
 
@@ -448,6 +449,7 @@ void padscoreExport_KPADSetConnectCallback(PPCInterpreter_t* hCPU)
 
 	const auto old_callback = padscore::g_padscore.controller_data[channel].connectCallback;
 	padscore::g_padscore.controller_data[channel].connectCallback = callback;
+
 	osLib_returnFromFunction(hCPU, old_callback.GetMPTR());
 }
 
@@ -465,6 +467,21 @@ sint32 _KPADRead(uint32 channel, KPADStatus_t* samplingBufs, uint32 length, bety
 			if (errResult)
 				*errResult = KPAD_ERROR::NOT_INITIALIZED;
 			return 0;
+		}
+
+		// Fire connect callback once on first KPADRead to notify game of controller
+		static bool s_connectCallbackFired = false;
+		if (!s_connectCallbackFired)
+		{
+			s_connectCallbackFired = true;
+			auto mode = VisionOSControllerProvider::get_mode();
+			uint32 devType = (mode == VisionOSControllerMode::WiimoteNunchuck) ? kWAPDevMPLSFreeStyle : kWAPDevURCC;
+			auto cb = padscore::g_padscore.controller_data[0].connectCallback;
+			if (cb.GetMPTR() != MPTR_NULL)
+				coreinitAsyncCallback_add(cb.GetMPTR(), 2, (uint32)0, devType);
+			auto extCb = padscore::g_padscore.controller_data[0].extension_callback;
+			if (mode == VisionOSControllerMode::WiimoteNunchuck && extCb.GetMPTR() != MPTR_NULL)
+				coreinitAsyncCallback_add(extCb.GetMPTR(), 2, (uint32)0, (uint32)kWAPDevFreestyle);
 		}
 
 		uint64 currentTime = coreinit::OSGetTime();

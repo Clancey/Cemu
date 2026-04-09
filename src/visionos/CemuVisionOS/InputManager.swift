@@ -126,6 +126,11 @@ final class InputManager {
             setupKeyboardMapping(keyboard)
         }
 
+        #if targetEnvironment(simulator)
+        // Simulator always uses Wiimote+Nunchuck mode (keyboard + gaze pointing)
+        setWiimoteMode(true)
+        #endif
+
         startDiscovery()
     }
 
