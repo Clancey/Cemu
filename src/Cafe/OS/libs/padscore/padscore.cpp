@@ -106,11 +106,25 @@ void padscoreExport_WPADProbe(PPCInterpreter_t* hCPU)
 #ifdef VISIONOS
 	if (channel == 0)
 	{
+		auto mode = VisionOSControllerProvider::get_mode();
+		uint32 devType = (mode == VisionOSControllerMode::WiimoteNunchuck) ? kWAPDevMPLSFreeStyle : kWAPDevURCC;
 		if (type)
+			*type = devType;
+
+		// Fire connect + extension callbacks on first probe to notify game
+		static bool s_wpadCallbacksFired = false;
+		if (!s_wpadCallbacksFired)
 		{
-			auto mode = VisionOSControllerProvider::get_mode();
-			*type = (mode == VisionOSControllerMode::WiimoteNunchuck) ? kWAPDevMPLSFreeStyle : kWAPDevURCC;
+			s_wpadCallbacksFired = true;
+			auto cb = padscore::g_padscore.controller_data[0].connectCallback;
+			if (cb.GetMPTR() != MPTR_NULL)
+				coreinitAsyncCallback_add(cb.GetMPTR(), 2, (uint32)0, devType);
+			auto extCb = padscore::g_padscore.controller_data[0].extension_callback;
+			if (mode == VisionOSControllerMode::WiimoteNunchuck && extCb.GetMPTR() != MPTR_NULL)
+				coreinitAsyncCallback_add(extCb.GetMPTR(), 2, (uint32)0, (uint32)kWAPDevFreestyle);
+			cemuLog_log(LogType::Force, "WPAD: Fired connect callbacks for ch0 devType={}", devType);
 		}
+
 		osLib_returnFromFunction(hCPU, WPAD_ERR_NONE);
 		return;
 	}
@@ -473,6 +487,17 @@ void padscoreExport_WPADControlDpd(PPCInterpreter_t* hCPU)
 	ppcDefineParamMPTR(callback, 2);
 
 	cemuLog_log(LogType::InputAPI, "WPADControlDpd({}, {}, 0x{:x})", channel, command, callback);
+
+#ifdef VISIONOS
+	if (channel == 0)
+	{
+		padscore::g_padscore.controller_data[channel].dpd_callback = callback;
+		if (callback)
+			coreinitAsyncCallback_add(callback, 2, channel, WPAD_ERR_NONE);
+		osLib_returnFromFunction(hCPU, WPAD_ERR_NONE);
+		return;
+	}
+#endif
 
 	if (channel < InputManager::kMaxWPADControllers)
 	{
