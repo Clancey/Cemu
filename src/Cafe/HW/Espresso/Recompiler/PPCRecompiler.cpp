@@ -688,18 +688,10 @@ void PPCRecompiler_initPlatform()
 void PPCRecompiler_init()
 {
 #if TARGET_OS_VISION
-	// visionOS: initialize JIT via vm_remap dual-mapping (DolphiniOS approach)
-	if (!JITMemoryUtil::IsAvailable())
-	{
-		cemuLog_log(LogType::Force, "visionOS: Initializing JIT via vm_remap dual-mapping...");
-		if (!JITMemoryUtil::Initialize())
-		{
-			cemuLog_log(LogType::Force, "visionOS: vm_remap JIT initialization failed, falling back to interpreter");
-			ppcRecompilerEnabled = false;
-			return;
-		}
-		cemuLog_log(LogType::Force, "visionOS: JIT memory initialized successfully (vm_remap)");
-	}
+	// visionOS: JIT via vm_remap causes PAC failures on device — use interpreter for now
+	cemuLog_log(LogType::Force, "visionOS: Using interpreter mode (JIT disabled)");
+	ppcRecompilerEnabled = false;
+	return;
 #endif
 	if (ActiveSettings::GetCPUMode() == CPUMode::SinglecoreInterpreter)
 	{
