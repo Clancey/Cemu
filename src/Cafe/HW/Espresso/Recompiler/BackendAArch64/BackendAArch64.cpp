@@ -11,6 +11,7 @@
 #include "../PPCRecompiler.h"
 #include "Common/precompiled.h"
 #include "Common/cpu_features.h"
+#include "Common/JITMemoryUtil_visionOS.h"
 #include "HW/Espresso/Interpreter/PPCInterpreterInternal.h"
 #include "HW/Espresso/Interpreter/PPCInterpreterHelper.h"
 #include "HW/Espresso/PPCState.h"
@@ -63,6 +64,46 @@ static const util::Cpu s_cpu;
 class AArch64Allocator : public Allocator
 {
   private:
+#if TARGET_OS_VISION
+	// On visionOS, use the vm_remap dual-mapped allocator.
+	// Returns RW (writable) pointer to xbyak so it can write instructions.
+	// The RX (executable) pointer is derived by subtracting the writable offset.
+	bool m_freeDisabled = false;
+  public:
+	AArch64Allocator() {}
+
+	uint32* alloc(size_t size) override
+	{
+		void* rxPtr = JITMemoryUtil::AllocateCode(size);
+		if (!rxPtr)
+			return nullptr;
+		return static_cast<uint32*>(JITMemoryUtil::ToWritable(rxPtr));
+	}
+
+	void setFreeDisabled(bool disabled)
+	{
+		m_freeDisabled = disabled;
+	}
+
+	void free(uint32* p) override
+	{
+		if (!m_freeDisabled && p)
+		{
+			void* rxPtr = reinterpret_cast<uint8_t*>(p) - JITMemoryUtil::GetWritableOffset();
+			JITMemoryUtil::FreeCode(rxPtr);
+		}
+	}
+
+	[[nodiscard]] bool useProtect() const override
+	{
+		return false;
+	}
+
+	static void* ToExecutable(void* rwPtr)
+	{
+		return reinterpret_cast<uint8_t*>(rwPtr) - JITMemoryUtil::GetWritableOffset();
+	}
+#else
 #ifdef XBYAK_USE_MMAP_ALLOCATOR
 	inline static MmapAllocator s_allocator;
 #else
@@ -95,6 +136,7 @@ class AArch64Allocator : public Allocator
 	{
 		return !m_freeDisabled && m_allocatorImpl->useProtect();
 	}
+#endif
 };
 
 struct UnconditionalJumpInfo
@@ -1612,7 +1654,12 @@ bool PPCRecompiler_generateAArch64Code(struct PPCRecFunction_t* PPCRecFunction, 
 	aarch64GenContext.readyRE();
 
 	// set code
+#if TARGET_OS_VISION
+	// On visionOS, xbyak wrote to the RW alias. Convert to the RX (executable) pointer.
+	PPCRecFunction->x86Code = AArch64Allocator::ToExecutable(aarch64GenContext.getCode<void*>());
+#else
 	PPCRecFunction->x86Code = aarch64GenContext.getCode<void*>();
+#endif
 	PPCRecFunction->x86Size = aarch64GenContext.getMaxSize();
 	// set free disabled to skip freeing the code from the CodeGenerator destructor
 	allocator.setFreeDisabled(true);
@@ -1671,10 +1718,19 @@ void AArch64GenContext_t::leaveRecompilerCode()
 }
 
 bool initializedInterfaceFunctions = false;
+#if TARGET_OS_VISION
+AArch64Allocator enterAllocator_ios{};
+AArch64GenContext_t enterRecompilerCode_ctx{&enterAllocator_ios};
+AArch64Allocator leaveUnvisitedAllocator_ios{};
+AArch64GenContext_t leaveRecompilerCode_unvisited_ctx{&leaveUnvisitedAllocator_ios};
+AArch64Allocator leaveVisitedAllocator_ios{};
+AArch64GenContext_t leaveRecompilerCode_visited_ctx{&leaveVisitedAllocator_ios};
+#else
 AArch64GenContext_t enterRecompilerCode_ctx{};
-
 AArch64GenContext_t leaveRecompilerCode_unvisited_ctx{};
 AArch64GenContext_t leaveRecompilerCode_visited_ctx{};
+#endif
+
 void PPCRecompilerAArch64Gen_generateRecompilerInterfaceFunctions()
 {
 	if (initializedInterfaceFunctions)
@@ -1683,13 +1739,28 @@ void PPCRecompilerAArch64Gen_generateRecompilerInterfaceFunctions()
 
 	enterRecompilerCode_ctx.enterRecompilerCode();
 	enterRecompilerCode_ctx.readyRE();
+#if TARGET_OS_VISION
+	PPCRecompiler_enterRecompilerCode = reinterpret_cast<decltype(PPCRecompiler_enterRecompilerCode)>(
+		AArch64Allocator::ToExecutable(enterRecompilerCode_ctx.getCode<void*>()));
+#else
 	PPCRecompiler_enterRecompilerCode = enterRecompilerCode_ctx.getCode<decltype(PPCRecompiler_enterRecompilerCode)>();
+#endif
 
 	leaveRecompilerCode_unvisited_ctx.leaveRecompilerCode();
 	leaveRecompilerCode_unvisited_ctx.readyRE();
+#if TARGET_OS_VISION
+	PPCRecompiler_leaveRecompilerCode_unvisited = reinterpret_cast<decltype(PPCRecompiler_leaveRecompilerCode_unvisited)>(
+		AArch64Allocator::ToExecutable(leaveRecompilerCode_unvisited_ctx.getCode<void*>()));
+#else
 	PPCRecompiler_leaveRecompilerCode_unvisited = leaveRecompilerCode_unvisited_ctx.getCode<decltype(PPCRecompiler_leaveRecompilerCode_unvisited)>();
+#endif
 
 	leaveRecompilerCode_visited_ctx.leaveRecompilerCode();
 	leaveRecompilerCode_visited_ctx.readyRE();
+#if TARGET_OS_VISION
+	PPCRecompiler_leaveRecompilerCode_visited = reinterpret_cast<decltype(PPCRecompiler_leaveRecompilerCode_visited)>(
+		AArch64Allocator::ToExecutable(leaveRecompilerCode_visited_ctx.getCode<void*>()));
+#else
 	PPCRecompiler_leaveRecompilerCode_visited = leaveRecompilerCode_visited_ctx.getCode<decltype(PPCRecompiler_leaveRecompilerCode_visited)>();
+#endif
 }
