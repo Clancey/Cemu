@@ -80,7 +80,6 @@ bool Initialize(size_t regionSize)
 		return true; // Already initialized
 
 	s_regionSize = regionSize;
-	s_hasTxm = DetectTXM();
 
 	// Step 1: Allocate RX (read-execute) region
 	void* rxPtr = mmap(nullptr, regionSize,
@@ -89,21 +88,12 @@ bool Initialize(size_t regionSize)
 		-1, 0);
 
 	if (rxPtr == MAP_FAILED)
+	{
+		fprintf(stderr, "JITMemoryUtil: mmap RX failed: errno=%d (%s)\n", errno, strerror(errno));
 		return false;
+	}
 
 	s_rxRegion = static_cast<uint8_t*>(rxPtr);
-
-	// Step 2: If TXM is present, register the region with the kernel
-	if (s_hasTxm)
-	{
-		asm volatile(
-			"mov x0, %0\n"
-			"mov x1, %1\n"
-			"brk #0x69"
-			:: "r"(s_rxRegion), "r"(regionSize)
-			: "x0", "x1"
-		);
-	}
 
 	// Step 3: Create RW remap of the same physical memory via vm_remap
 	vm_address_t rwAddress = 0;
@@ -126,6 +116,7 @@ bool Initialize(size_t regionSize)
 
 	if (kr != KERN_SUCCESS)
 	{
+		fprintf(stderr, "JITMemoryUtil: vm_remap failed: kr=%d\n", kr);
 		munmap(s_rxRegion, regionSize);
 		s_rxRegion = nullptr;
 		return false;
@@ -136,6 +127,7 @@ bool Initialize(size_t regionSize)
 	// Step 4: Set the RW region to writable
 	if (mprotect(s_rwRegion, regionSize, PROT_READ | PROT_WRITE) != 0)
 	{
+		fprintf(stderr, "JITMemoryUtil: mprotect RW failed: errno=%d (%s)\n", errno, strerror(errno));
 		vm_deallocate(mach_task_self(), rwAddress, regionSize);
 		munmap(s_rxRegion, regionSize);
 		s_rxRegion = nullptr;
