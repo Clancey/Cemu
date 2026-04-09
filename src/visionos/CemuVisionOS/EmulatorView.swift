@@ -23,9 +23,28 @@ struct EmulatorView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Always show the Metal view
+            // Metal rendering surface with pointer tracking overlay
             MetalEmulatorView(core: core)
                 .aspectRatio(854.0 / 480.0, contentMode: .fit)
+                .overlay {
+                    // Track gaze/pointer position for Wiimote pointing
+                    GeometryReader { geo in
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onContinuousHover { phase in
+                                switch phase {
+                                case .active(let location):
+                                    // Convert view coordinates to Wiimote DPD space (0-1024, 0-768)
+                                    let x = Float(location.x / geo.size.width) * 1024.0
+                                    let y = Float(location.y / geo.size.height) * 768.0
+                                    CemuBridge.shared().onControllerAxisEvent(10, value: x)
+                                    CemuBridge.shared().onControllerAxisEvent(11, value: y)
+                                case .ended:
+                                    break
+                                }
+                            }
+                    }
+                }
 
             // On-screen controls — hidden when a physical controller is connected
             if core.isRunning && showControls && core.inputManager.connectedController == nil {
@@ -36,6 +55,7 @@ struct EmulatorView: View {
                 }
             }
         }
+        .toolbar(core.isRunning ? .hidden : .visible, for: .bottomOrnament)
         .toolbar {
             toolbarContent
         }

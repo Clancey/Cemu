@@ -521,27 +521,10 @@ sint32 _KPADRead(uint32 channel, KPADStatus_t* samplingBufs, uint32 length, bety
 			samplingBufs->acc_value = 1.0f;
 			samplingBufs->acc_speed = 0.0f;
 
-			// Pointing — use spatial raycast if available, else right stick fallback
-			if (VisionOSControllerProvider::s_pointingValid.load())
-			{
-				// Spatial raycasting from controller to screen
-				samplingBufs->pos.x = VisionOSControllerProvider::s_pointingX.load();
-				samplingBufs->pos.y = VisionOSControllerProvider::s_pointingY.load();
-				samplingBufs->dpd_valid_fg = 1;
-			}
-			else
-			{
-				// Fallback: right stick cursor control
-				static float cursorX = 512.0f, cursorY = 384.0f;
-				float rx = state.rotation.x;
-				float ry = state.rotation.y;
-				constexpr float cursorSpeed = 15.0f;
-				cursorX = std::clamp(cursorX + rx * cursorSpeed, 0.0f, 1024.0f);
-				cursorY = std::clamp(cursorY - ry * cursorSpeed, 0.0f, 768.0f);
-				samplingBufs->pos.x = cursorX;
-				samplingBufs->pos.y = cursorY;
-				samplingBufs->dpd_valid_fg = 1;
-			}
+			// Pointing — use gaze/pointer position from hover tracking
+			samplingBufs->pos.x = VisionOSControllerProvider::s_pointingX.load();
+			samplingBufs->pos.y = VisionOSControllerProvider::s_pointingY.load();
+			samplingBufs->dpd_valid_fg = VisionOSControllerProvider::s_pointingValid.load() ? 1 : 0;
 
 			// Nunchuck extension data (left hand)
 			samplingBufs->ex_status.fs.stick.x = state.axis.x;  // left stick
