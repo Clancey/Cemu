@@ -73,7 +73,9 @@ bool LaunchSettings::HandleCommandline(const std::vector<std::wstring>& args)
 
 		("force-interpreter", po::value<bool>()->implicit_value(true), "Force interpreter CPU emulation, disables recompiler. Useful for debugging purposes where you want to get accurate memory accesses and stack traces.")
 		("force-multicore-interpreter", po::value<bool>()->implicit_value(true), "Force multi-core interpreter CPU emulation, disables recompiler. Only useful for getting stack traces, but slightly faster than the single-core interpreter mode.")
-		("enable-gdbstub", po::value<bool>()->implicit_value(true), "Enable GDB stub to debug executables inside Cemu using an external debugger");
+		("enable-gdbstub", po::value<bool>()->implicit_value(true), "Enable GDB stub to debug executables inside Cemu using an external debugger")
+		("aot-compile", po::value<bool>()->implicit_value(true), "AOT compilation mode: load game, discover and compile all PPC functions, save AOT cache, then exit. Use with --game to specify the RPX.")
+		("aot-output", po::wvalue<std::wstring>(), "Output path for AOT cache file (default: aot_cache.bin in user data dir)");
 
 	po::options_description hidden{ "Hidden options" };
 	hidden.add_options()
@@ -188,6 +190,16 @@ bool LaunchSettings::HandleCommandline(const std::vector<std::wstring>& args)
 		
 		if (vm.count("enable-gdbstub"))
 			s_enable_gdbstub = vm["enable-gdbstub"].as<bool>();
+
+		if (vm.count("aot-compile"))
+			s_aot_compile = vm["aot-compile"].as<bool>();
+		if (vm.count("aot-output"))
+		{
+			std::wstring tmp = vm["aot-output"].as<std::wstring>();
+			if (tmp.size() > 0 && tmp.front() == '=')
+				tmp.erase(tmp.begin() + 0);
+			s_aot_output_path = tmp;
+		}
 
 		std::wstring extract_path, log_path;
 		std::string output_path;

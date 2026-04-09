@@ -94,6 +94,14 @@ add_library(CemuCafe
   HW/Espresso/Recompiler/BackendX64/BackendX64.h
   HW/Espresso/Recompiler/BackendX64/X64Emit.hpp
   HW/Espresso/Recompiler/BackendX64/x86Emitter.h
+  HW/Espresso/Recompiler/AOT/PPCAOTCache.h
+  HW/Espresso/Recompiler/AOT/PPCAOTCache.cpp
+  HW/Espresso/Recompiler/AOT/PPCAOTLoader.h
+  HW/Espresso/Recompiler/AOT/PPCAOTLoader.cpp
+  HW/Espresso/Recompiler/AOT/PPCAOTAssemblyGen.h
+  HW/Espresso/Recompiler/AOT/PPCAOTAssemblyGen.cpp
+  HW/Espresso/Recompiler/AOT/PPCAOTCompiler.h
+  HW/Espresso/Recompiler/AOT/PPCAOTCompiler.cpp
   HW/Latte/Common/RegisterSerializer.cpp
   HW/Latte/Common/RegisterSerializer.h
   HW/Latte/Common/ShaderSerializer.cpp
@@ -620,14 +628,19 @@ if(ENABLE_METAL)
 endif()
 
 if(CEMU_ARCHITECTURE MATCHES "(aarch64)|(AARCH64)|(arm64)|(ARM64)")
-  if(NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
-    # visionOS doesn't allow JIT (MAP_JIT not permitted) — skip recompiler backend
-    target_sources(CemuCafe PRIVATE
-      HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.cpp
-      HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.h
-    )
-    target_link_libraries(CemuCafe PRIVATE xbyak_aarch64)
-  endif()
+  # AArch64 recompiler backend — enabled for all AArch64 platforms including visionOS
+  # (visionOS uses vm_remap dual-mapping instead of MAP_JIT)
+  target_sources(CemuCafe PRIVATE
+    HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.cpp
+    HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.h
+  )
+  target_link_libraries(CemuCafe PRIVATE xbyak_aarch64)
+
+  # AOT static interface functions (for AOT mode on any AArch64 platform)
+  enable_language(ASM)
+  target_sources(CemuCafe PRIVATE
+    HW/Espresso/Recompiler/AOT/PPCAOTInterface_aarch64.s
+  )
 endif()
 
 set_property(TARGET CemuCafe PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

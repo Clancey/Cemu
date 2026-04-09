@@ -162,3 +162,8 @@ extern void ATTR_MS_ABI (*PPCRecompiler_leaveRecompilerCode_unvisited)();
 void PPCRecompiler_recompileIfUnvisited(uint32 enterAddress);
 void PPCRecompiler_attemptEnter(struct PPCInterpreter_t* hCPU, uint32 enterAddress);
 void PPCRecompiler_attemptEnterWithoutRecompile(struct PPCInterpreter_t* hCPU, uint32 enterAddress);
+
+// AOT recording API — call these to capture JIT output for offline use
+void PPCRecompiler_startAOTRecording(uint64 titleId);
+bool PPCRecompiler_stopAOTRecording();
+bool PPCRecompiler_isAOTRecording();
