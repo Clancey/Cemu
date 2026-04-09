@@ -67,9 +67,8 @@ bool ActiveSettings::DisplayDRCEnabled()
 CPUMode ActiveSettings::GetCPUMode()
 {
 #if TARGET_OS_VISION
-	// visionOS doesn't allow JIT (MAP_JIT not permitted)
-	// Use AOT if pre-compiled functions are available, otherwise multicore interpreter
-	return CPUMode::MulticoreAOT;
+	// visionOS: use JIT via vm_remap dual-mapping (same as DolphiniOS approach)
+	return CPUMode::MulticoreRecompiler;
 #endif
 	auto mode = g_current_game_profile->GetCPUMode().value_or(CPUMode::Auto);
 

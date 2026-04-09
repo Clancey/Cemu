@@ -628,14 +628,13 @@ if(ENABLE_METAL)
 endif()
 
 if(CEMU_ARCHITECTURE MATCHES "(aarch64)|(AARCH64)|(arm64)|(ARM64)")
-  if(NOT (CMAKE_SYSTEM_NAME STREQUAL "visionOS" OR VISIONOS))
-    # visionOS doesn't allow JIT (MAP_JIT not permitted) — skip recompiler backend
-    target_sources(CemuCafe PRIVATE
-      HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.cpp
-      HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.h
-    )
-    target_link_libraries(CemuCafe PRIVATE xbyak_aarch64)
-  endif()
+  # AArch64 recompiler backend — enabled for all AArch64 platforms including visionOS
+  # (visionOS uses vm_remap dual-mapping instead of MAP_JIT)
+  target_sources(CemuCafe PRIVATE
+    HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.cpp
+    HW/Espresso/Recompiler/BackendAArch64/BackendAArch64.h
+  )
+  target_link_libraries(CemuCafe PRIVATE xbyak_aarch64)
 
   # AOT static interface functions (for AOT mode on any AArch64 platform)
   enable_language(ASM)

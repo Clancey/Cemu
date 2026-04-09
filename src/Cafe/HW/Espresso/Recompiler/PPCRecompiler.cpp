@@ -21,6 +21,7 @@
 #endif
 #include "AOT/PPCAOTLoader.h"
 #include "AOT/PPCAOTCache.h"
+#include "Common/JITMemoryUtil_visionOS.h"
 #include "util/highresolutiontimer/HighResolutionTimer.h"
 
 #define PPCREC_FORCE_SYNCHRONOUS_COMPILATION	0 // if 1, then function recompilation will block and execute on the thread that called PPCRecompiler_visitAddressNoBlock
@@ -237,7 +238,7 @@ PPCRecFunction_t* PPCRecompiler_recompileFunction(PPCFunctionBoundaryTracker::PP
 	{
 		return nullptr;
 	}
-#elif defined(__aarch64__) && !TARGET_OS_VISION
+#elif defined(__aarch64__)
 	bool aarch64GenerationSuccess = PPCRecompiler_generateAArch64Code(ppcRecFunc, &ppcImlGenContext);
 	if (aarch64GenerationSuccess == false)
 	{
@@ -764,9 +765,18 @@ void PPCRecompiler_init()
 		}
 	}
 #if TARGET_OS_VISION
-	// visionOS without AOT: JIT not allowed, use interpreter
-	ppcRecompilerEnabled = false;
-	return;
+	// visionOS: try JIT via vm_remap dual-mapping (like DolphiniOS)
+	if (!JITMemoryUtil::IsAvailable())
+	{
+		cemuLog_log(LogType::Force, "visionOS: Initializing JIT via vm_remap dual-mapping...");
+		if (!JITMemoryUtil::Initialize())
+		{
+			cemuLog_log(LogType::Force, "visionOS: vm_remap JIT initialization failed, falling back to interpreter");
+			ppcRecompilerEnabled = false;
+			return;
+		}
+		cemuLog_log(LogType::Force, "visionOS: JIT memory initialized successfully (vm_remap)");
+	}
 #endif
 	if (ActiveSettings::GetCPUMode() == CPUMode::SinglecoreInterpreter)
 	{
@@ -788,7 +798,7 @@ void PPCRecompiler_init()
 	MemMapper::AllocateMemory(&(ppcRecompilerInstanceData->_x64XMM_xorNegateMaskBottom), sizeof(PPCRecompilerInstanceData_t) - offsetof(PPCRecompilerInstanceData_t, _x64XMM_xorNegateMaskBottom), MemMapper::PAGE_PERMISSION::P_RW, true);
 #ifdef ARCH_X86_64
 	PPCRecompilerX64Gen_generateRecompilerInterfaceFunctions();
-#elif defined(__aarch64__) && !TARGET_OS_VISION
+#elif defined(__aarch64__)
 	PPCRecompilerAArch64Gen_generateRecompilerInterfaceFunctions();
 #endif
     PPCRecompiler_allocateRange(0, 0x1000); // the first entry is used for fallback to interpreter

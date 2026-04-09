@@ -22,6 +22,8 @@ add_library(CemuCommon
   SysAllocator.h
   CafeString.h
   version.h
+  JITMemoryUtil_visionOS.h
+  JITMemoryUtil_visionOS.cpp
 )
 
 set_property(TARGET CemuCommon PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
