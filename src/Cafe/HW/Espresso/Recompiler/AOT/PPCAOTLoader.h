@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include "../PPCRecompiler.h"
 
 // Runtime interface for loading AOT-compiled functions into the recompiler jump table.
 // The AOT function table and interface functions are generated at build time
@@ -30,8 +31,6 @@ extern "C" const size_t g_aotEntryPointCount;
 extern "C" void PPCRecompilerAOT_enterRecompilerCode(uint64_t codeMem, uint64_t ppcInterpreterInstance);
 extern "C" void PPCRecompilerAOT_leaveRecompilerCode_unvisited();
 extern "C" void PPCRecompilerAOT_leaveRecompilerCode_visited();
-
-struct PPCRecompilerInstanceData_t;
 
 namespace PPCAOTLoader
 {
