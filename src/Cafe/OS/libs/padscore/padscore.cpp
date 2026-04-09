@@ -154,6 +154,23 @@ void padscoreExport_WPADGetInfoAsync(PPCInterpreter_t* hCPU)
 	ppcDefineParamMPTR(callbackFunc, 2);
 	cemuLog_log(LogType::InputAPI, "WPADGetInfoAsync({}, 0x{:08x}, 0x{:08x})", channel, memory_getVirtualOffsetFromPointer(wpadInfo), callbackFunc);
 
+#ifdef VISIONOS
+	if (channel == 0)
+	{
+		wpadInfo->dpd = TRUE;
+		wpadInfo->speaker = FALSE;
+		wpadInfo->attach = TRUE; // Nunchuck attached
+		wpadInfo->lowBat = FALSE;
+		wpadInfo->nearempty = FALSE;
+		wpadInfo->batteryLevel = WPADBatteryLevel::FULL;
+		wpadInfo->led = WPADLed::CHAN0;
+		if (callbackFunc != MPTR_NULL)
+			coreinitAsyncCallback_add(callbackFunc, 2, channel, (uint32)KPAD_ERROR::NONE);
+		osLib_returnFromFunction(hCPU, WPAD_ERR_NONE);
+		return;
+	}
+#endif
+
 	if (channel < InputManager::kMaxWPADControllers)
 	{
 		if (const auto controller = InputManager::instance().get_wpad_controller(channel))
@@ -189,6 +206,43 @@ void padscoreExport_WPADRead(PPCInterpreter_t* hCPU)
 	ppcDefineParamU32(channel, 0);
 	ppcDefineParamPtr(wpadStatus, WPADStatus_t, 1);
 	cemuLog_log(LogType::InputAPI, "WPADRead({}, {:x})", channel, fmt::ptr(wpadStatus));
+
+#ifdef VISIONOS
+	if (channel == 0 && wpadStatus)
+	{
+		memset(wpadStatus, 0, sizeof(WPADStatus_t));
+		auto& state = VisionOSControllerProvider::get_controller_state();
+		auto& btn = state.buttons;
+
+		uint16 hold = 0;
+		if (btn.GetButtonState(0x1000)) hold |= kWPADButton_A;
+		if (btn.GetButtonState(0x1005)) hold |= kWPADButton_B;
+		if (btn.GetButtonState(0x1002)) hold |= kWPADButton_1;
+		if (btn.GetButtonState(0x1003)) hold |= kWPADButton_2;
+		if (btn.GetButtonState(0x1008)) hold |= kWPADButton_Up;
+		if (btn.GetButtonState(0x1009)) hold |= kWPADButton_Down;
+		if (btn.GetButtonState(0x1010)) hold |= kWPADButton_Left;
+		if (btn.GetButtonState(0x1011)) hold |= kWPADButton_Right;
+		if (btn.GetButtonState(0x1012)) hold |= kWPADButton_Plus;
+		if (btn.GetButtonState(0x1013)) hold |= kWPADButton_Minus;
+		if (btn.GetButtonState(0x1014)) hold |= kWPADButton_Home;
+		if (btn.GetButtonState(0x1006)) hold |= kWPADButton_Z;
+		if (btn.GetButtonState(0x1004)) hold |= kWPADButton_C;
+		wpadStatus->button = hold;
+
+		// Accelerometer — neutral position (pointing forward)
+		wpadStatus->accX = 0x0200;  // ~512 = neutral
+		wpadStatus->accY = 0x0200;
+		wpadStatus->accZ = 0x0260;  // slight Z for "upright" orientation
+
+		auto mode = VisionOSControllerProvider::get_mode();
+		wpadStatus->dev = (mode == VisionOSControllerMode::WiimoteNunchuck) ? kWAPDevMPLSFreeStyle : kWAPDevURCC;
+		wpadStatus->err = 0; // WPAD_ERR_NONE
+
+		osLib_returnFromFunction(hCPU, 0);
+		return;
+	}
+#endif
 
 	if (channel < InputManager::kMaxWPADControllers)
 	{
@@ -233,6 +287,16 @@ void padscoreExport_WPADGetDataFormat(PPCInterpreter_t* hCPU)
 	ppcDefineParamU32(channel, 0);
 	cemuLog_log(LogType::InputAPI, "WPADGetDataFormat({})", channel);
 
+#ifdef VISIONOS
+	if (channel == 0)
+	{
+		auto mode = VisionOSControllerProvider::get_mode();
+		sint32 fmt = (mode == VisionOSControllerMode::WiimoteNunchuck) ? kDataFormat_FREESTYLE_ACC_DPD : kDataFormat_URCC;
+		osLib_returnFromFunction(hCPU, fmt);
+		return;
+	}
+#endif
+
 	sint32 dataFormat = kDataFormat_CORE;
 	if (channel < InputManager::kMaxWPADControllers)
 	{
@@ -252,6 +316,21 @@ void padscoreExport_WPADGetInfo(PPCInterpreter_t* hCPU)
 	ppcDefineParamU32(channel, 0);
 	ppcDefineParamStructPtr(wpadInfo, WPADInfo_t, 1);
 	cemuLog_log(LogType::InputAPI, "WPADGetInfo({}, 0x{:08x})", channel, fmt::ptr(wpadInfo));
+
+#ifdef VISIONOS
+	if (channel == 0)
+	{
+		wpadInfo->dpd = TRUE;
+		wpadInfo->speaker = FALSE;
+		wpadInfo->attach = TRUE;
+		wpadInfo->lowBat = FALSE;
+		wpadInfo->nearempty = FALSE;
+		wpadInfo->batteryLevel = WPADBatteryLevel::FULL;
+		wpadInfo->led = WPADLed::CHAN0;
+		osLib_returnFromFunction(hCPU, WPAD_ERR_NONE);
+		return;
+	}
+#endif
 
 	if (channel < InputManager::kMaxWPADControllers)
 	{
