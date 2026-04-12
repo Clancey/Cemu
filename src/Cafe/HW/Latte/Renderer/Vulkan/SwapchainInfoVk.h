@@ -102,7 +102,10 @@ struct SwapchainInfoVk
 	using FnAcquireImage = uint32_t(*)(void*);
 	using FnReleaseImage = void(*)(void*);
 	using FnEndFrame = void(*)(void*);
+	using FnStartSession = bool(*)(void*);
 
+	FnStartSession m_xrStartSession = nullptr;
+	bool m_xrSessionStarted = false;
 	FnPollEvents m_xrPollEvents = nullptr;
 	FnIsRunning m_xrIsRunning = nullptr;
 	FnBeginFrame m_xrBeginFrame = nullptr;
@@ -110,10 +113,11 @@ struct SwapchainInfoVk
 	FnReleaseImage m_xrReleaseImage = nullptr;
 	FnEndFrame m_xrEndFrame = nullptr;
 
-	void SetOpenXRCallbacks(void* mgr, FnPollEvents pe, FnIsRunning ir, FnBeginFrame bf, FnAcquireImage ai, FnReleaseImage ri, FnEndFrame ef) {
+	void SetOpenXRCallbacks(void* mgr, FnPollEvents pe, FnIsRunning ir, FnBeginFrame bf, FnAcquireImage ai, FnReleaseImage ri, FnEndFrame ef, FnStartSession ss = nullptr) {
 		m_openxrManager = mgr; m_isOpenXR = true;
 		m_xrPollEvents = pe; m_xrIsRunning = ir; m_xrBeginFrame = bf;
 		m_xrAcquireImage = ai; m_xrReleaseImage = ri; m_xrEndFrame = ef;
+		m_xrStartSession = ss; m_xrSessionStarted = (ss == nullptr);
 	}
 	bool IsOpenXR() const { return m_isOpenXR; }
 

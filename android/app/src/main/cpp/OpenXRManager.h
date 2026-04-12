@@ -124,6 +124,12 @@ public:
     void ReleaseSwapchainImage();
 
     /**
+     * Cancel the current frame after a failed render/acquire path.
+     * Releases any acquired swapchain image and ends the frame with no layers.
+     */
+    bool CancelFrame();
+
+    /**
      * End the OpenXR frame and submit for composition.
      * Call after rendering and releasing swapchain image.
      *
@@ -167,6 +173,14 @@ public:
      * Stores current state of all Quest controller inputs.
      */
     struct ControllerInputState {
+        struct MotionState {
+            bool valid = false;
+            float acceleration[3]{};
+            float gyro[3]{};
+            float orientation[3]{};
+            float quaternion[4]{};
+        };
+
         bool buttons[16] = {false}; // A, B, X, Y, menu, thumbstick clicks, etc.
         float triggerL = 0.0f;
         float triggerR = 0.0f;
@@ -176,6 +190,11 @@ public:
         float thumbstickLY = 0.0f;
         float thumbstickRX = 0.0f;
         float thumbstickRY = 0.0f;
+        float pointerX = 0.0f;
+        float pointerY = 0.0f;
+        int pointerVisibility = 0;
+        MotionState motionL{};
+        MotionState motionR{};
     };
 
     /**
@@ -187,9 +206,16 @@ public:
 
     /**
      * Poll controller input and update internal state.
-     * Should be called regularly (e.g., once per frame).
+     * This pumps an empty frame and is only safe when no other code owns the
+     * OpenXR frame loop (e.g. 2D/input-only mode).
      */
-    void PollInput();
+    bool PollInput();
+
+    /**
+     * Sync controller input actions inside an already-begun frame.
+     * Use this from the active render loop instead of PollInput().
+     */
+    bool SyncInputActions();
 
     /**
      * Get current controller input state.
@@ -243,11 +269,24 @@ private:
     XrAction m_actionGripR = XR_NULL_HANDLE;
     XrAction m_actionThumbstickL = XR_NULL_HANDLE;
     XrAction m_actionThumbstickR = XR_NULL_HANDLE;
-    XrSpace m_handSpaceL = XR_NULL_HANDLE;
-    XrSpace m_handSpaceR = XR_NULL_HANDLE;
+    XrAction m_actionGripPoseL = XR_NULL_HANDLE;
+    XrAction m_actionGripPoseR = XR_NULL_HANDLE;
+    XrAction m_actionAimPoseR = XR_NULL_HANDLE;
+    XrPath m_leftHandPath = XR_NULL_PATH;
+    XrPath m_rightHandPath = XR_NULL_PATH;
+    XrSpace m_gripSpaceL = XR_NULL_HANDLE;
+    XrSpace m_gripSpaceR = XR_NULL_HANDLE;
+    XrSpace m_aimSpaceR = XR_NULL_HANDLE;
 
     // Controller input state
     ControllerInputState m_inputState;
+    struct MotionTrackingCache {
+        XrVector3f previousLinearVelocity{};
+        XrTime previousSampleTime = 0;
+        bool hasPreviousSample = false;
+    };
+    MotionTrackingCache m_motionCacheL{};
+    MotionTrackingCache m_motionCacheR{};
 
     // Dynamic loading state
     void* m_openxrLibrary = nullptr;
@@ -294,8 +333,11 @@ private:
     PFN_xrGetActionStateBoolean p_xrGetActionStateBoolean = nullptr;
     PFN_xrGetActionStateFloat p_xrGetActionStateFloat = nullptr;
     PFN_xrGetActionStateVector2f p_xrGetActionStateVector2f = nullptr;
+    PFN_xrGetCurrentInteractionProfile p_xrGetCurrentInteractionProfile = nullptr;
+    PFN_xrPathToString p_xrPathToString = nullptr;
     PFN_xrStringToPath p_xrStringToPath = nullptr;
     PFN_xrCreateActionSpace p_xrCreateActionSpace = nullptr;
+    PFN_xrLocateSpace p_xrLocateSpace = nullptr;
 
     // Helper methods
     bool LoadOpenXRLibrary();
@@ -307,6 +349,9 @@ private:
     bool CreateReferenceSpace();
     bool LoadExtensions();
     void ProcessEvent(const XrEventDataBuffer& eventData);
+    bool EndFrameEmpty();
+    void UpdatePointerState();
+    void UpdateMotionState(XrSpace space, MotionTrackingCache& cache, ControllerInputState::MotionState& motionState);
 
     // Error checking
     bool CheckXrResult(XrResult result, const char* operation) const;

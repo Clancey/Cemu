@@ -1,5 +1,6 @@
 #include <signal.h>
 #include <execinfo.h>
+#include <dlfcn.h>
 #include <string.h>
 #include <string>
 #include "config/CemuConfig.h"
@@ -61,6 +62,62 @@ void DemangleAndPrintBacktrace(char** backtrace, size_t size)
 }
 #endif
 
+#if defined(ANDROID) && defined(__aarch64__)
+namespace
+{
+	void LogResolvedAddress(const char* label, void* address)
+	{
+		Dl_info info{};
+		if (!address || dladdr(address, &info) == 0)
+		{
+			CrashLog_WriteLine(fmt::format("{}: {:p}", label, address));
+			return;
+		}
+
+		const auto imageBase = reinterpret_cast<uintptr_t>(info.dli_fbase);
+		const auto absolute = reinterpret_cast<uintptr_t>(address);
+		const auto imageOffset = absolute - imageBase;
+		if (info.dli_sname && info.dli_saddr)
+		{
+			const auto symbolBase = reinterpret_cast<uintptr_t>(info.dli_saddr);
+			CrashLog_WriteLine(fmt::format(
+				"{}: {:p} {}!{}+0x{:x} (image+0x{:x})",
+				label,
+				address,
+				info.dli_fname ? info.dli_fname : "?",
+				info.dli_sname,
+				absolute - symbolBase,
+				imageOffset));
+			return;
+		}
+
+		CrashLog_WriteLine(fmt::format(
+			"{}: {:p} {} (image+0x{:x})",
+			label,
+			address,
+			info.dli_fname ? info.dli_fname : "?",
+			imageOffset));
+	}
+
+	void LogAndroidSignalContext(siginfo_t* info, void* context)
+	{
+		CrashLog_WriteLine(fmt::format("Signal code: {}", info ? info->si_code : 0));
+		CrashLog_WriteLine(fmt::format("Fault address: {:p}", info ? info->si_addr : nullptr));
+
+		auto* uc = reinterpret_cast<ucontext_t*>(context);
+		if (!uc)
+			return;
+
+		void* pc = reinterpret_cast<void*>(uc->uc_mcontext.pc);
+		void* lr = reinterpret_cast<void*>(uc->uc_mcontext.regs[30]);
+		void* sp = reinterpret_cast<void*>(uc->uc_mcontext.sp);
+		CrashLog_WriteLine(fmt::format("Native context: pc={:p} lr={:p} sp={:p}", pc, lr, sp));
+		LogResolvedAddress("PC", pc);
+		LogResolvedAddress("LR", lr);
+	}
+}
+#endif
+
 // handle signals that would dump core, print stacktrace and then dump depending on config
 void handlerDumpingSignal(int sig, siginfo_t *info, void *context)
 {
@@ -104,6 +161,10 @@ void handlerDumpingSignal(int sig, siginfo_t *info, void *context)
 #endif
 
     CrashLog_WriteLine(fmt::format("Error: signal {}:", sig));
+
+#if defined(ANDROID) && defined(__aarch64__)
+	LogAndroidSignalContext(info, context);
+#endif
 
 #if BOOST_OS_LINUX && !defined(ANDROID)
 	char** symbol_trace = backtrace_symbols(backtraceArray, size);

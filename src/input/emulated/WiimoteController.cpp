@@ -10,8 +10,12 @@ WiimoteController::WiimoteController(size_t player_index)
 
 void WiimoteController::set_device_type(WPADDeviceType device_type)
 {
+	if (m_device_type == device_type)
+		return;
+
 	m_device_type = device_type;
 	m_data_format = get_default_data_format();
+	m_extension_status = ConnectCallbackStatus::ReportConnect;
 }
 
 bool WiimoteController::is_mpls_attached()
@@ -57,6 +61,67 @@ bool WiimoteController::set_default_mapping(const std::shared_ptr<ControllerBase
 			{kButtonId_Nunchuck_Right, kAxisXP},
 		};
 	}
+		break;
+	case InputAPI::Android:
+	{
+		if (controller->uuid() == "openxr_quest_controller")
+		{
+			mapping =
+			{
+				{kButtonId_A, 96},          // AKEYCODE_BUTTON_A
+				{kButtonId_B, kTriggerYP},  // Right trigger
+				{kButtonId_1, 99},          // AKEYCODE_BUTTON_X
+				{kButtonId_2, 100},         // AKEYCODE_BUTTON_Y
+
+				{kButtonId_Home, 107},      // AKEYCODE_BUTTON_THUMBR
+
+				{kButtonId_Plus, 108},      // AKEYCODE_BUTTON_START
+				{kButtonId_Minus, 97},      // AKEYCODE_BUTTON_B
+
+				{kButtonId_Up, kRotationYN},
+				{kButtonId_Down, kRotationYP},
+				{kButtonId_Left, kRotationXN},
+				{kButtonId_Right, kRotationXP},
+
+				{kButtonId_Nunchuck_Z, 102}, // AKEYCODE_BUTTON_L1
+				{kButtonId_Nunchuck_C, kTriggerXP},
+
+				{kButtonId_Nunchuck_Up, kAxisYN},
+				{kButtonId_Nunchuck_Down, kAxisYP},
+				{kButtonId_Nunchuck_Left, kAxisXN},
+				{kButtonId_Nunchuck_Right, kAxisXP},
+			};
+		}
+		else
+		{
+			mapping =
+			{
+				{kButtonId_A, 96},         // AKEYCODE_BUTTON_A
+				{kButtonId_B, 97},         // AKEYCODE_BUTTON_B
+				{kButtonId_1, 99},         // AKEYCODE_BUTTON_X
+				{kButtonId_2, 100},        // AKEYCODE_BUTTON_Y
+
+				{kButtonId_Home, 110},     // AKEYCODE_BUTTON_MODE
+
+				{kButtonId_Plus, 108},     // AKEYCODE_BUTTON_START
+				{kButtonId_Minus, 109},    // AKEYCODE_BUTTON_SELECT
+
+				{kButtonId_Up, 19},        // AKEYCODE_DPAD_UP
+				{kButtonId_Down, 20},      // AKEYCODE_DPAD_DOWN
+				{kButtonId_Left, 21},      // AKEYCODE_DPAD_LEFT
+				{kButtonId_Right, 22},     // AKEYCODE_DPAD_RIGHT
+
+				{kButtonId_Nunchuck_Z, 103}, // AKEYCODE_BUTTON_R1
+				{kButtonId_Nunchuck_C, 102}, // AKEYCODE_BUTTON_L1
+
+				{kButtonId_Nunchuck_Up, kAxisYN},
+				{kButtonId_Nunchuck_Down, kAxisYP},
+				{kButtonId_Nunchuck_Left, kAxisXN},
+				{kButtonId_Nunchuck_Right, kAxisXP},
+			};
+		}
+	}
+		break;
 	}
 
 	bool mapping_updated = false;
@@ -101,7 +166,7 @@ void WiimoteController::load(const pugi::xml_node& node)
 	base_type::load(node);
 
 	if (const auto value = node.child("device_type"))
-		m_device_type = ConvertString<WPADDeviceType>(value.child_value());
+		set_device_type(ConvertString<WPADDeviceType>(value.child_value()));
 }
 
 void WiimoteController::save(pugi::xml_node& node)
@@ -179,5 +244,3 @@ std::string_view WiimoteController::get_button_name(ButtonId id)
 		return "";
 	}
 }
-
-

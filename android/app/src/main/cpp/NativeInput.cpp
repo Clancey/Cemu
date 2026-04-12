@@ -62,6 +62,34 @@ Java_info_cemu_cemu_nativeinterface_NativeInput_getControllerType([[maybe_unused
 	throw std::runtime_error(fmt::format("can't get type for emulated controller {}", index));
 }
 
+extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeInput_setWiimoteDeviceType([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jint index, jint device_type)
+{
+	auto emulatedController = AndroidEmulatedController::getAndroidEmulatedController(index).getEmulatedController();
+	if (emulatedController == nullptr || emulatedController->type() != EmulatedController::Type::Wiimote)
+		throw std::runtime_error(fmt::format("Invalid controller type for controller {}, expected Wiimote", index));
+
+	auto* wiimoteController = static_cast<WiimoteController*>(emulatedController.get());
+	wiimoteController->set_device_type(device_type == 1 ? kWAPDevFreestyle : kWAPDevCore);
+	for (const auto& controller : emulatedController->get_controllers())
+		emulatedController->set_default_mapping(controller);
+	InputManager::instance().save(index);
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT jint JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeInput_getWiimoteDeviceType([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jint index)
+{
+	auto emulatedController = AndroidEmulatedController::getAndroidEmulatedController(index).getEmulatedController();
+	if (emulatedController == nullptr || emulatedController->type() != EmulatedController::Type::Wiimote)
+		throw std::runtime_error(fmt::format("Invalid controller type for controller {}, expected Wiimote", index));
+
+	const auto deviceType = static_cast<WiimoteController*>(emulatedController.get())->get_device_type();
+	if (deviceType == kWAPDevFreestyle || deviceType == kWAPDevMPLSFreeStyle)
+		return 1;
+
+	return 0;
+}
+
 extern "C" [[maybe_unused]] JNIEXPORT jint JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeInput_getWPADControllersCount([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
 {

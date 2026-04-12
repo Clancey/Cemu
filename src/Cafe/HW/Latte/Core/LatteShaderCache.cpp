@@ -15,6 +15,7 @@
 #if ENABLE_VULKAN
 #include "Cafe/HW/Latte/Renderer/Vulkan/RendererShaderVk.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanPipelineStableCache.h"
+#include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
 #endif
 #if ENABLE_METAL
 #include "Cafe/HW/Latte/Renderer/Metal/RendererShaderMtl.h"
@@ -23,6 +24,10 @@
 
 #include <imgui.h>
 #include "imgui/imgui_extension.h"
+
+#if BOOST_PLAT_ANDROID
+#include <android/log.h>
+#endif
 
 #include "config/ActiveSettings.h"
 #include "Cafe/TitleList/GameInfo.h"
@@ -275,6 +280,15 @@ class BootSoundPlayer
 };
 static BootSoundPlayer g_bootSndPlayer;
 
+static bool LatteShaderCache_UseHeadlessLoadingUI()
+{
+#if ENABLE_VULKAN
+	if (g_renderer && g_renderer->GetType() == RendererAPI::Vulkan)
+		return VulkanRenderer::GetInstance()->IsExternalVulkanObjects();
+#endif
+	return false;
+}
+
 void LatteShaderCache_finish()
 {
 #if ENABLE_VULKAN
@@ -442,10 +456,15 @@ void LatteShaderCache_Load()
 		}
 	};
 
-	loadBackgroundTexture(true, g_shaderCacheLoaderState.textureTVId);
-	loadBackgroundTexture(false, g_shaderCacheLoaderState.textureDRCId);
+	const bool useHeadlessLoadingUI = LatteShaderCache_UseHeadlessLoadingUI();
 
-	if(GetConfig().play_boot_sound)
+	if (!useHeadlessLoadingUI)
+	{
+		loadBackgroundTexture(true, g_shaderCacheLoaderState.textureTVId);
+		loadBackgroundTexture(false, g_shaderCacheLoaderState.textureDRCId);
+	}
+
+	if(GetConfig().play_boot_sound && !useHeadlessLoadingUI)
 		g_bootSndPlayer.StartSound();
 
 	sint32 numLoadedShaders = 0;
@@ -476,7 +495,18 @@ void LatteShaderCache_Load()
 		return true;
 	};
 
-	LatteShaderCache_ShowProgress(LoadShadersUpdate, false);
+	if (useHeadlessLoadingUI)
+	{
+		while (LoadShadersUpdate())
+		{
+			if (Latte_GetStopSignal())
+				break;
+		}
+	}
+	else
+	{
+		LatteShaderCache_ShowProgress(LoadShadersUpdate, false);
+	}
 
 	LatteShaderCache_updateCompileQueue(0);
 	// write load time and RAM usage to log file (in dev build)
@@ -495,27 +525,55 @@ void LatteShaderCache_Load()
         LatteShaderCache_LoadPipelineCache(cacheTitleId);
 
 
-	g_renderer->BeginFrame(true);
-	if (g_renderer->ImguiBegin(true))
+	if (!useHeadlessLoadingUI)
 	{
-		LatteShaderCache_drawBackgroundImage(g_shaderCacheLoaderState.textureTVId, 1280, 720);
-		g_renderer->ImguiEnd();
+		g_renderer->BeginFrame(true);
+		if (g_renderer->ImguiBegin(true))
+		{
+			LatteShaderCache_drawBackgroundImage(g_shaderCacheLoaderState.textureTVId, 1280, 720);
+			g_renderer->ImguiEnd();
+		}
+		g_renderer->BeginFrame(false);
+		if (g_renderer->ImguiBegin(false))
+		{
+			LatteShaderCache_drawBackgroundImage(g_shaderCacheLoaderState.textureDRCId, 854, 480);
+			g_renderer->ImguiEnd();
+		}
+
+		g_renderer->SwapBuffers(true, true);
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache: SwapBuffers end");
+#endif
+
+		if (g_shaderCacheLoaderState.textureTVId)
+		{
+#if BOOST_PLAT_ANDROID
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache: DeleteTexture TV begin");
+#endif
+			g_renderer->DeleteTexture(g_shaderCacheLoaderState.textureTVId);
+#if BOOST_PLAT_ANDROID
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache: DeleteTexture TV end");
+#endif
+		}
+		if (g_shaderCacheLoaderState.textureDRCId)
+		{
+#if BOOST_PLAT_ANDROID
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache: DeleteTexture DRC begin");
+#endif
+			g_renderer->DeleteTexture(g_shaderCacheLoaderState.textureDRCId);
+#if BOOST_PLAT_ANDROID
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache: DeleteTexture DRC end");
+#endif
+		}
+
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache: FadeOutSound begin");
+#endif
+		g_bootSndPlayer.FadeOutSound();
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache: FadeOutSound end");
+#endif
 	}
-	g_renderer->BeginFrame(false);
-	if (g_renderer->ImguiBegin(false))
-	{
-		LatteShaderCache_drawBackgroundImage(g_shaderCacheLoaderState.textureDRCId, 854, 480);
-		g_renderer->ImguiEnd();
-	}
-
-	g_renderer->SwapBuffers(true, true);
-
-	if (g_shaderCacheLoaderState.textureTVId)
-		g_renderer->DeleteTexture(g_shaderCacheLoaderState.textureTVId);
-	if (g_shaderCacheLoaderState.textureDRCId)
-		g_renderer->DeleteTexture(g_shaderCacheLoaderState.textureDRCId);
-
-	g_bootSndPlayer.FadeOutSound();
 
 	if(Latte_GetStopSignal())
 		LatteThread_Exit();
@@ -533,6 +591,11 @@ void LatteShaderCache_ShowProgress(const std::function <bool(void)>& loadUpdateF
         if (Latte_GetStopSignal())
             break; // thread stop requested, cancel shader loading
 		bool r = loadUpdateFunc();
+#if BOOST_PLAT_ANDROID
+		static int shaderProgressLogCount = 0;
+		if (shaderProgressLogCount++ < 12)
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache::ShowProgress loadUpdateFunc=%d isPipelines=%d", r ? 1 : 0, isPipelines ? 1 : 0);
+#endif
 		if (!r)
 			break;
 
@@ -648,7 +711,13 @@ void LatteShaderCache_ShowProgress(const std::function <bool(void)>& loadUpdateF
 		}
 
 		// finish frame
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache::ShowProgress SwapBuffers begin isPipelines=%d", isPipelines ? 1 : 0);
+#endif
 		g_renderer->SwapBuffers(true, true);
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteShaderCache::ShowProgress SwapBuffers end isPipelines=%d", isPipelines ? 1 : 0);
+#endif
 	}
 }
 
@@ -666,7 +735,18 @@ void LatteShaderCache_LoadPipelineCache(uint64 cacheTitleId)
 #endif
 	{}
 	g_shaderCacheLoaderState.loadedPipelines = 0;
-	LatteShaderCache_ShowProgress(LatteShaderCache_updatePipelineLoadingProgress, true);
+	if (LatteShaderCache_UseHeadlessLoadingUI())
+	{
+		while (LatteShaderCache_updatePipelineLoadingProgress())
+		{
+			if (Latte_GetStopSignal())
+				break;
+		}
+	}
+	else
+	{
+		LatteShaderCache_ShowProgress(LatteShaderCache_updatePipelineLoadingProgress, true);
+	}
 #if ENABLE_VULKAN
 	if (g_renderer->GetType() == RendererAPI::Vulkan)
 	    VulkanPipelineStableCache::GetInstance().EndLoading();

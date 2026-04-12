@@ -8,6 +8,7 @@ import info.cemu.cemu.nativeinterface.NativeInput.WiimoteButton
 fun WiimoteControllerInputs(
     onInputClick: (String, Int) -> Unit,
     controlsMapping: Map<Int, String>,
+    hasNunchuk: Boolean,
 ) {
     @Composable
     fun InputItemsGroup(
@@ -29,15 +30,13 @@ fun WiimoteControllerInputs(
             WiimoteButton.B,
             WiimoteButton.ONE,
             WiimoteButton.TWO,
-            WiimoteButton.NUNCHUCK_Z,
-            WiimoteButton.NUNCHUCK_C,
             WiimoteButton.PLUS,
             WiimoteButton.MINUS,
             WiimoteButton.HOME
         )
     )
     InputItemsGroup(
-        groupName = tr("Nunchuck"),
+        groupName = tr("Wiimote D-pad"),
         inputIds = listOf(
             WiimoteButton.UP,
             WiimoteButton.DOWN,
@@ -45,15 +44,24 @@ fun WiimoteControllerInputs(
             WiimoteButton.RIGHT
         )
     )
-    InputItemsGroup(
-        groupName = tr("Right Axis"),
-        inputIds = listOf(
-            WiimoteButton.NUNCHUCK_UP,
-            WiimoteButton.NUNCHUCK_DOWN,
-            WiimoteButton.NUNCHUCK_LEFT,
-            WiimoteButton.NUNCHUCK_RIGHT
+    if (hasNunchuk) {
+        InputItemsGroup(
+            groupName = tr("Nunchuk Buttons"),
+            inputIds = listOf(
+                WiimoteButton.NUNCHUCK_Z,
+                WiimoteButton.NUNCHUCK_C,
+            )
         )
-    )
+        InputItemsGroup(
+            groupName = tr("Nunchuk Stick"),
+            inputIds = listOf(
+                WiimoteButton.NUNCHUCK_UP,
+                WiimoteButton.NUNCHUCK_DOWN,
+                WiimoteButton.NUNCHUCK_LEFT,
+                WiimoteButton.NUNCHUCK_RIGHT
+            )
+        )
+    }
 }
 
 private fun wiimoteButtonItToString(buttonId: Int) = when (buttonId) {

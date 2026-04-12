@@ -932,6 +932,24 @@ LatteCMDPtr LatteCP_itHLECopyColorBufferToScanBuffer(LatteCMDPtr cmd, uint32 nWo
 	uint32 colorBufferFormat = LatteReadCMD();
 	uint32 renderTarget = LatteReadCMD();
 
+#if BOOST_PLAT_ANDROID
+	static uint32 s_copyColorBufferToScanBufferCount = 0;
+	const uint32 copyCount = ++s_copyColorBufferToScanBufferCount;
+	if (copyCount <= 20 || (copyCount % 120) == 0)
+	{
+		cemuLog_log(LogType::Force,
+			"LatteCP_itHLECopyColorBufferToScanBuffer #{} ptr=0x{:08x} size={}x{} pitch={} slice={} format={} target=0x{:x}",
+			copyCount,
+			(uint32)colorBufferPtr,
+			colorBufferWidth,
+			colorBufferHeight,
+			colorBufferPitch,
+			colorBufferSliceIndex,
+			colorBufferFormat,
+			renderTarget);
+	}
+#endif
+
 	LatteRenderTarget_itHLECopyColorBufferToScanBuffer(colorBufferPtr, colorBufferWidth, colorBufferHeight, colorBufferSliceIndex, colorBufferFormat, colorBufferPitch, colorBufferTilemode, colorBufferSwizzle, renderTarget);
 
 	return cmd;

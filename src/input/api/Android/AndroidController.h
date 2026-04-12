@@ -20,6 +20,12 @@ class AndroidController : public Controller<AndroidControllerProvider>
     bool is_connected() override { return true; }
 
     bool has_axis() const override { return true; }
+    bool has_motion() override;
+    MotionSample get_motion_sample() override;
+    bool has_position() override;
+    glm::vec2 get_position() override;
+    glm::vec2 get_prev_position() override;
+    PositionVisibility GetPositionVisibility() override;
 
     std::string get_button_name(uint64 button) const override;
 

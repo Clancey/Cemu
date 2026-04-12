@@ -46,7 +46,7 @@ InputManager::InputManager()
 #if HAS_WIIMOTE
 	create_provider<WiimoteControllerProvider>();
 #endif
-#ifdef ANDROID
+#ifdef __ANDROID__
 	create_provider<AndroidControllerProvider>();
 #endif
 #ifdef VISIONOS

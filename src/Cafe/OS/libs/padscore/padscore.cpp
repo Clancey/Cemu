@@ -161,6 +161,29 @@ typedef struct
 
 static_assert(sizeof(WPADInfo_t) == 0x18); // unsure
 
+namespace
+{
+	bool HasWPADExtensionAttached(const WPADController& controller)
+	{
+		switch (controller.get_device_type())
+		{
+		case kWAPDevFreestyle:
+		case kWAPDevClassic:
+		case kWAPDevMPLS:
+		case kWAPDevMPLSFreeStyle:
+		case kWAPDevMPLSClassic:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	bool HasWPADDpd(const WPADController& controller)
+	{
+		return controller.type() == EmulatedController::Type::Wiimote;
+	}
+}
+
 void padscoreExport_WPADGetInfoAsync(PPCInterpreter_t* hCPU)
 {
 	ppcDefineParamU32(channel, 0);
@@ -189,9 +212,9 @@ void padscoreExport_WPADGetInfoAsync(PPCInterpreter_t* hCPU)
 	{
 		if (const auto controller = InputManager::instance().get_wpad_controller(channel))
 		{
-			wpadInfo->dpd = FALSE;
+			wpadInfo->dpd = HasWPADDpd(*controller) ? TRUE : FALSE;
 			wpadInfo->speaker = FALSE;
-			wpadInfo->attach = FALSE;
+			wpadInfo->attach = HasWPADExtensionAttached(*controller) ? TRUE : FALSE;
 			wpadInfo->lowBat = FALSE;
 			wpadInfo->nearempty = FALSE;
 			wpadInfo->batteryLevel = WPADBatteryLevel::FULL;
@@ -350,9 +373,9 @@ void padscoreExport_WPADGetInfo(PPCInterpreter_t* hCPU)
 	{
 		if (const auto controller = InputManager::instance().get_wpad_controller(channel))
 		{
-			wpadInfo->dpd = FALSE;
+			wpadInfo->dpd = HasWPADDpd(*controller) ? TRUE : FALSE;
 			wpadInfo->speaker = FALSE;
-			wpadInfo->attach = FALSE;
+			wpadInfo->attach = HasWPADExtensionAttached(*controller) ? TRUE : FALSE;
 			wpadInfo->lowBat = FALSE;
 			wpadInfo->nearempty = FALSE;
 			wpadInfo->batteryLevel = WPADBatteryLevel::FULL;

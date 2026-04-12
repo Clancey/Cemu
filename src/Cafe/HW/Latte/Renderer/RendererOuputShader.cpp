@@ -1,6 +1,9 @@
 #include "Cafe/HW/Latte/Renderer/RendererOuputShader.h"
 #include "Cafe/HW/Latte/Renderer/OpenGL/OpenGLRenderer.h"
 #include "config/ActiveSettings.h"
+#if BOOST_PLAT_ANDROID
+#include <android/log.h>
+#endif
 
 const std::string RendererOutputShader::s_copy_shader_source =
 R"(
@@ -245,23 +248,47 @@ fragment float4 main0(VertexOut in [[stage_in]], texture2d<float> textureSrc [[t
 
 RendererOutputShader::RendererOutputShader(const std::string& vertex_source, const std::string& fragment_source)
 {
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: ctor begin");
+#endif
     std::string finalFragmentSrc;
     if (g_renderer->GetType() == RendererAPI::Metal)
         finalFragmentSrc = fragment_source;
     else
         finalFragmentSrc = PrependFragmentPreamble(fragment_source);
 
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: shader_create vertex");
+#endif
 	m_vertex_shader.reset(g_renderer->shader_create(RendererShader::ShaderType::kVertex, 0, 0, vertex_source, false, false));
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: shader_create fragment");
+#endif
 	m_fragment_shader.reset(g_renderer->shader_create(RendererShader::ShaderType::kFragment, 0, 0, finalFragmentSrc, false, false));
 
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: prepone vertex");
+#endif
 	m_vertex_shader->PreponeCompilation(true);
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: prepone fragment");
+#endif
 	m_fragment_shader->PreponeCompilation(true);
 
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: wait vertex");
+#endif
 	if (!m_vertex_shader->WaitForCompiled())
 		throw std::exception();
 
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: wait fragment");
+#endif
 	if(!m_fragment_shader->WaitForCompiled())
 		throw std::exception();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: ctor shaders compiled");
+#endif
 
 	if (g_renderer->GetType() == RendererAPI::OpenGL)
 	{
@@ -279,6 +306,9 @@ RendererOutputShader::RendererOutputShader(const std::string& vertex_source, con
 		m_uniformLocations[1].m_loc_targetGamma = m_fragment_shader->GetUniformLocation("targetGamma");
 		m_uniformLocations[1].m_loc_displayGamma = m_fragment_shader->GetUniformLocation("displayGamma");
 	}
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: ctor end");
+#endif
 }
 
 void RendererOutputShader::SetUniformParameters(const LatteTextureView& texture_view, const Vector2i& output_res, const bool padView) const
@@ -533,6 +563,9 @@ void main()
 }
 void RendererOutputShader::InitializeStatic()
 {
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: InitializeStatic begin");
+#endif
     if (g_renderer->GetType() == RendererAPI::Metal)
     {
         std::string vertex_source = GetMetalVertexSource(false);
@@ -570,6 +603,9 @@ void RendererOutputShader::InitializeStatic()
     	s_hermit_shader = new RendererOutputShader(vertex_source, s_hermite_shader_source);
     	s_hermit_shader_ud = new RendererOutputShader(vertex_source_ud, s_hermite_shader_source);
     }
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "RendererOutputShader: InitializeStatic end");
+#endif
 }
 
 void RendererOutputShader::ShutdownStatic()

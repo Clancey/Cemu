@@ -981,8 +981,21 @@ void VulkanRenderer::InitializeSurfaceFromOpenXR(const std::vector<VkImage>& swa
 {
 	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "InitializeSurfaceFromOpenXR: %dx%d format=%d images=%zu", width, height, format, swapchainImages.size());
 
-	// Create SwapchainInfoVk with fake size (constructor needs it)
-	m_mainSwapchainInfo = std::make_unique<SwapchainInfoVk>(true, Vector2i{(int)width, (int)height});
+	if (!m_mainSwapchainInfo) {
+		m_mainSwapchainInfo = std::make_unique<SwapchainInfoVk>(true, Vector2i{(int)width, (int)height});
+	} else {
+		m_mainSwapchainInfo->Cleanup();
+		m_mainSwapchainInfo->m_desiredExtent = Vector2i{(int)width, (int)height};
+		m_mainSwapchainInfo->m_shouldRecreate = false;
+		m_mainSwapchainInfo->m_presentId = 1;
+		m_mainSwapchainInfo->m_queueDepth = 0;
+		m_mainSwapchainInfo->m_maxQueued = 0;
+		m_mainSwapchainInfo->swapchainImageIndex = (uint32)-1;
+		m_mainSwapchainInfo->hasDefinedSwapchainImage = false;
+#if BOOST_PLAT_ANDROID
+		m_mainSwapchainInfo->surfaceWasLost = false;
+#endif
+	}
 	auto& chain = *m_mainSwapchainInfo;
 
 	// Set basic properties
@@ -1054,8 +1067,8 @@ void VulkanRenderer::InitializeSurfaceFromOpenXR(const std::vector<VkImage>& swa
 		vkCreateSemaphore(m_logicalDevice, &semInfo, nullptr, &sem);
 	}
 
-	// Initialize first command buffer (needed for CreateNullObjects and rendering)
-	if (!swapchainImages.empty() || true) {
+	// Initialize the first command buffer during the initial pre-session setup.
+	if (m_state.currentCommandBuffer == nullptr) {
 		InitFirstCommandBuffer();
 	}
 
@@ -2031,10 +2044,24 @@ void VulkanRenderer::Initialize()
 	if (m_externalVulkanObjects) {
 		// VR mode: skip ImGui (needs swapchain render pass) but do everything else
 		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR Initialize: pipeline cache + null objects (no ImGui)");
-		Renderer::Initialize(); // ImGui contexts
-		CreatePipelineCache();
-		// Skip ImguiInit() — needs proper swapchain render pass
-		CreateNullObjects();
+		try
+		{
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR Initialize: Renderer::Initialize begin");
+			Renderer::Initialize(); // ImGui contexts
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR Initialize: Renderer::Initialize end");
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR Initialize: CreatePipelineCache begin");
+			CreatePipelineCache();
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR Initialize: CreatePipelineCache end");
+			// Skip ImguiInit() — needs proper swapchain render pass
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR Initialize: CreateNullObjects begin");
+			CreateNullObjects();
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR Initialize: CreateNullObjects end");
+		}
+		catch (const std::exception& ex)
+		{
+			__android_log_print(ANDROID_LOG_ERROR, "Cemu", "VR Initialize failed: %s", ex.what());
+			throw;
+		}
 		return;
 	}
 #endif
@@ -2232,6 +2259,19 @@ void VulkanRenderer::QueryAvailableFormats()
 
 bool VulkanRenderer::ImguiBegin(bool mainWindow)
 {
+#if BOOST_PLAT_ANDROID
+	if (m_externalVulkanObjects)
+	{
+		static bool s_loggedExternalImguiSkip = false;
+		if (!s_loggedExternalImguiSkip)
+		{
+			s_loggedExternalImguiSkip = true;
+			cemuLog_log(LogType::Force, "VulkanRenderer::ImguiBegin skipped for external Vulkan session");
+		}
+		return false;
+	}
+#endif
+
 	if (!IsSwapchainInfoValid(mainWindow))
 		return false;
 
@@ -2283,8 +2323,17 @@ ImTextureID VulkanRenderer::GenerateTexture(const std::vector<uint8>& data, cons
 
 void VulkanRenderer::DeleteTexture(ImTextureID id)
 {
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VulkanRenderer::DeleteTexture begin");
+#endif
 	WaitDeviceIdle();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VulkanRenderer::DeleteTexture after WaitDeviceIdle");
+#endif
 	ImGui_ImplVulkan_DeleteTexture(id);
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VulkanRenderer::DeleteTexture end");
+#endif
 }
 
 void VulkanRenderer::DeleteFontTextures()
@@ -3275,29 +3324,65 @@ void VulkanRenderer::SwapBuffer(bool mainWindow)
 	auto& chainInfo = GetChainInfo(mainWindow);
 
 #if BOOST_PLAT_ANDROID
-	// Signal keepalive2 to stop — game is rendering
+	// Record that the app has started producing real VR frames.
 	extern std::atomic<bool> g_vrGameRendering;
 	if (!g_vrGameRendering.exchange(true)) {
-		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Game SwapBuffer first call! Stopping keepalive2");
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Game SwapBuffer first call");
 	}
 #endif
 
 	if (chainInfo.IsOpenXR()) {
+#if BOOST_PLAT_ANDROID
+		static uint32 s_openxrSwapBufferCount = 0;
+		const uint32 swapCount = ++s_openxrSwapBufferCount;
+		if (swapCount <= 20 || (swapCount % 120) == 0) {
+			cemuLog_log(LogType::Force,
+				"VulkanRenderer::SwapBuffer(OpenXR) #{} main={} defined={} extent={}x{} imageIndex={}",
+				swapCount,
+				mainWindow ? 1 : 0,
+				chainInfo.hasDefinedSwapchainImage ? 1 : 0,
+				chainInfo.m_actualExtent.width,
+				chainInfo.m_actualExtent.height,
+				chainInfo.swapchainImageIndex);
+		}
+#endif
+
 		// OpenXR present path
 		if (!chainInfo.hasDefinedSwapchainImage) {
 			VkClearColorValue clearColor{ 0, 0, 0, 0 };
 			ClearColorImageRaw(chainInfo.m_swapchainImages[chainInfo.swapchainImageIndex], 0, 0, clearColor, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 		}
 
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffer: SubmitCommandBuffer begin");
+#endif
 		SubmitCommandBuffer();
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffer: SubmitCommandBuffer end");
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffer: WaitDeviceIdle begin");
+#endif
 		WaitDeviceIdle();
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffer: WaitDeviceIdle end");
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffer: ReleaseImage begin");
+#endif
 
 		// Release and present via callbacks
 		chainInfo.m_xrReleaseImage(chainInfo.m_openxrManager);
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffer: ReleaseImage end");
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffer: EndFrame begin");
+#endif
 		chainInfo.m_xrEndFrame(chainInfo.m_openxrManager);
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffer: EndFrame end");
+#endif
 
 		chainInfo.swapchainImageIndex = -1;
 		chainInfo.hasDefinedSwapchainImage = false;
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffer: returning to caller");
+#endif
 		return;
 	}
 
@@ -3406,9 +3491,17 @@ void VulkanRenderer::SwapBuffers(bool swapTV, bool swapDRC)
 
 	if (swapTV && IsSwapchainInfoValid(true))
 		SwapBuffer(true);
+#if BOOST_PLAT_ANDROID
+	if (swapTV)
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffers: after TV swap");
+#endif
 
 	if (swapDRC && IsSwapchainInfoValid(false))
 		SwapBuffer(false);
+#if BOOST_PLAT_ANDROID
+	if (swapDRC)
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR SwapBuffers: after DRC swap");
+#endif
 
 	if(swapTV)
 		VulkanBenchmarkPrintResults();

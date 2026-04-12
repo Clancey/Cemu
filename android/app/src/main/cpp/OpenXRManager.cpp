@@ -3,6 +3,7 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 #include <android/log.h>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <cstdarg>
 #include <algorithm>
@@ -21,6 +22,85 @@ static constexpr XrPosef DefaultQuadPose = {
 
 // Default quad size - 2m wide, 1.125m tall (16:9 aspect ratio)
 static constexpr XrExtent2Df DefaultQuadSize = {.width = 2.0f, .height = 1.125f};
+
+namespace
+{
+constexpr float kGravityMetersPerSecondSquared = 9.80665f;
+constexpr float kPointerPartialMargin = 0.2f;
+constexpr float kTwoPi = 6.28318530718f;
+
+XrVector3f Add(const XrVector3f& lhs, const XrVector3f& rhs)
+{
+    return {lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z};
+}
+
+XrVector3f Subtract(const XrVector3f& lhs, const XrVector3f& rhs)
+{
+    return {lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z};
+}
+
+XrVector3f Scale(const XrVector3f& value, float scalar)
+{
+    return {value.x * scalar, value.y * scalar, value.z * scalar};
+}
+
+float Dot(const XrVector3f& lhs, const XrVector3f& rhs)
+{
+    return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
+}
+
+XrVector3f Cross(const XrVector3f& lhs, const XrVector3f& rhs)
+{
+    return {
+        lhs.y * rhs.z - lhs.z * rhs.y,
+        lhs.z * rhs.x - lhs.x * rhs.z,
+        lhs.x * rhs.y - lhs.y * rhs.x,
+    };
+}
+
+XrQuaternionf Conjugate(const XrQuaternionf& quaternion)
+{
+    return {-quaternion.x, -quaternion.y, -quaternion.z, quaternion.w};
+}
+
+XrVector3f RotateVector(const XrQuaternionf& quaternion, const XrVector3f& vector)
+{
+    const XrVector3f u{quaternion.x, quaternion.y, quaternion.z};
+    const float s = quaternion.w;
+
+    return Add(
+        Add(
+            Scale(u, 2.0f * Dot(u, vector)),
+            Scale(vector, (s * s) - Dot(u, u))
+        ),
+        Scale(Cross(u, vector), 2.0f * s)
+    );
+}
+
+bool HasValidPose(const XrSpaceLocation& location)
+{
+    return (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
+           (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+}
+
+void QuaternionToYawPitchRoll(const XrQuaternionf& quaternion, float& yaw, float& pitch, float& roll)
+{
+    const float sinr_cosp = 2.0f * (quaternion.w * quaternion.x + quaternion.y * quaternion.z);
+    const float cosr_cosp = 1.0f - 2.0f * (quaternion.x * quaternion.x + quaternion.y * quaternion.y);
+    roll = std::atan2(sinr_cosp, cosr_cosp);
+
+    const float sinp = 2.0f * (quaternion.w * quaternion.y - quaternion.z * quaternion.x);
+    if (std::abs(sinp) >= 1.0f) {
+        pitch = std::copysign(3.14159265359f / 2.0f, sinp);
+    } else {
+        pitch = std::asin(sinp);
+    }
+
+    const float siny_cosp = 2.0f * (quaternion.w * quaternion.z + quaternion.x * quaternion.y);
+    const float cosy_cosp = 1.0f - 2.0f * (quaternion.y * quaternion.y + quaternion.z * quaternion.z);
+    yaw = std::atan2(siny_cosp, cosy_cosp);
+}
+}
 
 OpenXRManager::OpenXRManager() = default;
 
@@ -266,8 +346,11 @@ bool OpenXRManager::LoadInstanceFunctions()
     LOAD_XR_FUNCTION(xrGetActionStateBoolean);
     LOAD_XR_FUNCTION(xrGetActionStateFloat);
     LOAD_XR_FUNCTION(xrGetActionStateVector2f);
+    LOAD_XR_FUNCTION(xrGetCurrentInteractionProfile);
+    LOAD_XR_FUNCTION(xrPathToString);
     LOAD_XR_FUNCTION(xrStringToPath);
     LOAD_XR_FUNCTION(xrCreateActionSpace);
+    LOAD_XR_FUNCTION(xrLocateSpace);
 
 #undef LOAD_XR_FUNCTION
 
@@ -742,22 +825,24 @@ bool OpenXRManager::BeginFrame()
     }
 
     m_frameActive = true;
-    return m_frameState.shouldRender;
+
+    if (!SyncInputActions()) {
+        LogError("Failed to sync OpenXR input actions during BeginFrame");
+    }
+
+    if (!m_frameState.shouldRender) {
+        EndFrameEmpty();
+        return false;
+    }
+
+    return true;
 }
 
 bool OpenXRManager::SubmitEmptyFrame()
 {
     if (!BeginFrame()) return false;
 
-    XrFrameEndInfo endInfo = {XR_TYPE_FRAME_END_INFO};
-    endInfo.displayTime = m_frameState.predictedDisplayTime;
-    endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-    endInfo.layerCount = 0;
-    endInfo.layers = nullptr;
-
-    XrResult result = p_xrEndFrame(m_session, &endInfo);
-    m_frameActive = false;
-    return CheckXrResult(result, "xrEndFrame(empty)");
+    return EndFrameEmpty();
 }
 
 uint32_t OpenXRManager::AcquireSwapchainImage()
@@ -788,11 +873,30 @@ void OpenXRManager::ReleaseSwapchainImage()
         return;
     }
 
+#if BOOST_PLAT_ANDROID
+    __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR ReleaseSwapchainImage: begin index=%u", m_acquiredImageIndex);
+#endif
     XrSwapchainImageReleaseInfo releaseInfo = {XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
     XrResult result = p_xrReleaseSwapchainImage(m_swapchain, &releaseInfo);
     CheckXrResult(result, "p_xrReleaseSwapchainImage");
+#if BOOST_PLAT_ANDROID
+    __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR ReleaseSwapchainImage: end result=%d", (int)result);
+#endif
 
     m_acquiredImageIndex = UINT32_MAX;
+}
+
+bool OpenXRManager::CancelFrame()
+{
+    if (!m_session || !m_frameActive) {
+        return false;
+    }
+
+    if (m_acquiredImageIndex != UINT32_MAX) {
+        ReleaseSwapchainImage();
+    }
+
+    return EndFrameEmpty();
 }
 
 bool OpenXRManager::EndFrame(XrPosef quadPose, XrExtent2Df quadSize)
@@ -801,6 +905,9 @@ bool OpenXRManager::EndFrame(XrPosef quadPose, XrExtent2Df quadSize)
         return false;
     }
 
+#if BOOST_PLAT_ANDROID
+    __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR EndFrame: begin shouldRender=%d running=%d swapchain=%p size=%ux%u", m_frameState.shouldRender ? 1 : 0, IsSessionRunning() ? 1 : 0, (void*)m_swapchain, m_swapchainWidth, m_swapchainHeight);
+#endif
     std::vector<XrCompositionLayerBaseHeader*> layers;
 
     // Create quad layer for the Cemu TV output
@@ -826,15 +933,51 @@ bool OpenXRManager::EndFrame(XrPosef quadPose, XrExtent2Df quadSize)
     frameEndInfo.layerCount = static_cast<uint32_t>(layers.size());
     frameEndInfo.layers = layers.data();
 
+#if BOOST_PLAT_ANDROID
+    __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR EndFrame: xrEndFrame begin layerCount=%u", frameEndInfo.layerCount);
+#endif
     XrResult result = p_xrEndFrame(m_session, &frameEndInfo);
     m_frameActive = false;
+#if BOOST_PLAT_ANDROID
+    __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR EndFrame: xrEndFrame end result=%d", (int)result);
+#endif
 
     return CheckXrResult(result, "p_xrEndFrame");
+}
+
+bool OpenXRManager::EndFrameEmpty()
+{
+    if (!m_session || !m_frameActive) {
+        return false;
+    }
+
+    XrFrameEndInfo endInfo = {XR_TYPE_FRAME_END_INFO};
+    endInfo.displayTime = m_frameState.predictedDisplayTime;
+    endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+    endInfo.layerCount = 0;
+    endInfo.layers = nullptr;
+
+    XrResult result = p_xrEndFrame(m_session, &endInfo);
+    m_frameActive = false;
+    return CheckXrResult(result, "xrEndFrame(empty)");
 }
 
 void OpenXRManager::Shutdown()
 {
     LogInfo("Shutting down OpenXR");
+
+    if (m_aimSpaceR != XR_NULL_HANDLE) {
+        p_xrDestroySpace(m_aimSpaceR);
+        m_aimSpaceR = XR_NULL_HANDLE;
+    }
+    if (m_gripSpaceL != XR_NULL_HANDLE) {
+        p_xrDestroySpace(m_gripSpaceL);
+        m_gripSpaceL = XR_NULL_HANDLE;
+    }
+    if (m_gripSpaceR != XR_NULL_HANDLE) {
+        p_xrDestroySpace(m_gripSpaceR);
+        m_gripSpaceR = XR_NULL_HANDLE;
+    }
 
     if (m_swapchain != XR_NULL_HANDLE) {
         p_xrDestroySwapchain(m_swapchain);
@@ -879,16 +1022,6 @@ void OpenXRManager::Shutdown()
         m_openxrLibrary = nullptr;
     }
 
-    // Clean up input actions
-    if (m_handSpaceL != XR_NULL_HANDLE) {
-        p_xrDestroySpace(m_handSpaceL);
-        m_handSpaceL = XR_NULL_HANDLE;
-    }
-    if (m_handSpaceR != XR_NULL_HANDLE) {
-        p_xrDestroySpace(m_handSpaceR);
-        m_handSpaceR = XR_NULL_HANDLE;
-    }
-
     // Reset input action handles (no explicit destroy needed for actions, they're owned by action set)
     m_actionButtonA = XR_NULL_HANDLE;
     m_actionButtonB = XR_NULL_HANDLE;
@@ -903,6 +1036,9 @@ void OpenXRManager::Shutdown()
     m_actionGripR = XR_NULL_HANDLE;
     m_actionThumbstickL = XR_NULL_HANDLE;
     m_actionThumbstickR = XR_NULL_HANDLE;
+    m_actionGripPoseL = XR_NULL_HANDLE;
+    m_actionGripPoseR = XR_NULL_HANDLE;
+    m_actionAimPoseR = XR_NULL_HANDLE;
     m_actionSet = XR_NULL_HANDLE;
 
     // Clear function pointers
@@ -940,8 +1076,11 @@ void OpenXRManager::Shutdown()
     p_xrGetActionStateBoolean = nullptr;
     p_xrGetActionStateFloat = nullptr;
     p_xrGetActionStateVector2f = nullptr;
+    p_xrGetCurrentInteractionProfile = nullptr;
+    p_xrPathToString = nullptr;
     p_xrStringToPath = nullptr;
     p_xrCreateActionSpace = nullptr;
+    p_xrLocateSpace = nullptr;
 
     // Clear state
     m_openxrLoaded = false;
@@ -951,6 +1090,10 @@ void OpenXRManager::Shutdown()
     m_swapchainWidth = m_swapchainHeight = 0;
     m_swapchainFormat = VK_FORMAT_UNDEFINED;
     m_acquiredImageIndex = UINT32_MAX;
+    m_leftHandPath = XR_NULL_PATH;
+    m_rightHandPath = XR_NULL_PATH;
+    m_motionCacheL = {};
+    m_motionCacheR = {};
 
     LogInfo("OpenXR shutdown complete");
 }
@@ -958,6 +1101,13 @@ void OpenXRManager::Shutdown()
 bool OpenXRManager::InitializeInputActions()
 {
     LogInfo("Initializing OpenXR input actions");
+
+    if (!CheckXrResult(p_xrStringToPath(m_instance, "/user/hand/left", &m_leftHandPath), "xrStringToPath /user/hand/left")) {
+        return false;
+    }
+    if (!CheckXrResult(p_xrStringToPath(m_instance, "/user/hand/right", &m_rightHandPath), "xrStringToPath /user/hand/right")) {
+        return false;
+    }
 
     // Create action set
     XrActionSetCreateInfo actionSetCreateInfo = {XR_TYPE_ACTION_SET_CREATE_INFO};
@@ -970,85 +1120,40 @@ bool OpenXRManager::InitializeInputActions()
         return false;
     }
 
-    // Create actions
-    XrActionCreateInfo actionCreateInfo = {XR_TYPE_ACTION_CREATE_INFO};
-    actionCreateInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+    auto createAction = [&](XrActionType actionType, const char* actionName, const char* localizedActionName,
+                            XrPath subactionPath, XrAction& action) -> bool
+    {
+        XrActionCreateInfo actionCreateInfo = {XR_TYPE_ACTION_CREATE_INFO};
+        actionCreateInfo.actionType = actionType;
+        std::strncpy(actionCreateInfo.actionName, actionName, XR_MAX_ACTION_NAME_SIZE - 1);
+        std::strncpy(actionCreateInfo.localizedActionName, localizedActionName, XR_MAX_LOCALIZED_ACTION_NAME_SIZE - 1);
+        if (subactionPath != XR_NULL_PATH) {
+            actionCreateInfo.countSubactionPaths = 1;
+            actionCreateInfo.subactionPaths = &subactionPath;
+        }
 
-    strcpy(actionCreateInfo.actionName, "button_a");
-    strcpy(actionCreateInfo.localizedActionName, "Button A");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonA);
-    if (!CheckXrResult(result, "xrCreateAction button_a")) return false;
+        XrResult createResult = p_xrCreateAction(m_actionSet, &actionCreateInfo, &action);
+        char operation[128];
+        snprintf(operation, sizeof(operation), "xrCreateAction %s", actionName);
+        return CheckXrResult(createResult, operation);
+    };
 
-    strcpy(actionCreateInfo.actionName, "button_b");
-    strcpy(actionCreateInfo.localizedActionName, "Button B");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonB);
-    if (!CheckXrResult(result, "xrCreateAction button_b")) return false;
-
-    strcpy(actionCreateInfo.actionName, "button_x");
-    strcpy(actionCreateInfo.localizedActionName, "Button X");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonX);
-    if (!CheckXrResult(result, "xrCreateAction button_x")) return false;
-
-    strcpy(actionCreateInfo.actionName, "button_y");
-    strcpy(actionCreateInfo.localizedActionName, "Button Y");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonY);
-    if (!CheckXrResult(result, "xrCreateAction button_y")) return false;
-
-    strcpy(actionCreateInfo.actionName, "button_menu");
-    strcpy(actionCreateInfo.localizedActionName, "Menu Button");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionButtonMenu);
-    if (!CheckXrResult(result, "xrCreateAction button_menu")) return false;
-
-    strcpy(actionCreateInfo.actionName, "thumbstick_click_left");
-    strcpy(actionCreateInfo.localizedActionName, "Left Thumbstick Click");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionThumbstickClickL);
-    if (!CheckXrResult(result, "xrCreateAction thumbstick_click_left")) return false;
-
-    strcpy(actionCreateInfo.actionName, "thumbstick_click_right");
-    strcpy(actionCreateInfo.localizedActionName, "Right Thumbstick Click");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionThumbstickClickR);
-    if (!CheckXrResult(result, "xrCreateAction thumbstick_click_right")) return false;
-
-    // Float actions for triggers and grips
-    actionCreateInfo.actionType = XR_ACTION_TYPE_FLOAT_INPUT;
-
-    strcpy(actionCreateInfo.actionName, "trigger_left");
-    strcpy(actionCreateInfo.localizedActionName, "Left Trigger");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionTriggerL);
-    if (!CheckXrResult(result, "xrCreateAction trigger_left")) return false;
-
-    strcpy(actionCreateInfo.actionName, "trigger_right");
-    strcpy(actionCreateInfo.localizedActionName, "Right Trigger");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionTriggerR);
-    if (!CheckXrResult(result, "xrCreateAction trigger_right")) return false;
-
-    strcpy(actionCreateInfo.actionName, "grip_left");
-    strcpy(actionCreateInfo.localizedActionName, "Left Grip");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionGripL);
-    if (!CheckXrResult(result, "xrCreateAction grip_left")) return false;
-
-    strcpy(actionCreateInfo.actionName, "grip_right");
-    strcpy(actionCreateInfo.localizedActionName, "Right Grip");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionGripR);
-    if (!CheckXrResult(result, "xrCreateAction grip_right")) return false;
-
-    // Vector2 actions for thumbsticks
-    actionCreateInfo.actionType = XR_ACTION_TYPE_VECTOR2F_INPUT;
-
-    strcpy(actionCreateInfo.actionName, "thumbstick_left");
-    strcpy(actionCreateInfo.localizedActionName, "Left Thumbstick");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionThumbstickL);
-    if (!CheckXrResult(result, "xrCreateAction thumbstick_left")) return false;
-
-    strcpy(actionCreateInfo.actionName, "thumbstick_right");
-    strcpy(actionCreateInfo.localizedActionName, "Right Thumbstick");
-    result = p_xrCreateAction(m_actionSet, &actionCreateInfo, &m_actionThumbstickR);
-    if (!CheckXrResult(result, "xrCreateAction thumbstick_right")) return false;
-
-    // Suggest bindings for Oculus Touch controllers
-    XrPath profilePath = XR_NULL_PATH;
-    result = p_xrStringToPath(m_instance, "/interaction_profiles/oculus/touch_controller", &profilePath);
-    if (!CheckXrResult(result, "xrStringToPath touch_controller_profile")) return false;
+    if (!createAction(XR_ACTION_TYPE_BOOLEAN_INPUT, "button_a", "Button A", m_rightHandPath, m_actionButtonA)) return false;
+    if (!createAction(XR_ACTION_TYPE_BOOLEAN_INPUT, "button_b", "Button B", m_rightHandPath, m_actionButtonB)) return false;
+    if (!createAction(XR_ACTION_TYPE_BOOLEAN_INPUT, "button_x", "Button X", m_leftHandPath, m_actionButtonX)) return false;
+    if (!createAction(XR_ACTION_TYPE_BOOLEAN_INPUT, "button_y", "Button Y", m_leftHandPath, m_actionButtonY)) return false;
+    if (!createAction(XR_ACTION_TYPE_BOOLEAN_INPUT, "button_menu", "Menu Button", m_leftHandPath, m_actionButtonMenu)) return false;
+    if (!createAction(XR_ACTION_TYPE_BOOLEAN_INPUT, "thumbstick_click_left", "Left Thumbstick Click", m_leftHandPath, m_actionThumbstickClickL)) return false;
+    if (!createAction(XR_ACTION_TYPE_BOOLEAN_INPUT, "thumbstick_click_right", "Right Thumbstick Click", m_rightHandPath, m_actionThumbstickClickR)) return false;
+    if (!createAction(XR_ACTION_TYPE_FLOAT_INPUT, "trigger_left", "Left Trigger", m_leftHandPath, m_actionTriggerL)) return false;
+    if (!createAction(XR_ACTION_TYPE_FLOAT_INPUT, "trigger_right", "Right Trigger", m_rightHandPath, m_actionTriggerR)) return false;
+    if (!createAction(XR_ACTION_TYPE_FLOAT_INPUT, "grip_left", "Left Grip", m_leftHandPath, m_actionGripL)) return false;
+    if (!createAction(XR_ACTION_TYPE_FLOAT_INPUT, "grip_right", "Right Grip", m_rightHandPath, m_actionGripR)) return false;
+    if (!createAction(XR_ACTION_TYPE_VECTOR2F_INPUT, "thumbstick_left", "Left Thumbstick", m_leftHandPath, m_actionThumbstickL)) return false;
+    if (!createAction(XR_ACTION_TYPE_VECTOR2F_INPUT, "thumbstick_right", "Right Thumbstick", m_rightHandPath, m_actionThumbstickR)) return false;
+    if (!createAction(XR_ACTION_TYPE_POSE_INPUT, "grip_pose_left", "Left Grip Pose", m_leftHandPath, m_actionGripPoseL)) return false;
+    if (!createAction(XR_ACTION_TYPE_POSE_INPUT, "grip_pose_right", "Right Grip Pose", m_rightHandPath, m_actionGripPoseR)) return false;
+    if (!createAction(XR_ACTION_TYPE_POSE_INPUT, "aim_pose_right", "Right Aim Pose", m_rightHandPath, m_actionAimPoseR)) return false;
 
     std::vector<XrActionSuggestedBinding> bindings;
 
@@ -1076,14 +1181,43 @@ bool OpenXRManager::InitializeInputActions()
     addBinding(m_actionGripR, "/user/hand/right/input/squeeze/value");
     addBinding(m_actionThumbstickL, "/user/hand/left/input/thumbstick");
     addBinding(m_actionThumbstickR, "/user/hand/right/input/thumbstick");
+    addBinding(m_actionGripPoseL, "/user/hand/left/input/grip/pose");
+    addBinding(m_actionGripPoseR, "/user/hand/right/input/grip/pose");
+    addBinding(m_actionAimPoseR, "/user/hand/right/input/aim/pose");
 
-    XrInteractionProfileSuggestedBinding suggestedBindings = {XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
-    suggestedBindings.interactionProfile = profilePath;
-    suggestedBindings.countSuggestedBindings = static_cast<uint32_t>(bindings.size());
-    suggestedBindings.suggestedBindings = bindings.data();
+    auto suggestBindingsForProfile = [&](const char* interactionProfilePath) -> bool
+    {
+        XrPath profilePath = XR_NULL_PATH;
+        char pathOperation[128];
+        snprintf(pathOperation, sizeof(pathOperation), "xrStringToPath %s", interactionProfilePath);
+        XrResult pathResult = p_xrStringToPath(m_instance, interactionProfilePath, &profilePath);
+        if (!CheckXrResult(pathResult, pathOperation)) {
+            return false;
+        }
 
-    result = p_xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings);
-    if (!CheckXrResult(result, "xrSuggestInteractionProfileBindings")) return false;
+        XrInteractionProfileSuggestedBinding suggestedBindings = {XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+        suggestedBindings.interactionProfile = profilePath;
+        suggestedBindings.countSuggestedBindings = static_cast<uint32_t>(bindings.size());
+        suggestedBindings.suggestedBindings = bindings.data();
+
+        XrResult bindingResult = p_xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings);
+        if (bindingResult == XR_ERROR_PATH_UNSUPPORTED || bindingResult == XR_ERROR_PATH_INVALID) {
+            LogInfo("Interaction profile not supported by runtime: %s", interactionProfilePath);
+            return true;
+        }
+
+        char bindOperation[160];
+        snprintf(bindOperation, sizeof(bindOperation), "xrSuggestInteractionProfileBindings %s", interactionProfilePath);
+        if (!CheckXrResult(bindingResult, bindOperation)) {
+            return false;
+        }
+
+        LogInfo("Suggested bindings for interaction profile %s", interactionProfilePath);
+        return true;
+    };
+
+    if (!suggestBindingsForProfile("/interaction_profiles/oculus/touch_controller")) return false;
+    if (!suggestBindingsForProfile("/interaction_profiles/meta/touch_plus_controller")) return false;
 
     // Attach action set to session
     XrSessionActionSetsAttachInfo attachInfo = {XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
@@ -1093,32 +1227,33 @@ bool OpenXRManager::InitializeInputActions()
     result = p_xrAttachSessionActionSets(m_session, &attachInfo);
     if (!CheckXrResult(result, "xrAttachSessionActionSets")) return false;
 
-    // Create action spaces for hands
+    // Create action spaces for tracked poses
     XrActionSpaceCreateInfo actionSpaceCreateInfo = {XR_TYPE_ACTION_SPACE_CREATE_INFO};
-    actionSpaceCreateInfo.action = m_actionTriggerL; // Use trigger as reference for hand poses
     actionSpaceCreateInfo.poseInActionSpace = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}};
 
-    // We don't actually need hand spaces for button input, but create them for completeness
-    XrPath leftHandPath, rightHandPath;
-    p_xrStringToPath(m_instance, "/user/hand/left", &leftHandPath);
-    p_xrStringToPath(m_instance, "/user/hand/right", &rightHandPath);
+    actionSpaceCreateInfo.action = m_actionGripPoseL;
+    actionSpaceCreateInfo.subactionPath = m_leftHandPath;
+    result = p_xrCreateActionSpace(m_session, &actionSpaceCreateInfo, &m_gripSpaceL);
+    if (!CheckXrResult(result, "xrCreateActionSpace grip_left")) return false;
 
-    actionSpaceCreateInfo.subactionPath = leftHandPath;
-    result = p_xrCreateActionSpace(m_session, &actionSpaceCreateInfo, &m_handSpaceL);
-    CheckXrResult(result, "xrCreateActionSpace left_hand"); // Don't fail on this
+    actionSpaceCreateInfo.action = m_actionGripPoseR;
+    actionSpaceCreateInfo.subactionPath = m_rightHandPath;
+    result = p_xrCreateActionSpace(m_session, &actionSpaceCreateInfo, &m_gripSpaceR);
+    if (!CheckXrResult(result, "xrCreateActionSpace grip_right")) return false;
 
-    actionSpaceCreateInfo.subactionPath = rightHandPath;
-    result = p_xrCreateActionSpace(m_session, &actionSpaceCreateInfo, &m_handSpaceR);
-    CheckXrResult(result, "xrCreateActionSpace right_hand"); // Don't fail on this
+    actionSpaceCreateInfo.action = m_actionAimPoseR;
+    actionSpaceCreateInfo.subactionPath = m_rightHandPath;
+    result = p_xrCreateActionSpace(m_session, &actionSpaceCreateInfo, &m_aimSpaceR);
+    if (!CheckXrResult(result, "xrCreateActionSpace aim_right")) return false;
 
     LogInfo("OpenXR input actions initialized successfully");
     return true;
 }
 
-void OpenXRManager::PollInput()
+bool OpenXRManager::PollInput()
 {
     if (m_actionSet == XR_NULL_HANDLE || !m_sessionRunning) {
-        return;
+        return false;
     }
 
     // OpenXR requires an active frame to sync actions.
@@ -1127,14 +1262,27 @@ void OpenXRManager::PollInput()
     if (frameLogCount++ < 3) {
         __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "PollInput: about to xrWaitFrame...");
     }
-    XrFrameState frameState = {XR_TYPE_FRAME_STATE};
     XrFrameWaitInfo waitInfo = {XR_TYPE_FRAME_WAIT_INFO};
-    if (!CheckXrResult(p_xrWaitFrame(m_session, &waitInfo, &frameState), "xrWaitFrame(input)")) {
-        return;
+    if (!CheckXrResult(p_xrWaitFrame(m_session, &waitInfo, &m_frameState), "xrWaitFrame(input)")) {
+        return false;
     }
 
     XrFrameBeginInfo beginInfo = {XR_TYPE_FRAME_BEGIN_INFO};
-    p_xrBeginFrame(m_session, &beginInfo);
+    if (!CheckXrResult(p_xrBeginFrame(m_session, &beginInfo), "xrBeginFrame(input)")) {
+        return false;
+    }
+
+    m_frameActive = true;
+    const bool synced = SyncInputActions();
+    const bool ended = EndFrameEmpty();
+    return synced && ended;
+}
+
+bool OpenXRManager::SyncInputActions()
+{
+    if (m_actionSet == XR_NULL_HANDLE || !m_sessionRunning) {
+        return false;
+    }
 
     // Sync actions
     XrActiveActionSet activeActionSet = {};
@@ -1151,15 +1299,39 @@ void OpenXRManager::PollInput()
         __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "xrSyncActions result: %d actionSet=%p", (int)result, (void*)m_actionSet);
     }
     if (!CheckXrResult(result, "xrSyncActions")) {
-        // End frame even on failure
-        XrFrameEndInfo endInfo = {XR_TYPE_FRAME_END_INFO};
-        endInfo.displayTime = frameState.predictedDisplayTime;
-        endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-        endInfo.layerCount = 0;
-        endInfo.layers = nullptr;
-        p_xrEndFrame(m_session, &endInfo);
-        return;
+        return false;
     }
+
+    static int interactionProfileLogCount = 0;
+    if (interactionProfileLogCount < 10 || (interactionProfileLogCount % 300) == 0) {
+        auto logInteractionProfile = [&](const char* handLabel, XrPath handPath) {
+            if (p_xrGetCurrentInteractionProfile == nullptr || p_xrPathToString == nullptr || handPath == XR_NULL_PATH) {
+                return;
+            }
+
+            XrInteractionProfileState profileState = {XR_TYPE_INTERACTION_PROFILE_STATE};
+            XrResult profileResult = p_xrGetCurrentInteractionProfile(m_session, handPath, &profileState);
+            if (XR_FAILED(profileResult)) {
+                if (interactionProfileLogCount < 10) {
+                    __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Current interaction profile lookup failed for %s: %d",
+                        handLabel, (int)profileResult);
+                }
+                return;
+            }
+
+            char profileBuffer[256] = {};
+            uint32_t profileLength = 0;
+            XrResult pathResult = p_xrPathToString(m_instance, profileState.interactionProfile,
+                sizeof(profileBuffer), &profileLength, profileBuffer);
+            if (XR_SUCCEEDED(pathResult)) {
+                __android_log_print(ANDROID_LOG_DEBUG, "Cemu", "Current interaction profile %s: %s", handLabel, profileBuffer);
+            }
+        };
+
+        logInteractionProfile("left", m_leftHandPath);
+        logInteractionProfile("right", m_rightHandPath);
+    }
+    ++interactionProfileLogCount;
 
     // Get button states
     XrActionStateGetInfo getInfo = {XR_TYPE_ACTION_STATE_GET_INFO};
@@ -1168,7 +1340,7 @@ void OpenXRManager::PollInput()
     XrActionStateVector2f vector2State = {XR_TYPE_ACTION_STATE_VECTOR2F};
 
     // Clear previous state
-    memset(&m_inputState, 0, sizeof(m_inputState));
+    m_inputState = {};
 
     // Button A (index 0)
     getInfo.action = m_actionButtonA;
@@ -1262,13 +1434,145 @@ void OpenXRManager::PollInput()
         }
     }
 
-    // End the frame (empty, no layers — just keeping session alive for input)
-    XrFrameEndInfo endInfo = {XR_TYPE_FRAME_END_INFO};
-    endInfo.displayTime = frameState.predictedDisplayTime;
-    endInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-    endInfo.layerCount = 0;
-    endInfo.layers = nullptr;
-    p_xrEndFrame(m_session, &endInfo);
+    UpdatePointerState();
+    UpdateMotionState(m_gripSpaceL, m_motionCacheL, m_inputState.motionL);
+    UpdateMotionState(m_gripSpaceR, m_motionCacheR, m_inputState.motionR);
+
+    if (syncLogCount <= 5 || (syncLogCount % 120) == 0 ||
+        m_inputState.buttons[0] || m_inputState.buttons[1] || m_inputState.buttons[2] || m_inputState.buttons[3] ||
+        m_inputState.gripL > 0.1f || m_inputState.gripR > 0.1f ||
+        m_inputState.triggerL > 0.1f || m_inputState.triggerR > 0.1f ||
+        m_inputState.pointerVisibility != 0) {
+        __android_log_print(ANDROID_LOG_DEBUG, "Cemu",
+            "OpenXR state A=%d B=%d X=%d Y=%d trigL=%.2f trigR=%.2f gripL=%.2f gripR=%.2f ptr=%d x=%.2f y=%.2f",
+            m_inputState.buttons[0] ? 1 : 0,
+            m_inputState.buttons[1] ? 1 : 0,
+            m_inputState.buttons[2] ? 1 : 0,
+            m_inputState.buttons[3] ? 1 : 0,
+            m_inputState.triggerL,
+            m_inputState.triggerR,
+            m_inputState.gripL,
+            m_inputState.gripR,
+            m_inputState.pointerVisibility,
+            m_inputState.pointerX,
+            m_inputState.pointerY);
+    }
+
+    return true;
+}
+
+void OpenXRManager::UpdatePointerState()
+{
+    if (p_xrLocateSpace == nullptr || m_aimSpaceR == XR_NULL_HANDLE || m_localSpace == XR_NULL_HANDLE) {
+        return;
+    }
+
+    XrSpaceLocation location = {XR_TYPE_SPACE_LOCATION};
+    if (!CheckXrResult(p_xrLocateSpace(m_aimSpaceR, m_localSpace, m_frameState.predictedDisplayTime, &location), "xrLocateSpace aim_pose_right")) {
+        return;
+    }
+
+    if (!HasValidPose(location)) {
+        return;
+    }
+
+    const XrVector3f rayOrigin = location.pose.position;
+    const XrVector3f rayDirection = RotateVector(location.pose.orientation, {0.0f, 0.0f, -1.0f});
+    const XrVector3f planeNormal = RotateVector(DefaultQuadPose.orientation, {0.0f, 0.0f, 1.0f});
+    const float denominator = Dot(rayDirection, planeNormal);
+    if (std::abs(denominator) < 0.0001f) {
+        return;
+    }
+
+    const float distance = Dot(Subtract(DefaultQuadPose.position, rayOrigin), planeNormal) / denominator;
+    if (distance <= 0.0f) {
+        return;
+    }
+
+    const XrVector3f hitPoint = Add(rayOrigin, Scale(rayDirection, distance));
+    const XrVector3f localOffset = Subtract(hitPoint, DefaultQuadPose.position);
+    const XrVector3f planeX = RotateVector(DefaultQuadPose.orientation, {1.0f, 0.0f, 0.0f});
+    const XrVector3f planeY = RotateVector(DefaultQuadPose.orientation, {0.0f, 1.0f, 0.0f});
+
+    const float pointerX = (Dot(localOffset, planeX) / DefaultQuadSize.width) + 0.5f;
+    const float pointerY = 0.5f - (Dot(localOffset, planeY) / DefaultQuadSize.height);
+    const bool insideFullBounds = pointerX >= 0.0f && pointerX <= 1.0f && pointerY >= 0.0f && pointerY <= 1.0f;
+    const bool insidePartialBounds =
+        pointerX >= -kPointerPartialMargin && pointerX <= 1.0f + kPointerPartialMargin &&
+        pointerY >= -kPointerPartialMargin && pointerY <= 1.0f + kPointerPartialMargin;
+
+    if (!insidePartialBounds) {
+        return;
+    }
+
+    m_inputState.pointerX = std::clamp(pointerX, 0.0f, 1.0f);
+    m_inputState.pointerY = std::clamp(pointerY, 0.0f, 1.0f);
+    m_inputState.pointerVisibility = insideFullBounds ? 1 : 2;
+}
+
+void OpenXRManager::UpdateMotionState(XrSpace space, MotionTrackingCache& cache, ControllerInputState::MotionState& motionState)
+{
+    if (p_xrLocateSpace == nullptr || space == XR_NULL_HANDLE || m_localSpace == XR_NULL_HANDLE) {
+        return;
+    }
+
+    XrSpaceVelocity velocity = {XR_TYPE_SPACE_VELOCITY};
+    XrSpaceLocation location = {XR_TYPE_SPACE_LOCATION};
+    location.next = &velocity;
+
+    if (!CheckXrResult(p_xrLocateSpace(space, m_localSpace, m_frameState.predictedDisplayTime, &location), "xrLocateSpace grip_pose")) {
+        cache = {};
+        return;
+    }
+
+    if (!HasValidPose(location)) {
+        cache = {};
+        return;
+    }
+
+    const XrQuaternionf inverseOrientation = Conjugate(location.pose.orientation);
+    XrVector3f localAcceleration = RotateVector(inverseOrientation, {0.0f, -1.0f, 0.0f});
+    XrVector3f localGyro{};
+
+    if ((velocity.velocityFlags & XR_SPACE_VELOCITY_ANGULAR_VALID_BIT) != 0) {
+        localGyro = RotateVector(inverseOrientation, velocity.angularVelocity);
+    }
+
+    if ((velocity.velocityFlags & XR_SPACE_VELOCITY_LINEAR_VALID_BIT) != 0) {
+        if (cache.hasPreviousSample && m_frameState.predictedDisplayTime > cache.previousSampleTime) {
+            const float deltaTime = static_cast<float>(m_frameState.predictedDisplayTime - cache.previousSampleTime) / 1000000000.0f;
+            if (deltaTime > 0.0001f && deltaTime < 0.5f) {
+                const XrVector3f worldAcceleration = Scale(
+                    Subtract(velocity.linearVelocity, cache.previousLinearVelocity),
+                    1.0f / (deltaTime * kGravityMetersPerSecondSquared));
+                localAcceleration = Add(localAcceleration, RotateVector(inverseOrientation, worldAcceleration));
+            }
+        }
+
+        cache.previousLinearVelocity = velocity.linearVelocity;
+        cache.previousSampleTime = m_frameState.predictedDisplayTime;
+        cache.hasPreviousSample = true;
+    } else {
+        cache = {};
+    }
+
+    float yaw, pitch, roll;
+    QuaternionToYawPitchRoll(location.pose.orientation, yaw, pitch, roll);
+
+    motionState.valid = true;
+    motionState.acceleration[0] = localAcceleration.x;
+    motionState.acceleration[1] = localAcceleration.y;
+    motionState.acceleration[2] = localAcceleration.z;
+    motionState.gyro[0] = localGyro.x;
+    motionState.gyro[1] = localGyro.y;
+    motionState.gyro[2] = localGyro.z;
+    motionState.orientation[0] = (-yaw / kTwoPi) - 0.5f;
+    motionState.orientation[1] = (-pitch / kTwoPi) - 0.5f;
+    motionState.orientation[2] = roll / kTwoPi;
+    motionState.quaternion[0] = location.pose.orientation.x;
+    motionState.quaternion[1] = location.pose.orientation.y;
+    motionState.quaternion[2] = location.pose.orientation.z;
+    motionState.quaternion[3] = location.pose.orientation.w;
 }
 
 OpenXRManager::ControllerInputState OpenXRManager::GetInputState() const

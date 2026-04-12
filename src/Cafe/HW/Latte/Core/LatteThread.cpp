@@ -19,6 +19,10 @@
 
 #include "Cafe/CafeSystem.h"
 
+#if BOOST_PLAT_ANDROID
+#include <android/log.h>
+#endif
+
 LatteGPUState_t LatteGPUState = {};
 
 std::atomic_bool sLatteThreadRunning = false;
@@ -131,18 +135,80 @@ int Latte_ThreadEntry()
 		cemuLog_log(LogType::Force, "FATAL: g_renderer is null in Latte_ThreadEntry! Metal renderer was not initialized before game launch.");
 		return -1;
 	}
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: renderer initialize begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: renderer initialize begin");
 	g_renderer->Initialize();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: renderer initialize end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: RendererOutputShader::InitializeStatic begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: renderer initialize end");
+	cemuLog_log(LogType::Force, "LatteThread: RendererOutputShader::InitializeStatic begin");
 	RendererOutputShader::InitializeStatic();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: RendererOutputShader::InitializeStatic end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteTiming_Init begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: RendererOutputShader::InitializeStatic end");
 
+	cemuLog_log(LogType::Force, "LatteThread: LatteTiming_Init begin");
 	LatteTiming_Init();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteTiming_Init end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteTexture_init begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: LatteTiming_Init end");
+	cemuLog_log(LogType::Force, "LatteThread: LatteTexture_init begin");
 	LatteTexture_init();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteTexture_init end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteTC_Init begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: LatteTexture_init end");
+	cemuLog_log(LogType::Force, "LatteThread: LatteTC_Init begin");
 	LatteTC_Init();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteTC_Init end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteBufferCache_init begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: LatteTC_Init end");
+	cemuLog_log(LogType::Force, "LatteThread: LatteBufferCache_init begin");
 	LatteBufferCache_init(164 * 1024 * 1024);
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteBufferCache_init end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteQuery_Init begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: LatteBufferCache_init end");
+	cemuLog_log(LogType::Force, "LatteThread: LatteQuery_Init begin");
 	LatteQuery_Init();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteQuery_Init end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteSHRC_Init begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: LatteQuery_Init end");
+	cemuLog_log(LogType::Force, "LatteThread: LatteSHRC_Init begin");
 	LatteSHRC_Init();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteSHRC_Init end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteStreamout_InitCache begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: LatteSHRC_Init end");
+	cemuLog_log(LogType::Force, "LatteThread: LatteStreamout_InitCache begin");
 	LatteStreamout_InitCache();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteStreamout_InitCache end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: renderTarget_setViewport begin");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: LatteStreamout_InitCache end");
 
+	cemuLog_log(LogType::Force, "LatteThread: renderTarget_setViewport begin");
 	g_renderer->renderTarget_setViewport(0, 0, w, h, 0.0f, 1.0f);
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: renderTarget_setViewport end");
+#endif
+	cemuLog_log(LogType::Force, "LatteThread: renderTarget_setViewport end");
 	
 	// enable GLSL gl_PointSize support
 	// glEnable(GL_PROGRAM_POINT_SIZE); // breaks shader caching on AMD (as of 2018)
@@ -183,10 +249,20 @@ int Latte_ThreadEntry()
 		std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
 	}
 
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: title running, DrawEmptyFrame(true) begin");
+#endif
 	g_renderer->DrawEmptyFrame(true);
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: title running, DrawEmptyFrame(true) end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: GraphicPack2::WaitUntilReady begin");
+#endif
 
 	// before doing anything with game specific shaders, we need to wait for graphic packs to finish loading
 	GraphicPack2::WaitUntilReady();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: GraphicPack2::WaitUntilReady end");
+#endif
 	// if legacy packs are enabled we cannot use the colorbuffer resolution optimization
 	LatteGPUState.allowFramebufferSizeOptimization = true;
 	for(auto& pack : GraphicPack2::GetActiveGraphicPacks())
@@ -205,9 +281,19 @@ int Latte_ThreadEntry()
 		}
 	}
 	// load disk shader cache
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteShaderCache_Load begin");
+#endif
     LatteShaderCache_Load();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteShaderCache_Load end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: Latte_LoadInitialRegisters begin");
+#endif
 	// init registers
 	Latte_LoadInitialRegisters();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: Latte_LoadInitialRegisters end");
+#endif
 	// let CPU thread know the GPU is done initializing
 	g_isGPUInitFinished = true;
 	// wait until CPU has called GX2Init()
@@ -216,10 +302,21 @@ int Latte_ThreadEntry()
 		std::this_thread::yield();
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		LatteThread_HandleOSScreen();
+#if BOOST_PLAT_ANDROID
+		static int gx2WaitLogCount = 0;
+		if (gx2WaitLogCount++ < 8)
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: waiting for GX2Init gx2InitCalled=%u stop=%d", LatteGPUState.gx2InitCalled, Latte_GetStopSignal() ? 1 : 0);
+#endif
 		if (Latte_GetStopSignal())
 			LatteThread_Exit();
 	}
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteCP_ProcessRingbuffer begin");
+#endif
 	LatteCP_ProcessRingbuffer();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteThread: LatteCP_ProcessRingbuffer returned");
+#endif
 	cemu_assert_debug(false); // should never reach
 	return 0;
 }

@@ -108,6 +108,7 @@ private fun ControllerInputSettingsScreenContent(
 ) {
     val controllerType by controllersViewModel.controllerType.collectAsState()
     val controls by controllersViewModel.controls.collectAsState()
+    val wiimoteDeviceType by controllersViewModel.wiimoteDeviceType.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -167,10 +168,30 @@ private fun ControllerInputSettingsScreenContent(
                 controlsMapping = controls,
             )
 
-            NativeInput.EmulatedControllerType.WIIMOTE -> WiimoteControllerInputs(
-                onInputClick = ::onInputClick,
-                controlsMapping = controls,
-            )
+            NativeInput.EmulatedControllerType.WIIMOTE -> {
+                SingleSelection(
+                    label = tr("Wiimote extension"),
+                    choice = wiimoteDeviceType,
+                    choices = listOf(
+                        NativeInput.WiimoteDeviceType.CORE,
+                        NativeInput.WiimoteDeviceType.NUNCHUK,
+                    ),
+                    choiceToString = {
+                        when (it) {
+                            NativeInput.WiimoteDeviceType.CORE -> tr("Wiimote")
+                            NativeInput.WiimoteDeviceType.NUNCHUK -> tr("Wiimote + Nunchuk")
+                            else -> error("Unknown Wiimote device type $it")
+                        }
+                    },
+                    onChoiceChanged = controllersViewModel::setWiimoteDeviceType,
+                )
+
+                WiimoteControllerInputs(
+                    onInputClick = ::onInputClick,
+                    controlsMapping = controls,
+                    hasNunchuk = wiimoteDeviceType == NativeInput.WiimoteDeviceType.NUNCHUK,
+                )
+            }
         }
     }
 }

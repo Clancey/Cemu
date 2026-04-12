@@ -7,6 +7,10 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
 
+#if BOOST_PLAT_ANDROID
+#include <android/log.h>
+#endif
+
 SwapchainInfoVk::SwapchainInfoVk(bool mainWindow, Vector2i size) : mainWindow(mainWindow), m_desiredExtent(size)
 {
 	auto renderer = VulkanRenderer::GetInstance();
@@ -235,7 +239,7 @@ void SwapchainInfoVk::Cleanup()
 bool SwapchainInfoVk::IsValid() const
 {
 	if (m_isOpenXR)
-		return !m_swapchainImages.empty(); // OpenXR mode: valid if we have swapchain images
+		return m_openxrManager != nullptr && m_xrPollEvents != nullptr && m_xrIsRunning != nullptr && m_xrBeginFrame != nullptr && m_xrAcquireImage != nullptr && m_xrEndFrame != nullptr;
 	return m_swapchain && !m_acquireSemaphores.empty();
 }
 
@@ -261,6 +265,17 @@ VkSemaphore SwapchainInfoVk::ConsumeAcquireSemaphore()
 bool SwapchainInfoVk::AcquireImage()
 {
 	if (m_isOpenXR && m_openxrManager) {
+		// Deferred session start — begin VR session on first render
+		if (!m_xrSessionStarted && m_xrStartSession) {
+#if BOOST_PLAT_ANDROID
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: First SwapBuffer! Starting OpenXR session NOW");
+#endif
+			if (!m_xrStartSession(m_openxrManager)) {
+				swapchainImageIndex = -1;
+				return false;
+			}
+			m_xrSessionStarted = true;
+		}
 		m_xrPollEvents(m_openxrManager);
 		if (!m_xrIsRunning(m_openxrManager)) {
 			swapchainImageIndex = -1;

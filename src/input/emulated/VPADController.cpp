@@ -8,6 +8,10 @@
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/CafeSystem.h"
 
+#if BOOST_PLAT_ANDROID
+#include <android/log.h>
+#endif
+
 enum ControllerVPADMapping2 : uint32
 {
 	VPAD_A = 0x8000,
@@ -63,6 +67,10 @@ void VPADController::VPADRead(VPADStatus_t& status, const BtnRepeat& repeat)
 	if (readCount <= 20 || anyDown) {
 		cemuLog_log(LogType::Force, "VPADController::VPADRead #{} controllers={} anyDown={} mapping_A={}",
 			readCount, get_controllers().size(), anyDown, is_mapping_down(kButtonId_A));
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VPADRead #%d controllers=%zu anyDown=%d mapping_A=%d",
+			readCount, get_controllers().size(), anyDown ? 1 : 0, is_mapping_down(kButtonId_A) ? 1 : 0);
+#endif
 	}
 
 	m_mic_active = false;
@@ -201,6 +209,7 @@ void VPADController::update()
 
 void VPADController::update_touch(VPADStatus_t& status)
 {
+	static bool s_lastTouchActive = false;
 	status.tpData.touch = kTpTouchOff;
 	status.tpData.validity = kTpInvalid;
 	// keep x,y from previous update
@@ -249,6 +258,16 @@ void VPADController::update_touch(VPADStatus_t& status)
 
 	status.tpProcessed1 = status.tpData;
 	status.tpProcessed2 = status.tpData;
+
+#if BOOST_PLAT_ANDROID
+	const bool touchActive = status.tpData.touch == kTpTouchOn;
+	if (touchActive != s_lastTouchActive)
+	{
+		s_lastTouchActive = touchActive;
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VPAD touch active=%d x=%u y=%u",
+			touchActive ? 1 : 0, status.tpData.x, status.tpData.y);
+	}
+#endif
 }
 
 void VPADController::update_motion(VPADStatus_t& status)
@@ -689,6 +708,45 @@ bool VPADController::set_default_mapping(const std::shared_ptr<ControllerBase>& 
 			{kButtonId_StickR_Right, kRotationXP},
 		};
 		
+		break;
+	}
+	case InputAPI::Android:
+	{
+		mapping =
+		{
+			{kButtonId_A, 96},          // AKEYCODE_BUTTON_A
+			{kButtonId_B, 97},          // AKEYCODE_BUTTON_B
+			{kButtonId_X, 99},          // AKEYCODE_BUTTON_X
+			{kButtonId_Y, 100},         // AKEYCODE_BUTTON_Y
+
+			{kButtonId_L, 102},         // AKEYCODE_BUTTON_L1
+			{kButtonId_R, 103},         // AKEYCODE_BUTTON_R1
+			{kButtonId_ZL, kTriggerXP},
+			{kButtonId_ZR, kTriggerYP},
+
+			{kButtonId_Plus, 108},      // AKEYCODE_BUTTON_START
+			{kButtonId_Minus, 109},     // AKEYCODE_BUTTON_SELECT
+			{kButtonId_Home, 110},      // AKEYCODE_BUTTON_MODE
+
+			{kButtonId_Up, 19},         // AKEYCODE_DPAD_UP
+			{kButtonId_Down, 20},       // AKEYCODE_DPAD_DOWN
+			{kButtonId_Left, 21},       // AKEYCODE_DPAD_LEFT
+			{kButtonId_Right, 22},      // AKEYCODE_DPAD_RIGHT
+
+			{kButtonId_StickL, 106},    // AKEYCODE_BUTTON_THUMBL
+			{kButtonId_StickR, 107},    // AKEYCODE_BUTTON_THUMBR
+
+			{kButtonId_StickL_Up, kAxisYN},
+			{kButtonId_StickL_Down, kAxisYP},
+			{kButtonId_StickL_Left, kAxisXN},
+			{kButtonId_StickL_Right, kAxisXP},
+
+			{kButtonId_StickR_Up, kRotationYN},
+			{kButtonId_StickR_Down, kRotationYP},
+			{kButtonId_StickR_Left, kRotationXN},
+			{kButtonId_StickR_Right, kRotationXP},
+		};
+
 		break;
 	}
 	}

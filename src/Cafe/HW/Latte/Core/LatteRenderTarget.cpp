@@ -16,6 +16,10 @@
 #include "input/InputManager.h"
 #include "Cafe/OS/libs/swkbd/swkbd.h"
 
+#if BOOST_PLAT_ANDROID
+#include <android/log.h>
+#endif
+
 uint32 prevScissorX = 0;
 uint32 prevScissorY = 0;
 uint32 prevScissorWidth = 0;
@@ -688,16 +692,44 @@ void LatteRenderTarget_itHLESwapScanBuffer()
 		performanceMonitor.gpuTime_frameTime.endMeasuring();
 	LattePerformanceMonitor_frameEnd();
 	LatteGPUState.frameCounter++;
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: SwapBuffers begin");
+#endif
 	g_renderer->SwapBuffers(true, true);
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: SwapBuffers end");
+#endif
 
 	catchOpenGLError();
 	performanceMonitor.gpuTime_frameTime.beginMeasuring();
 
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LatteTC_CleanupUnusedTextures begin");
+#endif
 	LatteTC_CleanupUnusedTextures();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LatteTC_CleanupUnusedTextures end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LatteDraw_cleanupAfterFrame begin");
+#endif
 	LatteDraw_cleanupAfterFrame();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LatteDraw_cleanupAfterFrame end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LatteQuery_CancelActiveGPU7Queries begin");
+#endif
 	LatteQuery_CancelActiveGPU7Queries();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LatteQuery_CancelActiveGPU7Queries end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LatteBufferCache_notifySwapTVScanBuffer begin");
+#endif
 	LatteBufferCache_notifySwapTVScanBuffer();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LatteBufferCache_notifySwapTVScanBuffer end");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LattePerformanceMonitor_frameBegin begin");
+#endif
 	LattePerformanceMonitor_frameBegin();
+#if BOOST_PLAT_ANDROID
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "LatteRenderTarget: LattePerformanceMonitor_frameBegin end");
+#endif
 }
 
 void LatteRenderTarget_applyTextureColorClear(LatteTexture* texture, uint32 sliceIndex, uint32 mipIndex, float r, float g, float b, float a, uint64 eventCounter)
@@ -963,6 +995,29 @@ void LatteRenderTarget_copyToBackbuffer(LatteTextureView* textureView, bool isPa
 		}
 	}
 	cemu_assert(shader);
+
+#if BOOST_PLAT_ANDROID
+	static uint32 s_copyToBackbufferCount = 0;
+	const uint32 copyCount = ++s_copyToBackbufferCount;
+	if (copyCount <= 20 || (copyCount % 120) == 0)
+	{
+		cemuLog_log(LogType::Force,
+			"LatteRenderTarget_copyToBackbuffer #{} pad={} src={}x{} dst={}x{} pos={},{} full={}x{} clear={} downscale={}",
+			copyCount,
+			isPadView ? 1 : 0,
+			effectiveWidth,
+			effectiveHeight,
+			imageWidth,
+			imageHeight,
+			imageX,
+			imageY,
+			fullscreenWidth,
+			fullscreenHeight,
+			clearBackground ? 1 : 0,
+			downscaling ? 1 : 0);
+	}
+#endif
+
 	g_renderer->DrawBackbufferQuad(textureView, shader, filter==LatteTextureView::MagFilter::kLinear, imageX, imageY, imageWidth, imageHeight, isPadView, clearBackground);
 	g_renderer->HandleScreenshotRequest(textureView, isPadView);
 	if (!g_renderer->ImguiBegin(!isPadView))

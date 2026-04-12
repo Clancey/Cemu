@@ -94,7 +94,7 @@ class EmulationActivity : AppCompatActivity() {
             try {
                 // Wait a moment for the activity window to be ready
                 Thread.sleep(500)
-                val result = NativeEmulation.initializeOpenXR(this)
+                val result = NativeEmulation.initializeOpenXR(this, false)
                 android.util.Log.d("Cemu", "OpenXR input init result: $result")
                 if (result) {
                     startOpenXRInputPolling()

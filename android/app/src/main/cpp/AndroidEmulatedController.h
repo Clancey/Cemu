@@ -42,6 +42,12 @@ class AndroidEmulatedController {
 		if (m_emulatedController && m_emulatedController->type() == type)
 			return;
 		m_emulatedController = InputManager::instance().set_controller(m_index, type);
+		if (!m_emulatedController)
+			return;
+
+		for (const auto& controller : m_emulatedController->get_controllers())
+			m_emulatedController->set_default_mapping(controller);
+
 		InputManager::instance().save(m_index);
 	}
 	void setMapping(uint64 mappingId, ControllerPtr controller, uint64 buttonId)

@@ -1,4 +1,5 @@
 #include "WindowSystem.h"
+#include <android/input.h>
 #include <android/log.h>
 #include "JNIUtils.h"
 #include "AndroidAudio.h"
@@ -16,6 +17,9 @@
 #include "input/api/Android/AndroidControllerProvider.h"
 #include "config/ActiveSettings.h"
 #include "Cemu/ncrypto/ncrypto.h"
+#include <chrono>
+#include <mutex>
+#include <thread>
 // #include "OpenXRManager.h" // TODO: re-enable with dynamic loading
 
 // forward declaration from main.cpp
@@ -186,6 +190,7 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_setReplaceTVWithPadView([[ma
 }
 
 std::atomic<bool> s_emulationInitialized{false};
+static std::atomic<bool> s_openxrMappingsApplied{false};
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeEmulation([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
@@ -217,35 +222,498 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRenderer(JNIEnv* e
 }
 
 // Helper: submit empty OpenXR frame to prevent Quest from killing us during long init
-void SubmitOpenXRKeepaliveFrame();
+bool SubmitOpenXRKeepaliveFrame();
 
-// Global: set when game starts rendering to VR (stops keepalive2)
+// Global: set when the app first presents a real VR frame
 std::atomic<bool> g_vrGameRendering{false};
 
 // Global OpenXR manager instance
 std::unique_ptr<OpenXRManager> g_openxrManager = nullptr;
 
+namespace
+{
+	constexpr auto kOpenXRKeepaliveIdleThreshold = std::chrono::milliseconds(250);
+	constexpr auto kOpenXRKeepalivePollInterval = std::chrono::milliseconds(50);
+	constexpr auto kOpenXRKeepalivePostSubmitDelay = std::chrono::milliseconds(100);
+
+	std::mutex g_openxrFrameLoopMutex;
+	std::thread g_openxrKeepaliveThread;
+	std::atomic<bool> g_openxrKeepaliveStop{false};
+	std::atomic<int64_t> g_openxrLastPresentedFrameNs{0};
+
+	int64_t GetOpenXRSteadyClockNs()
+	{
+		return std::chrono::duration_cast<std::chrono::nanoseconds>(
+			std::chrono::steady_clock::now().time_since_epoch())
+			.count();
+	}
+
+	void NoteOpenXRFramePresented()
+	{
+		g_openxrLastPresentedFrameNs.store(GetOpenXRSteadyClockNs());
+	}
+
+	void StopOpenXRKeepaliveThread()
+	{
+		g_openxrKeepaliveStop.store(true);
+		if (g_openxrKeepaliveThread.joinable())
+			g_openxrKeepaliveThread.join();
+	}
+
+	void StartOpenXRKeepaliveThread()
+	{
+		StopOpenXRKeepaliveThread();
+		g_openxrKeepaliveStop.store(false);
+		NoteOpenXRFramePresented();
+		g_openxrKeepaliveThread = std::thread([]() {
+			const auto idleThresholdNs = std::chrono::duration_cast<std::chrono::nanoseconds>(kOpenXRKeepaliveIdleThreshold).count();
+			while (!g_openxrKeepaliveStop.load()) {
+				auto* manager = g_openxrManager.get();
+				if (!manager || !manager->IsSessionRunning()) {
+					std::this_thread::sleep_for(kOpenXRKeepalivePollInterval);
+					continue;
+				}
+
+				const auto idleNs = GetOpenXRSteadyClockNs() - g_openxrLastPresentedFrameNs.load();
+				if (idleNs < idleThresholdNs) {
+					std::this_thread::sleep_for(kOpenXRKeepalivePollInterval);
+					continue;
+				}
+
+				std::unique_lock<std::mutex> frameLock(g_openxrFrameLoopMutex, std::try_to_lock);
+				if (!frameLock.owns_lock()) {
+					std::this_thread::sleep_for(kOpenXRKeepalivePollInterval);
+					continue;
+				}
+
+				manager = g_openxrManager.get();
+				if (!manager || !manager->IsSessionRunning()) {
+					std::this_thread::sleep_for(kOpenXRKeepalivePollInterval);
+					continue;
+				}
+
+				const auto lockedIdleNs = GetOpenXRSteadyClockNs() - g_openxrLastPresentedFrameNs.load();
+				if (lockedIdleNs < idleThresholdNs) {
+					std::this_thread::sleep_for(kOpenXRKeepalivePollInterval);
+					continue;
+				}
+
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive: submit idle frame after %lld ms", static_cast<long long>(lockedIdleNs / 1000000));
+				if (SubmitOpenXRKeepaliveFrame())
+					NoteOpenXRFramePresented();
+				std::this_thread::sleep_for(kOpenXRKeepalivePostSubmitDelay);
+			}
+		});
+	}
+}
+
 // Submits an empty OpenXR frame with zero composition layers
 // Thread-safe alongside Vulkan init (no Vulkan commands used)
-void SubmitOpenXRKeepaliveFrame()
+bool SubmitOpenXRKeepaliveFrame()
 {
-	if (!g_openxrManager) return;
+	if (!g_openxrManager)
+		return false;
 	g_openxrManager->PollEvents();
-	if (!g_openxrManager->IsSessionRunning()) return;
-	{ g_openxrManager->PollEvents(); if (g_openxrManager->BeginFrame()) { auto idx = g_openxrManager->AcquireSwapchainImage(); if (idx != UINT32_MAX) g_openxrManager->ReleaseSwapchainImage(); XrPosef p={{0,0,0,1},{0,0,-2}}; XrExtent2Df s={2.0f,1.125f}; g_openxrManager->EndFrame(p,s); } }
+	if (!g_openxrManager->IsSessionRunning())
+		return false;
+
+	g_openxrManager->PollEvents();
+	if (!g_openxrManager->BeginFrame())
+		return false;
+
+	auto idx = g_openxrManager->AcquireSwapchainImage();
+	if (idx == UINT32_MAX)
+		return g_openxrManager->CancelFrame();
+
+	g_openxrManager->ReleaseSwapchainImage();
+	XrPosef pose = {{0,0,0,1},{0,0,-2}};
+	XrExtent2Df size = {2.0f, 1.125f};
+	return g_openxrManager->EndFrame(pose, size);
 }
 
 // Store Activity reference for OpenXR
 static jobject s_openxrActivity = nullptr;
 
+namespace
+{
+	constexpr const char* kOpenXRControllerDescriptor = "openxr_quest_controller";
+	constexpr const char* kOpenXRControllerName = "Quest Controller";
+	constexpr const char* kOpenXRSecondaryMotionDescriptor = "openxr_quest_controller_left_motion";
+	constexpr const char* kOpenXRSecondaryMotionName = "Quest Left Motion";
+
+	struct OpenXRForwardState
+	{
+		bool buttons[7]{};
+		bool gripL = false;
+		bool gripR = false;
+	};
+
+	OpenXRForwardState g_openxrForwardState{};
+
+	void ForwardOpenXRInputState(const OpenXRManager::ControllerInputState& inputState);
+
+	void ResetOpenXRForwardState()
+	{
+		g_openxrForwardState = {};
+	}
+
+	bool BeginOpenXRRenderFrame(OpenXRManager* manager)
+	{
+		g_openxrFrameLoopMutex.lock();
+		if (!manager->BeginFrame()) {
+			g_openxrFrameLoopMutex.unlock();
+			return false;
+		}
+
+		ForwardOpenXRInputState(manager->GetInputState());
+		return true;
+	}
+
+	uint32_t AcquireOpenXRRenderFrameImage(OpenXRManager* manager)
+	{
+		const auto imageIndex = manager->AcquireSwapchainImage();
+		if (imageIndex != UINT32_MAX)
+			return imageIndex;
+
+		manager->CancelFrame();
+		g_openxrFrameLoopMutex.unlock();
+		return UINT32_MAX;
+	}
+
+	void EndOpenXRRenderFrame(OpenXRManager* manager)
+	{
+		XrPosef pose = {{0,0,0,1},{0,0,-2}};
+		XrExtent2Df size = {2.0f, 1.125f};
+		manager->EndFrame(pose, size);
+		NoteOpenXRFramePresented();
+		g_openxrFrameLoopMutex.unlock();
+	}
+
+	AndroidControllerProvider* GetAndroidControllerProvider()
+	{
+		auto apiProvider = InputManager::instance().get_api_provider(InputAPI::Android);
+		return dynamic_cast<AndroidControllerProvider*>(apiProvider.get());
+	}
+
+	PositionVisibility ToPositionVisibility(int visibility)
+	{
+		switch (visibility) {
+		case 1:
+			return PositionVisibility::FULL;
+		case 2:
+			return PositionVisibility::PARTIAL;
+		default:
+			return PositionVisibility::NONE;
+		}
+	}
+
+	MotionSample ToMotionSample(const OpenXRManager::ControllerInputState::MotionState& motionState)
+	{
+		float acceleration[3] = {
+			motionState.acceleration[0],
+			motionState.acceleration[1],
+			motionState.acceleration[2],
+		};
+		float gyro[3] = {
+			motionState.gyro[0],
+			motionState.gyro[1],
+			motionState.gyro[2],
+		};
+		float orientation[3] = {
+			motionState.orientation[0],
+			motionState.orientation[1],
+			motionState.orientation[2],
+		};
+		float quaternion[4] = {
+			motionState.quaternion[0],
+			motionState.quaternion[1],
+			motionState.quaternion[2],
+			motionState.quaternion[3],
+		};
+		return MotionSample(acceleration, MotionSample::calculateAccAcceleration(acceleration, acceleration), gyro, orientation, quaternion);
+	}
+
+	void EnsureOpenXRWiimoteMappings()
+	{
+		for (size_t index = 0; index < InputManager::kMaxController; ++index) {
+			auto emulatedController = InputManager::instance().get_controller(index);
+			if (!emulatedController || emulatedController->type() != EmulatedController::Type::Wiimote) {
+				continue;
+			}
+
+			ControllerPtr questController;
+			ControllerPtr secondaryMotionController;
+			for (const auto& controller : emulatedController->get_controllers()) {
+				if (controller->api() == InputAPI::Android && controller->uuid() == kOpenXRControllerDescriptor) {
+					questController = controller;
+				}
+				if (controller->api() == InputAPI::Android && controller->uuid() == kOpenXRSecondaryMotionDescriptor) {
+					secondaryMotionController = controller;
+				}
+			}
+
+			if (!questController) {
+				questController = ControllerFactory::CreateController(InputAPI::Android, kOpenXRControllerDescriptor, kOpenXRControllerName);
+				if (questController)
+					emulatedController->add_controller(questController);
+
+				auto* wiimoteController = static_cast<WiimoteController*>(emulatedController.get());
+				if (wiimoteController->get_device_type() == kWAPDevCore) {
+					wiimoteController->set_device_type(kWAPDevFreestyle);
+				}
+			}
+
+			if (!secondaryMotionController) {
+				secondaryMotionController = ControllerFactory::CreateController(InputAPI::Android, kOpenXRSecondaryMotionDescriptor, kOpenXRSecondaryMotionName);
+				if (secondaryMotionController)
+					emulatedController->add_controller(secondaryMotionController);
+			}
+
+			if (questController)
+				emulatedController->set_default_mapping(questController);
+			try {
+				InputManager::instance().save(index);
+			} catch (const std::exception& e) {
+				cemuLog_log(LogType::Force, "OpenXR: Failed to save Wiimote profile {}: {}", index, e.what());
+				__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR: Failed to save Wiimote profile %zu: %s", index, e.what());
+			}
+		}
+	}
+
+	void EnsureOpenXRVPADMappings()
+	{
+		auto attachQuestController = [](const EmulatedControllerPtr& emulatedController) -> bool
+		{
+			if (!emulatedController || emulatedController->type() != EmulatedController::Type::VPAD) {
+				return false;
+			}
+
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: Inspecting VPAD profile %zu controllers=%zu",
+				emulatedController->player_index(), emulatedController->get_controllers().size());
+			for (const auto& controller : emulatedController->get_controllers()) {
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: VPAD profile %zu controller api=%d uuid=%s name=%s",
+					emulatedController->player_index(),
+					static_cast<int>(controller->api()),
+					controller->uuid().c_str(),
+					controller->display_name().c_str());
+			}
+
+			ControllerPtr questController;
+			for (const auto& controller : emulatedController->get_controllers()) {
+				if (controller->api() == InputAPI::Android && controller->uuid() == kOpenXRControllerDescriptor) {
+					questController = controller;
+					break;
+				}
+			}
+
+			if (!questController && emulatedController->get_controllers().empty()) {
+				questController = ControllerFactory::CreateController(InputAPI::Android, kOpenXRControllerDescriptor, kOpenXRControllerName);
+				if (questController) {
+					emulatedController->add_controller(questController);
+					__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: Attached Quest controller to existing VPAD profile %zu", emulatedController->player_index());
+				} else {
+					__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR: Failed to create Quest controller for VPAD profile %zu",
+						emulatedController->player_index());
+				}
+			}
+
+			if (!questController) {
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: Leaving VPAD profile %zu unchanged (controllers=%zu, questAttached=%d)",
+					emulatedController->player_index(), emulatedController->get_controllers().size(), 0);
+				return !emulatedController->get_controllers().empty();
+			}
+
+			const bool mappingUpdated = emulatedController->set_default_mapping(questController);
+			const bool saveResult = InputManager::instance().save(emulatedController->player_index());
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: VPAD profile %zu mappingUpdated=%d saveResult=%d controllers=%zu",
+				emulatedController->player_index(), mappingUpdated ? 1 : 0, saveResult ? 1 : 0, emulatedController->get_controllers().size());
+			try {
+				if (!saveResult) {
+					cemuLog_log(LogType::Force, "OpenXR: Failed to save VPAD profile {}", emulatedController->player_index());
+				}
+			} catch (const std::exception& e) {
+				cemuLog_log(LogType::Force, "OpenXR: Failed to save VPAD profile {}: {}", emulatedController->player_index(), e.what());
+				__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR: Failed to save VPAD profile %zu: %s",
+					emulatedController->player_index(), e.what());
+			}
+			return true;
+		};
+
+		bool hasConfiguredVPAD = false;
+		for (size_t index = 0; index < InputManager::kMaxVPADControllers; ++index) {
+			auto vpadController = InputManager::instance().get_vpad_controller(index);
+			if (!vpadController) {
+				continue;
+			}
+
+			hasConfiguredVPAD = true;
+			if (attachQuestController(vpadController)) {
+				return;
+			}
+		}
+
+		if (hasConfiguredVPAD) {
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: Existing VPAD profiles found, auto-create skipped");
+			return;
+		}
+
+		size_t freeProfileIndex = InputManager::kMaxController;
+		for (size_t index = 0; index < InputManager::kMaxController; ++index) {
+			if (!InputManager::instance().get_controller(index)) {
+				freeProfileIndex = index;
+				break;
+			}
+		}
+
+		if (freeProfileIndex == InputManager::kMaxController) {
+			return;
+		}
+
+		auto questController = ControllerFactory::CreateController(InputAPI::Android, kOpenXRControllerDescriptor, kOpenXRControllerName);
+		if (!questController) {
+			__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR: Failed to create Quest controller for new VPAD profile");
+			return;
+		}
+
+		auto emulatedController = InputManager::instance().set_controller(freeProfileIndex, EmulatedController::Type::VPAD, questController);
+		if (!emulatedController) {
+			__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR: Failed to create new VPAD profile %zu", freeProfileIndex);
+			return;
+		}
+
+		const bool mappingUpdated = emulatedController->set_default_mapping(questController);
+		const bool saveResult = InputManager::instance().save(freeProfileIndex);
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: New VPAD profile %zu mappingUpdated=%d saveResult=%d controllers=%zu",
+			freeProfileIndex, mappingUpdated ? 1 : 0, saveResult ? 1 : 0, emulatedController->get_controllers().size());
+		try {
+			if (!saveResult) {
+				cemuLog_log(LogType::Force, "OpenXR: Failed to save auto-created VPAD profile {}", freeProfileIndex);
+			}
+		} catch (const std::exception& e) {
+			cemuLog_log(LogType::Force, "OpenXR: Failed to save auto-created VPAD profile {}: {}", freeProfileIndex, e.what());
+			__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR: Failed to save auto-created VPAD profile %zu: %s",
+				freeProfileIndex, e.what());
+		}
+		cemuLog_log(LogType::Force, "OpenXR: Auto-configured Quest controller as VPAD on profile {}", freeProfileIndex);
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: Auto-configured Quest controller as VPAD on profile %zu", freeProfileIndex);
+	}
+
+	void EnsureOpenXRControllerMappingsIfReady()
+	{
+		if (!g_openxrManager) {
+			return;
+		}
+
+		if (!s_emulationInitialized.load()) {
+			cemuLog_log(LogType::Force, "OpenXR: Deferring controller auto-mapping until Cemu init completes");
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: Deferring controller auto-mapping until Cemu init completes");
+			return;
+		}
+
+		bool expected = false;
+		if (!s_openxrMappingsApplied.compare_exchange_strong(expected, true)) {
+			return;
+		}
+
+		cemuLog_log(LogType::Force, "OpenXR: Applying controller auto-mapping after Cemu init");
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR: Applying controller auto-mapping after Cemu init");
+
+		try {
+			EnsureOpenXRWiimoteMappings();
+		} catch (const std::exception& e) {
+			cemuLog_log(LogType::Force, "OpenXR: Wiimote auto-mapping failed (non-fatal): {}", e.what());
+			__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR: Wiimote auto-mapping failed (non-fatal): %s", e.what());
+		}
+
+		try {
+			EnsureOpenXRVPADMappings();
+		} catch (const std::exception& e) {
+			cemuLog_log(LogType::Force, "OpenXR: VPAD auto-mapping failed (non-fatal): {}", e.what());
+			__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR: VPAD auto-mapping failed (non-fatal): %s", e.what());
+		}
+	}
+
+	void ForwardOpenXRInputState(const OpenXRManager::ControllerInputState& inputState)
+	{
+		auto* androidControllerProvider = GetAndroidControllerProvider();
+		if (!androidControllerProvider) {
+			return;
+		}
+
+		static const int buttonKeyCodes[] = {
+			AKEYCODE_BUTTON_A,      // Right A
+			AKEYCODE_BUTTON_B,      // Right B
+			AKEYCODE_BUTTON_X,      // Left X
+			AKEYCODE_BUTTON_Y,      // Left Y
+			AKEYCODE_BUTTON_START,  // Menu
+			AKEYCODE_BUTTON_THUMBL, // Left thumbstick click
+			AKEYCODE_BUTTON_THUMBR, // Right thumbstick click
+		};
+
+		for (size_t i = 0; i < (sizeof(buttonKeyCodes) / sizeof(buttonKeyCodes[0])); ++i) {
+			if (inputState.buttons[i] != g_openxrForwardState.buttons[i]) {
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR button[%zu] key=%d pressed=%d",
+					i, buttonKeyCodes[i], inputState.buttons[i] ? 1 : 0);
+				androidControllerProvider->on_key_event(kOpenXRControllerDescriptor, kOpenXRControllerName, buttonKeyCodes[i], inputState.buttons[i]);
+				g_openxrForwardState.buttons[i] = inputState.buttons[i];
+			}
+		}
+
+		const bool currentGripL = inputState.gripL > 0.5f;
+		const bool currentGripR = inputState.gripR > 0.5f;
+		if (currentGripL != g_openxrForwardState.gripL) {
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR gripL pressed=%d", currentGripL ? 1 : 0);
+			androidControllerProvider->on_key_event(kOpenXRControllerDescriptor, kOpenXRControllerName, AKEYCODE_BUTTON_L1, currentGripL);
+			g_openxrForwardState.gripL = currentGripL;
+		}
+		if (currentGripR != g_openxrForwardState.gripR) {
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR gripR pressed=%d", currentGripR ? 1 : 0);
+			androidControllerProvider->on_key_event(kOpenXRControllerDescriptor, kOpenXRControllerName, AKEYCODE_BUTTON_R1, currentGripR);
+			g_openxrForwardState.gripR = currentGripR;
+		}
+
+		static int s_lastPointerVisibility = -1;
+		if (inputState.pointerVisibility != s_lastPointerVisibility) {
+			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR pointer visibility=%d x=%.3f y=%.3f",
+				inputState.pointerVisibility, inputState.pointerX, inputState.pointerY);
+			s_lastPointerVisibility = inputState.pointerVisibility;
+		}
+
+		androidControllerProvider->on_axis_event(kOpenXRControllerDescriptor, kOpenXRControllerName, AMOTION_EVENT_AXIS_LTRIGGER, inputState.triggerL);
+		androidControllerProvider->on_axis_event(kOpenXRControllerDescriptor, kOpenXRControllerName, AMOTION_EVENT_AXIS_RTRIGGER, inputState.triggerR);
+		androidControllerProvider->on_axis_event(kOpenXRControllerDescriptor, kOpenXRControllerName, AMOTION_EVENT_AXIS_X, inputState.thumbstickLX);
+		androidControllerProvider->on_axis_event(kOpenXRControllerDescriptor, kOpenXRControllerName, AMOTION_EVENT_AXIS_Y, -inputState.thumbstickLY);
+		androidControllerProvider->on_axis_event(kOpenXRControllerDescriptor, kOpenXRControllerName, AMOTION_EVENT_AXIS_RX, inputState.thumbstickRX);
+		androidControllerProvider->on_axis_event(kOpenXRControllerDescriptor, kOpenXRControllerName, AMOTION_EVENT_AXIS_RY, -inputState.thumbstickRY);
+		androidControllerProvider->on_position_event(
+			kOpenXRControllerDescriptor,
+			kOpenXRControllerName,
+			inputState.pointerX,
+			inputState.pointerY,
+			ToPositionVisibility(inputState.pointerVisibility));
+		androidControllerProvider->on_motion_event(
+			kOpenXRControllerDescriptor,
+			kOpenXRControllerName,
+			ToMotionSample(inputState.motionR),
+			inputState.motionR.valid);
+		androidControllerProvider->on_motion_event(
+			kOpenXRSecondaryMotionDescriptor,
+			kOpenXRSecondaryMotionName,
+			ToMotionSample(inputState.motionL),
+			inputState.motionL.valid);
+	}
+}
+
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
-Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env, [[maybe_unused]] jclass clazz, jobject activity)
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env, [[maybe_unused]] jclass clazz, jobject activity, jboolean defer_session_start)
 {
 	// Store global ref to Activity for OpenXR
 	if (s_openxrActivity) env->DeleteGlobalRef(s_openxrActivity);
 	s_openxrActivity = env->NewGlobalRef(activity);
-	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> initializeOpenXR called");
-	cemuLog_log(LogType::Force, "OpenXR: Initializing with dynamic loading");
+	s_openxrMappingsApplied.store(false);
+	ResetOpenXRForwardState();
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> initializeOpenXR called (deferSessionStart=%d)", defer_session_start ? 1 : 0);
+	cemuLog_log(LogType::Force, "OpenXR: Initializing with dynamic loading (deferSessionStart={})", defer_session_start ? 1 : 0);
 
 	try {
 		// Initialize global Vulkan (loads function pointers only)
@@ -254,24 +722,37 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeOpenXR(JNIEnv* env
 			return false;
 		}
 
-		// Create OpenXR manager — Phase 1: Vulkan objects only, NO session
 		g_openxrManager = std::make_unique<OpenXRManager>();
 
-		if (!g_openxrManager->InitializeVulkanOnly(s_openxrActivity)) {
-			cemuLog_log(LogType::Force, "OpenXR: Failed to create Vulkan objects");
-			g_openxrManager.reset();
-			return false;
+		if (defer_session_start) {
+			if (!g_openxrManager->InitializeVulkanOnly(s_openxrActivity)) {
+				cemuLog_log(LogType::Force, "OpenXR: Failed to create deferred VR Vulkan objects");
+				g_openxrManager.reset();
+				return false;
+			}
+
+			cemuLog_log(LogType::Force, "OpenXR: Vulkan objects created (session deferred until renderer ready)");
+			cemuLog_log(LogType::Force, "OpenXR: Instance={:p} PhysDevice={:p} Device={:p} QueueFamily={}",
+				(void*)g_openxrManager->GetVkInstance(), (void*)g_openxrManager->GetVkPhysicalDevice(),
+				(void*)g_openxrManager->GetVkDevice(), g_openxrManager->GetQueueFamilyIndex());
+		} else {
+			if (!g_openxrManager->Initialize(s_openxrActivity)) {
+				cemuLog_log(LogType::Force, "OpenXR: Failed to initialize input session");
+				g_openxrManager.reset();
+				return false;
+			}
+
+			cemuLog_log(LogType::Force, "OpenXR: Input session created and ready for polling");
 		}
 
-		cemuLog_log(LogType::Force, "OpenXR: Vulkan objects created (session deferred until renderer ready)");
-		cemuLog_log(LogType::Force, "OpenXR: Instance={:p} PhysDevice={:p} Device={:p} QueueFamily={}",
-			(void*)g_openxrManager->GetVkInstance(), (void*)g_openxrManager->GetVkPhysicalDevice(),
-			(void*)g_openxrManager->GetVkDevice(), g_openxrManager->GetQueueFamilyIndex());
+		EnsureOpenXRControllerMappingsIfReady();
 
 		return true;
 
 	} catch (const std::exception& e) {
 		cemuLog_log(LogType::Force, fmt::format("OpenXR: Exception during initialization: {}", e.what()));
+		__android_log_print(ANDROID_LOG_ERROR, "Cemu", "OpenXR: Exception during initialization: %s", e.what());
+		s_openxrMappingsApplied.store(false);
 		g_openxrManager.reset();
 		return false;
 	}
@@ -281,6 +762,11 @@ extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_shutdownOpenXR([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
 	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", ">>> shutdownOpenXR called");
+	ForwardOpenXRInputState({});
+	ResetOpenXRForwardState();
+	s_openxrMappingsApplied.store(false);
+	StopOpenXRKeepaliveThread();
+	g_vrGameRendering.store(false);
 	if (g_openxrManager) {
 		cemuLog_log(LogType::Force, "OpenXR: Shutting down");
 		g_openxrManager.reset();
@@ -300,6 +786,8 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRendererForVR(JNIE
 	// Wait for emulation init to complete
 	while (!s_emulationInitialized.load())
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+	EnsureOpenXRControllerMappingsIfReady();
 
 	// Load global Vulkan function pointers
 	InitializeGlobalVulkan();
@@ -326,76 +814,68 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_initializeRendererForVR(JNIE
 	windowInfo.width = windowInfo.phys_width = 1920;
 	windowInfo.height = windowInfo.phys_height = 1080;
 
-	// 1. Start OpenXR session FIRST (creates swapchain)
-	if (!g_openxrManager->StartSession()) {
-		__android_log_print(ANDROID_LOG_ERROR, "Cemu", "Failed to start OpenXR session");
-		return;
-	}
+	// NO OpenXR session yet — game will load without VR frame deadline
+	// Session starts on first SwapBuffer call (deferred start)
 
-	// 2. Begin session and start keepalive IMMEDIATELY
-	for (int i = 0; i < 20; i++) {
-		g_openxrManager->PollEvents();
-		if (g_openxrManager->IsSessionRunning()) break;
-		std::this_thread::sleep_for(std::chrono::milliseconds(50));
-	}
-
-	// Keepalive: submit EMPTY frames (zero layers, no Vulkan usage)
-	// This avoids Vulkan thread conflicts with Initialize() on the main thread
-	// Quest tolerates empty frames for ~2-3 seconds which is enough for init
-	std::atomic<bool> keepaliveRunning{true};
-	std::thread keepaliveThread([&keepaliveRunning]() {
-		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive started (empty frames)");
-		while (keepaliveRunning.load() && g_openxrManager) {
-			g_openxrManager->PollEvents();
-			if (g_openxrManager->IsSessionRunning())
-				g_openxrManager->SubmitEmptyFrame();
-			else
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		}
-		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR keepalive ended");
-	});
-
-	// 3. Now do heavy init while keepalive keeps Quest happy
-	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Initialize() while keepalive runs");
+	// Create a placeholder OpenXR-backed surface so the Latte thread can run the
+	// normal renderer initialization path against a valid render pass later.
 	{
 		std::vector<VkImage> dummyImages;
 		VulkanRenderer::GetInstance()->InitializeSurfaceFromOpenXR(dummyImages, 1920, 1080, VK_FORMAT_R8G8B8A8_SRGB);
 	}
-	VulkanRenderer::GetInstance()->Initialize();
-	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Initialize() complete!");
 
-	// 4. Stop keepalive - we'll wire up real swapchain now
-	keepaliveRunning.store(false);
-	keepaliveThread.join();
-	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Keepalive stopped, wiring swapchain");
-
-	// 5. Wire real swapchain + callbacks + restart keepalive for game loading
-	{
-		auto swapImages = g_openxrManager->GetSwapchainImages();
-		uint32_t swapW, swapH;
-		g_openxrManager->GetSwapchainSize(swapW, swapH);
-		VulkanRenderer::GetInstance()->InitializeSurfaceFromOpenXR(swapImages, swapW, swapH, VK_FORMAT_R8G8B8A8_SRGB);
-	}
+	// Set up OpenXR callbacks with DEFERRED session start
+	// Session begins on first SwapBuffer call — no timeout during loading
 	{
 		auto& ci = VulkanRenderer::GetInstance()->GetChainInfo(true);
 		ci.SetOpenXRCallbacks(
 			g_openxrManager.get(),
 			[](void* m) { static_cast<OpenXRManager*>(m)->PollEvents(); },
 			[](void* m) -> bool { return static_cast<OpenXRManager*>(m)->IsSessionRunning(); },
-			[](void* m) -> bool { return static_cast<OpenXRManager*>(m)->BeginFrame(); },
-			[](void* m) -> uint32_t { return static_cast<OpenXRManager*>(m)->AcquireSwapchainImage(); },
+			[](void* m) -> bool {
+				auto* mgr = static_cast<OpenXRManager*>(m);
+				return BeginOpenXRRenderFrame(mgr);
+			},
+			[](void* m) -> uint32_t { return AcquireOpenXRRenderFrameImage(static_cast<OpenXRManager*>(m)); },
 			[](void* m) { static_cast<OpenXRManager*>(m)->ReleaseSwapchainImage(); },
-			[](void* m) {
-				XrPosef pose = {{0,0,0,1},{0,0,-2}};
-				XrExtent2Df size = {2.0f, 1.125f};
-				static_cast<OpenXRManager*>(m)->EndFrame(pose, size);
+			[](void* m) { EndOpenXRRenderFrame(static_cast<OpenXRManager*>(m)); },
+			// Deferred start: called on first SwapBuffer
+			[](void* m) -> bool {
+				auto* mgr = static_cast<OpenXRManager*>(m);
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Starting session (deferred)...");
+				if (!mgr->StartSession()) return false;
+				// Wire real swapchain images
+				auto images = mgr->GetSwapchainImages();
+				uint32_t w, h;
+				mgr->GetSwapchainSize(w, h);
+				VulkanRenderer::GetInstance()->InitializeSurfaceFromOpenXR(images, w, h, VK_FORMAT_R8G8B8A8_SRGB);
+				// Re-set callbacks on new swapchain (without start callback this time)
+				auto& chain = VulkanRenderer::GetInstance()->GetChainInfo(true);
+				chain.SetOpenXRCallbacks(
+					mgr,
+					[](void* m2) { static_cast<OpenXRManager*>(m2)->PollEvents(); },
+					[](void* m2) -> bool { return static_cast<OpenXRManager*>(m2)->IsSessionRunning(); },
+					[](void* m2) -> bool {
+						return BeginOpenXRRenderFrame(static_cast<OpenXRManager*>(m2));
+					},
+					[](void* m2) -> uint32_t { return AcquireOpenXRRenderFrameImage(static_cast<OpenXRManager*>(m2)); },
+					[](void* m2) { static_cast<OpenXRManager*>(m2)->ReleaseSwapchainImage(); },
+					[](void* m2) { EndOpenXRRenderFrame(static_cast<OpenXRManager*>(m2)); }
+				);
+				// Poll events to begin session
+				for (int i = 0; i < 20; i++) {
+					mgr->PollEvents();
+					if (mgr->IsSessionRunning()) break;
+					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+				}
+				if (mgr->IsSessionRunning())
+					StartOpenXRKeepaliveThread();
+				__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Session started! running=%d", mgr->IsSessionRunning() ? 1 : 0);
+				return mgr->IsSessionRunning();
 			}
 		);
 	}
-
-	// No keepalive — game's SwapBuffer will submit frames directly
-	// The game needs to render its first frame before Quest's timeout (~2.5s from session start)
-	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: No keepalive — game must render within 2.5s");
+	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Ready! Session deferred until first SwapBuffer");
 
 	__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "VR: Fully ready! session=%d", g_openxrManager->IsSessionRunning() ? 1 : 0);
 }
@@ -439,67 +919,11 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_pollOpenXRInput(JNIEnv* env,
 	}
 
 	// Poll input actions
-	g_openxrManager->PollInput();
-
-	// Get current input state
-	auto inputState = g_openxrManager->GetInputState();
-
-	// Get Android controller provider
-	auto apiProvider = InputManager::instance().get_api_provider(InputAPI::Android);
-	auto androidControllerProvider = dynamic_cast<AndroidControllerProvider*>(apiProvider.get());
-	if (!androidControllerProvider) {
+	if (!g_openxrManager->PollInput()) {
 		return;
 	}
 
-	const std::string descriptor = "openxr_quest_controller";
-	const std::string name = "Quest Controller";
-
-	// Map buttons to Android keycodes
-	static const int buttonKeyCodes[] = {
-		96,  // AKEYCODE_BUTTON_A (Right A)
-		97,  // AKEYCODE_BUTTON_B (Right B)
-		99,  // AKEYCODE_BUTTON_X (Left X)
-		100, // AKEYCODE_BUTTON_Y (Left Y)
-		108, // AKEYCODE_BUTTON_START (Menu)
-		106, // AKEYCODE_BUTTON_THUMBL (Left thumbstick click)
-		107, // AKEYCODE_BUTTON_THUMBR (Right thumbstick click)
-	};
-
-	static bool previousButtonStates[7] = {false};
-
-	// Send button events only on state changes
-	for (int i = 0; i < 7; ++i) {
-		if (inputState.buttons[i] != previousButtonStates[i]) {
-			__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "OpenXR button %d (keycode %d) = %d", i, buttonKeyCodes[i], inputState.buttons[i] ? 1 : 0);
-			androidControllerProvider->on_key_event(descriptor, name, buttonKeyCodes[i], inputState.buttons[i]);
-			previousButtonStates[i] = inputState.buttons[i];
-		}
-	}
-
-	// Handle grip buttons as digital buttons (when grip > 0.5)
-	static bool previousGripL = false;
-	static bool previousGripR = false;
-
-	bool currentGripL = inputState.gripL > 0.5f;
-	bool currentGripR = inputState.gripR > 0.5f;
-
-	if (currentGripL != previousGripL) {
-		androidControllerProvider->on_key_event(descriptor, name, 102, currentGripL); // AKEYCODE_BUTTON_L1
-		previousGripL = currentGripL;
-	}
-
-	if (currentGripR != previousGripR) {
-		androidControllerProvider->on_key_event(descriptor, name, 103, currentGripR); // AKEYCODE_BUTTON_R1
-		previousGripR = currentGripR;
-	}
-
-	// Send axis events (always send, as small changes matter for analog inputs)
-	androidControllerProvider->on_axis_event(descriptor, name, 17, inputState.triggerL);  // AMOTION_EVENT_AXIS_LTRIGGER
-	androidControllerProvider->on_axis_event(descriptor, name, 18, inputState.triggerR);  // AMOTION_EVENT_AXIS_RTRIGGER
-	androidControllerProvider->on_axis_event(descriptor, name, 0, inputState.thumbstickLX);  // AMOTION_EVENT_AXIS_X
-	androidControllerProvider->on_axis_event(descriptor, name, 1, -inputState.thumbstickLY); // AMOTION_EVENT_AXIS_Y (invert Y)
-	androidControllerProvider->on_axis_event(descriptor, name, 12, inputState.thumbstickRX); // AMOTION_EVENT_AXIS_RX
-	androidControllerProvider->on_axis_event(descriptor, name, 13, -inputState.thumbstickRY); // AMOTION_EVENT_AXIS_RY (invert Y)
+	ForwardOpenXRInputState(g_openxrManager->GetInputState());
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
@@ -623,6 +1047,9 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_prepareTitle([[maybe_unused]
 	// Wait for background init to complete
 	while (!s_emulationInitialized.load())
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+	EnsureOpenXRControllerMappingsIfReady();
+
 	fs::path launchPath = JNIUtils::toString(env, launch_path);
 
 	TitleInfo launchTitle{launchPath};

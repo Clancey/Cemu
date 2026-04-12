@@ -114,6 +114,11 @@ object NativeInput {
         const val DISABLED: Int = -1
     }
 
+    object WiimoteDeviceType {
+        const val CORE: Int = 0
+        const val NUNCHUK: Int = 1
+    }
+
     object Axis {
         const val DPAD_UP: Int = 34
         const val DPAD_DOWN: Int = 35
@@ -159,6 +164,12 @@ object NativeInput {
 
     @JvmStatic
     external fun getControllerType(index: Int): Int
+
+    @JvmStatic
+    external fun setWiimoteDeviceType(index: Int, deviceType: Int)
+
+    @JvmStatic
+    external fun getWiimoteDeviceType(index: Int): Int
 
     @JvmStatic
     val WPADControllersCount: Int

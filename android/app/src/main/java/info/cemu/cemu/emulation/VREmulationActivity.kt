@@ -110,7 +110,7 @@ class VREmulationActivity : Activity() {
             Thread {
                 try {
                     android.util.Log.d("Cemu", "VR: Starting OpenXR init")
-                    val result = info.cemu.cemu.nativeinterface.NativeEmulation.initializeOpenXR(this)
+                    val result = info.cemu.cemu.nativeinterface.NativeEmulation.initializeOpenXR(this, true)
                     android.util.Log.d("Cemu", "VR: OpenXR init result: $result")
 
                     if (result) {
@@ -131,8 +131,6 @@ class VREmulationActivity : Activity() {
                         info.cemu.cemu.nativeinterface.NativeEmulation.launchTitle()
                         android.util.Log.d("Cemu", "VR: Game launched!")
 
-                        // Input polling disabled for now — conflicts with keepalive thread
-                        // TODO: integrate input polling into the keepalive frame loop
                     } else {
                         android.util.Log.e("Cemu", "VR: OpenXR initialization failed")
                     }
@@ -143,31 +141,9 @@ class VREmulationActivity : Activity() {
         }
     }
 
-    @Volatile private var inputPollingRunning = false
-    private var inputPollingThread: Thread? = null
-
-    private fun startInputPolling() {
-        inputPollingRunning = true
-        inputPollingThread = Thread {
-            android.util.Log.d("Cemu", "VR: Input polling started")
-            while (inputPollingRunning) {
-                try {
-                    info.cemu.cemu.nativeinterface.NativeEmulation.pollOpenXRInput()
-                } catch (e: Exception) {
-                    android.util.Log.e("Cemu", "VR: Input poll error: ${e.message}")
-                    break
-                }
-                Thread.sleep(16) // ~60Hz
-            }
-            android.util.Log.d("Cemu", "VR: Input polling stopped")
-        }.also { it.start() }
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         android.util.Log.d("Cemu", "VREmulationActivity.onDestroy() called")
-        inputPollingRunning = false
-        inputPollingThread?.join(1000)
         sensorManager.pauseListening()
 
         try {

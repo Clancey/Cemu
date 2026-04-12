@@ -4,12 +4,46 @@
 
 AndroidController::AndroidController(std::string_view deviceDescriptor, std::string_view deviceName)
     : Controller<AndroidControllerProvider>(deviceDescriptor, deviceName),
-      m_deviceDescriptor(deviceDescriptor) {}
+      m_deviceDescriptor(deviceDescriptor)
+{
+    if (m_deviceDescriptor.rfind("openxr_quest_controller", 0) == 0) {
+        m_settings.motion = true;
+    }
+}
 
 ControllerState AndroidController::raw_state()
 {
-    static auto androidControllerProvider = dynamic_cast<AndroidControllerProvider *>(InputManager::instance().get_api_provider(InputAPI::Android).get());
-    return androidControllerProvider->get_controller_state(m_deviceDescriptor);
+    return m_provider->get_controller_state(m_deviceDescriptor);
+}
+
+bool AndroidController::has_motion()
+{
+    return m_provider->has_motion(m_deviceDescriptor);
+}
+
+MotionSample AndroidController::get_motion_sample()
+{
+    return m_provider->get_motion_sample(m_deviceDescriptor);
+}
+
+bool AndroidController::has_position()
+{
+    return m_provider->has_position(m_deviceDescriptor);
+}
+
+glm::vec2 AndroidController::get_position()
+{
+    return m_provider->get_position(m_deviceDescriptor);
+}
+
+glm::vec2 AndroidController::get_prev_position()
+{
+    return m_provider->get_prev_position(m_deviceDescriptor);
+}
+
+PositionVisibility AndroidController::GetPositionVisibility()
+{
+    return m_provider->get_position_visibility(m_deviceDescriptor);
 }
 
 std::string AndroidController::get_button_name(uint64 button) const

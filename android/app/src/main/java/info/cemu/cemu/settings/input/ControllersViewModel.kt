@@ -26,6 +26,9 @@ class ControllersViewModel(val controllerIndex: Int) : ViewModel() {
     private val _controls = MutableStateFlow<Map<Int, String>>(emptyMap())
     val controls = _controls.asStateFlow()
 
+    private val _wiimoteDeviceType = MutableStateFlow(NativeInput.WiimoteDeviceType.CORE)
+    val wiimoteDeviceType = _wiimoteDeviceType.asStateFlow()
+
     private val _controllers = MutableStateFlow<List<Pair<String, Int>>?>(null)
     val controllers = _controllers.asStateFlow()
 
@@ -51,6 +54,14 @@ class ControllersViewModel(val controllerIndex: Int) : ViewModel() {
             return
         _controllerType.value = controllerType
         NativeInput.setControllerType(controllerIndex, controllerType)
+        refreshControllerData()
+    }
+
+    fun setWiimoteDeviceType(deviceType: Int) {
+        if (_controllerType.value != NativeInput.EmulatedControllerType.WIIMOTE || _wiimoteDeviceType.value == deviceType)
+            return
+
+        NativeInput.setWiimoteDeviceType(controllerIndex, deviceType)
         refreshControllerData()
     }
 
@@ -101,6 +112,11 @@ class ControllersViewModel(val controllerIndex: Int) : ViewModel() {
         vpadCount = NativeInput.VPADControllersCount
         wpadCount = NativeInput.WPADControllersCount
         _controls.value = NativeInput.getControllerMappings(controllerIndex)
+        _wiimoteDeviceType.value = if (_controllerType.value == NativeInput.EmulatedControllerType.WIIMOTE) {
+            NativeInput.getWiimoteDeviceType(controllerIndex)
+        } else {
+            NativeInput.WiimoteDeviceType.CORE
+        }
     }
 
     fun isControllerTypeAllowed(controllerType: Int): Boolean {

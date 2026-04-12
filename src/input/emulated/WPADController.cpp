@@ -1,9 +1,52 @@
+#include <algorithm>
+#include <cmath>
+
 #include <api/Controller.h>
 #include "input/emulated/WPADController.h"
 
 #include "input/emulated/ClassicController.h"
 #include "input/emulated/ProController.h"
 #include "input/emulated/WiimoteController.h"
+
+namespace
+{
+	uint16 EncodeWPADAcceleration(float value)
+	{
+		const long encoded = std::lround(512.0f + (value * 128.0f));
+		return static_cast<uint16>(std::clamp(encoded, 0l, 1023l));
+	}
+
+	void FillWPADAcceleration(WPADStatus_t& status, MotionSample motionSample)
+	{
+		float acceleration[3];
+		motionSample.getAccelerometer(acceleration);
+		status.accX = EncodeWPADAcceleration(acceleration[0]);
+		status.accY = EncodeWPADAcceleration(acceleration[1]);
+		status.accZ = EncodeWPADAcceleration(acceleration[2]);
+	}
+
+	void FillWPADPointer(WPADStatus_t& status, const glm::vec2& position, PositionVisibility visibility)
+	{
+		if (visibility == PositionVisibility::NONE)
+			return;
+
+		const uint16 centerX = static_cast<uint16>(std::lround(std::clamp(position.x, 0.0f, 1.0f) * 1023.0f));
+		const uint16 centerY = static_cast<uint16>(std::lround(std::clamp(position.y, 0.0f, 1.0f) * 767.0f));
+		status.obj[0].x = centerX;
+		status.obj[0].y = centerY;
+		status.obj[0].size = 2;
+		status.obj[0].traceId = 0;
+
+		if (visibility == PositionVisibility::FULL)
+		{
+			const long secondX = std::clamp<long>(static_cast<long>(centerX) + 24, 0, 1023);
+			status.obj[1].x = static_cast<uint16>(secondX);
+			status.obj[1].y = centerY;
+			status.obj[1].size = 2;
+			status.obj[1].traceId = 1;
+		}
+	}
+}
 
 WPADController::WPADController(size_t player_index, WPADDataFormat data_format)
 	: EmulatedController(player_index), m_data_format(data_format)
@@ -17,7 +60,7 @@ WPADDataFormat WPADController::get_default_data_format() const
 	case kWAPDevCore:
 		return kDataFormat_CORE_ACC_DPD;
 	case kWAPDevFreestyle:
-		return kDataFormat_FREESTYLE_ACC;
+		return kDataFormat_FREESTYLE_ACC_DPD;
 	case kWAPDevClassic:
 		return kDataFormat_CLASSIC;
 	case kWAPDevMPLS:
@@ -146,8 +189,13 @@ void WPADController::WPADRead(WPADStatus_t* status)
 	case kDataFormat_MPLS:
 	{
 		WPADMPStatus_t* ex_status = (WPADMPStatus_t*)status;
+		memset(ex_status, 0x00, sizeof(*ex_status));
+		ex_status->button = button;
 		ex_status->stat = 1; // attached
-		// TODO
+		auto axis = get_axis();
+		axis *= 127.0f;
+		ex_status->status.fs.fsStickX = (sint8)axis.x;
+		ex_status->status.fs.fsStickY = (sint8)axis.y;
 		break;
 	}
 	case kDataFormat_URCC:
@@ -173,6 +221,43 @@ void WPADController::WPADRead(WPADStatus_t* status)
 	}
 	default:
 		cemu_assert(false);
+	}
+
+	if (has_motion())
+	{
+		FillWPADAcceleration(*status, get_motion_data());
+	}
+
+	const auto visibility = GetPositionVisibility();
+	if (has_position() && visibility != PositionVisibility::NONE)
+	{
+		FillWPADPointer(*status, get_position(), visibility);
+	}
+
+	if (has_second_motion())
+	{
+		auto secondMotion = get_second_motion_data();
+		float acceleration[3];
+		secondMotion.getAccelerometer(acceleration);
+
+		if (m_data_format == kDataFormat_FREESTYLE_ACC || m_data_format == kDataFormat_FREESTYLE_ACC_DPD ||
+			m_data_format == kDataFormat_FREESTYLE || m_data_format == kDataFormat_MPLS)
+		{
+			if (m_data_format == kDataFormat_MPLS)
+			{
+				auto* ex_status = reinterpret_cast<WPADMPStatus_t*>(status);
+				ex_status->status.fs.fsAccX = EncodeWPADAcceleration(acceleration[0]);
+				ex_status->status.fs.fsAccY = EncodeWPADAcceleration(acceleration[1]);
+				ex_status->status.fs.fsAccZ = EncodeWPADAcceleration(acceleration[2]);
+			}
+			else
+			{
+				auto* ex_status = reinterpret_cast<WPADFSStatus_t*>(status);
+				ex_status->fsAccX = EncodeWPADAcceleration(acceleration[0]);
+				ex_status->fsAccY = EncodeWPADAcceleration(acceleration[1]);
+				ex_status->fsAccZ = EncodeWPADAcceleration(acceleration[2]);
+			}
+		}
 	}
 
 	status->dev = get_device_type();

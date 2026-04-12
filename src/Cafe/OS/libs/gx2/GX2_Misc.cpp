@@ -13,6 +13,10 @@
 #include "GX2_Memory.h"
 #include "GX2_Texture.h"
 
+#if BOOST_PLAT_ANDROID
+#include <android/log.h>
+#endif
+
 void gx2Export_GX2SetSwapInterval(PPCInterpreter_t* hCPU)
 {
 	cemuLog_log(LogType::GX2, "GX2SetSwapInterval({})", hCPU->gpr[3]);
@@ -96,6 +100,9 @@ namespace GX2
 
 	void GX2Init(betype<GX2InitArg>* initArgStream)
 	{
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "GX2Init: begin gx2InitCalled=%u", LatteGPUState.gx2InitCalled);
+#endif
 		if (LatteGPUState.gx2InitCalled)
 		{
 			cemuLog_logDebug(LogType::Force, "GX2Init() called while already initialized");
@@ -158,6 +165,9 @@ namespace GX2
 		GX2::GX2MEMAllocatorsInit();
 		// let GPU know that GX2 is initialized
 		LatteGPUState.gx2InitCalled++;
+#if BOOST_PLAT_ANDROID
+		__android_log_print(ANDROID_LOG_DEBUG, "Cemu", "GX2Init: end gx2InitCalled=%u", LatteGPUState.gx2InitCalled);
+#endif
 		// run tests
 		_test_AddrLib();
 	}

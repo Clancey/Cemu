@@ -29,7 +29,7 @@ object NativeEmulation {
     external fun initializeRendererForVR()
 
     @JvmStatic
-    external fun initializeOpenXR(activity: android.app.Activity): Boolean
+    external fun initializeOpenXR(activity: android.app.Activity, deferSessionStart: Boolean): Boolean
 
     @JvmStatic
     external fun shutdownOpenXR()

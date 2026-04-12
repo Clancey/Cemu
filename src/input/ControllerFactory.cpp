@@ -25,7 +25,7 @@
 #include "input/api/Wiimote/NativeWiimoteController.h"
 #endif
 
-#if __ANDROID
+#ifdef __ANDROID__
 #include "input/api/Android/AndroidController.h"
 #include "input/api/Android/AndroidControllerProvider.h"
 #endif
@@ -118,7 +118,7 @@ ControllerPtr ControllerFactory::CreateController(InputAPI::Type api, std::strin
 			return std::make_shared<NativeWiimoteController>(index);
 		}
 #endif
-#if __ANDROID
+#ifdef __ANDROID__
 	case InputAPI::Android:
 		return std::make_shared<AndroidController>(uuid, display_name);
 #endif
@@ -197,7 +197,7 @@ ControllerProviderPtr ControllerFactory::CreateControllerProvider(InputAPI::Type
 	case InputAPI::Wiimote:
 		return std::make_shared<WiimoteControllerProvider>();
 #endif
-#if __ANDROID
+#ifdef __ANDROID__
 	case InputAPI::Android:
 		return std::make_shared<AndroidControllerProvider>();
 #endif
